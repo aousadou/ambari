@@ -127,6 +127,7 @@
                 <artifactId>apache-rat-plugin</artifactId>
                 <configuration>
                     <excludes>
+			<exclude>**/*.iml</exclude>
                         <exclude>**/*.json</exclude>
                     </excludes>
                 </configuration>
