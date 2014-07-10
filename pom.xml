@@ -178,6 +178,7 @@
             <exclude>version</exclude>
             <!--IDE and GIT files-->
             <exclude>.idea/</exclude>
+	    <exclude>**/*.iml</exclude>
             <exclude>.git/</exclude>
             <exclude>**/.gitignore</exclude>
             <exclude>**/.gitattributes</exclude>
