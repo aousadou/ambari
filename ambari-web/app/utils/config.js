@@ -96,7 +96,7 @@ App.config = Em.Object.create({
     // HCatalog should be eventually made a part of Hive Service. See AMBARI-6302 description for further details
     var servicesWithConfigTypes = services.filter(function (service) {
       var configtypes = service.get('configTypes');
-      return configtypes && !!configtypes.length && service.get('serviceName') != 'HCATALOG';
+      return configtypes && !!Object.keys(configtypes).length && service.get('serviceName') != 'HCATALOG';
     }, this);
     var serviceTabs = servicesWithConfigTypes.concat(nonServicePages);
     serviceTabs.forEach(function (stackService) {
@@ -124,7 +124,7 @@ App.config = Em.Object.create({
     // HCatalog should be eventually made a part of Hive Service. See AMBARI-6302 description for further details
     var servicesWithConfigTypes = stackServices.filter(function (service) {
       var configtypes = service.get('configTypes');
-      return configtypes && !!configtypes.length && service.get('serviceName') != 'HCATALOG';
+      return configtypes && !!Object.keys(configtypes).length && service.get('serviceName') != 'HCATALOG';
     }, this);
 
     var allTabs = servicesWithConfigTypes.concat(nonServiceTab);
@@ -303,11 +303,14 @@ App.config = Em.Object.create({
     tags.forEach(function (_tag) {
       var isAdvanced = null;
       var filename = (filenameExceptions.contains(_tag.siteName)) ? _tag.siteName : _tag.siteName + ".xml";
-      var properties = configGroups.filter(function (serviceConfigProperties) {
+      var siteConfig = configGroups.filter(function (serviceConfigProperties) {
         return _tag.tagName === serviceConfigProperties.tag && _tag.siteName === serviceConfigProperties.type;
       });
+      siteConfig = siteConfig[0] || {};
 
-      properties = (properties.length) ? properties.objectAt(0).properties : {};
+      var attributes = siteConfig['properties_attributes'] || {};
+      var finalAttributes = attributes.final || {};
+      var properties = siteConfig.properties || {};
       for (var index in properties) {
         var configsPropertyDef = null;
         var preDefinedConfig = [];
@@ -336,6 +339,7 @@ App.config = Em.Object.create({
           isUserProperty: false,
           isOverridable: true,
           isRequired: true,
+          isFinal: finalAttributes[index] === "true",
           showLabel: true,
           serviceName: serviceName,
           belongsToService: []
@@ -808,6 +812,7 @@ App.config = Em.Object.create({
       }, this);
     }
   },
+
   /**
    * Generate serviceProperties save it to localDB
    * called form stepController step6WizardController
@@ -854,6 +859,7 @@ App.config = Em.Object.create({
             value: item.property_value,
             description: item.property_description,
             isVisible: item.isVisible,
+            isFinal: item.final === "true",
             filename: item.filename || fileName
           });
         }
@@ -1012,7 +1018,7 @@ App.config = Em.Object.create({
   getServiceNameByConfigType: function (type) {
     var preDefinedServiceConfigs = this.get('preDefinedServiceConfigs');
     var service = preDefinedServiceConfigs.find(function (serviceConfig) {
-      return (serviceConfig.get('configTypes').contains(type));
+      return !!serviceConfig.get('configTypes')[type];
     }, this);
     return service && service.get('serviceName');
   },
