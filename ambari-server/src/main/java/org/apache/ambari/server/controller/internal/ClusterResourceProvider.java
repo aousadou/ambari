@@ -889,6 +889,7 @@ public class ClusterResourceProvider extends BaseBlueprintProcessor {
     propertyUpdaters.put("jtnode_heapsize", new MPropertyUpdater());
     propertyUpdaters.put("hbase_master_heapsize", new MPropertyUpdater());
     propertyUpdaters.put("hbase_regionserver_heapsize", new MPropertyUpdater());
+    propertyUpdaters.put("hbase_regionserver_xmn_max", new MPropertyUpdater());
   }
 
   /**
