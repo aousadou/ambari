@@ -533,8 +533,8 @@ module.exports =
     },
     {
       "id": "site property",
-      "name": "hbase.regionserver.global.memstore.size",
-      "displayName": "hbase.regionserver.global.memstore.size",
+      "name": "hbase.regionserver.global.memstore.upperLimit",
+      "displayName": "hbase.regionserver.global.memstore.upperLimit",
       "description": "",
       "defaultValue": "",
       "displayType": "float",
