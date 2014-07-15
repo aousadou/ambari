@@ -50,7 +50,7 @@ master_heapsize = config['configurations']['global']['hbase_master_heapsize']
 
 regionserver_heapsize = config['configurations']['global']['hbase_regionserver_heapsize']
 regionserver_xmn_max = config['configurations']['global']['hbase_regionserver_xmn_max']
-regionserver_xmn_percent = config['configurations']['global']['hbase_regionserver_xmn_percent']
+regionserver_xmn_percent = config['configurations']['global']['hbase_regionserver_xmn_ratio']
 regionserver_xmn_size = calc_xmn_from_xms(regionserver_heapsize, regionserver_xmn_percent, regionserver_xmn_max)
 
 pid_dir = status_params.pid_dir

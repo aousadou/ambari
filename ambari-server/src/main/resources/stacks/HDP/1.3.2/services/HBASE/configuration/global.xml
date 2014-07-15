@@ -42,9 +42,9 @@
     <description>HBase RegionServer max limit for minimum heap size.</description>
   </property>
   <property>
-    <name>hbase_regionserver_xmn_percent</name>
+    <name>hbase_regionserver_xmn_ratio</name>
     <value>0.2</value>
-    <description>HBase RegionServer minimum heap size calculate in percentage of heap size.</description>
+    <description>HBase RegionServer minimum heap size calculate in percentage of max heap size.</description>
   </property>
   <property>
     <name>hbase_master_heapsize</name>

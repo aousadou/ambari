@@ -589,9 +589,9 @@ module.exports =
     },
     {
       "id": "puppet var",
-      "name": "hbase_regionserver_xmn_percent",
+      "name": "hbase_regionserver_xmn_ratio",
       "displayName": "RegionServers Xmn is in percentage of Xmx",
-      "description": "Java minimum heap size for RegionServers is calculate with on percent of heap size",
+      "description": "Java minimum heap size for RegionServers is calculate on percent of max heap size",
       "defaultValue": "0.2",
       "displayType": "float",
       "isVisible": true,

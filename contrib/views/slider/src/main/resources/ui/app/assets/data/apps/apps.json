@@ -149,7 +149,7 @@
           "hbase_master_heapsize" : "1024m",
           "hbase_regionserver_heapsize" : "1024m",
           "hbase_regionserver_xmn_size" : "512m",
-          "hbase_regionserver_xmn_percent" : "0.2",
+          "hbase_regionserver_xmn_ratio" : "0.2",
           "security_enabled" : "false",
           "user_group" : "hadoop"
         },

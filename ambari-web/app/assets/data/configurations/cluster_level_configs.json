@@ -534,7 +534,7 @@
         "regionserver_handlers" : "30",
         "hbase_regionserver_heapsize" : "1024m",
         "hbase_regionserver_xmn_max": "512m",
-        "hbase_regionserver_xmn_percent": "0.2",
+        "hbase_regionserver_xmn_ratio": "0.2",
         "dfs_include" : "dfs.include",
         "dfs_webhdfs_enabled" : "false",
         "scheduler_name" : "org.apache.hadoop.mapred.CapacityTaskScheduler",

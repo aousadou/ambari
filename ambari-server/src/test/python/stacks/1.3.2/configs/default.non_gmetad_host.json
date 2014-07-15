@@ -162,7 +162,7 @@
             "oozie_pid_dir": "/var/run/oozie", 
             "hbase_regionserver_heapsize": "1024m",
             "hbase_regionserver_xmn_max": "512m",
-            "hbase_regionserver_xmn_percent": "0.2",
+            "hbase_regionserver_xmn_ratio": "0.2",
             "dtnode_heapsize": "1024m", 
             "jtnode_heapsize": "1024m", 
             "hcat_log_dir": "/var/log/webhcat", 
