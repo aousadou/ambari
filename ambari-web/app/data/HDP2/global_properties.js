@@ -485,12 +485,11 @@ module.exports =
      "isVisible": true,
      "domain": "regionserver-global",
      "serviceName": "HBASE",
-     "category": "HBASE_REGIONSERVER",
-     "index": 2
+     "category": "HBASE_REGIONSERVER"
     },
     {
       "id": "puppet var",
-      "name": "hbase_regionserver_xmn_percentage",
+      "name": "hbase_regionserver_xmn_percent",
       "displayName": "RegionServers Xmn percentage of Xmx",
       "description": "Java minimum heap size for RegionServers is calculate with on percent of heap size",
       "defaultValue": "0.2",
@@ -498,8 +497,7 @@ module.exports =
       "isVisible": true,
       "domain": "regionserver-global",
       "serviceName": "HBASE",
-      "category": "HBASE_REGIONSERVER",
-      "index": 3
+      "category": "HBASE_REGIONSERVER"
     },
     {
       "id": "puppet var",
