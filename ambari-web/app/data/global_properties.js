@@ -584,7 +584,8 @@ module.exports =
       "isVisible": true,
       "domain": "regionserver-global",
       "serviceName": "HBASE",
-      "category": "HBASE_REGIONSERVER"
+      "category": "HBASE_REGIONSERVER",
+      "index": 6
     },
     {
       "id": "puppet var",
@@ -596,7 +597,8 @@ module.exports =
       "isVisible": true,
       "domain": "regionserver-global",
       "serviceName": "HBASE",
-      "category": "HBASE_REGIONSERVER"
+      "category": "HBASE_REGIONSERVER",
+      "index": 7
     },
     {
       "id": "puppet var",

@@ -484,7 +484,8 @@ module.exports =
      "unit": "MB",
      "isVisible": true,
      "serviceName": "HBASE",
-     "category": "HBASE_REGIONSERVER"
+     "category": "HBASE_REGIONSERVER",
+     "index": 6
     },
     {
       "id": "puppet var",
@@ -495,7 +496,8 @@ module.exports =
       "displayType": "float",
       "isVisible": true,
       "serviceName": "HBASE",
-      "category": "HBASE_REGIONSERVER"
+      "category": "HBASE_REGIONSERVER",
+      "index": 7
     },
     {
       "id": "puppet var",
