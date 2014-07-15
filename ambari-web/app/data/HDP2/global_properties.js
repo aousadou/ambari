@@ -464,7 +464,7 @@ module.exports =
     {
       "id": "puppet var",
       "name": "hbase_regionserver_heapsize",
-      "displayName": "RegionServersssssss maximum Java heap size",
+      "displayName": "RegionServers maximum Java heap size",
       "description": "Maximum Java heap size for RegionServers (Java option -Xmx)",
       "defaultValue": "1024",
       "displayType": "int",
@@ -478,7 +478,7 @@ module.exports =
      "id": "puppet var",
      "name": "hbase_regionserver_xmn_max",
      "displayName": "RegionServers maximum limit for -Xmn",
-     "description": "Maximum limit for Java minimum heap size for RegionServers (Java option -Xmn)",
+     "description": "Maximum limit for minimum RegionServers Java heap size (Java option -Xmn)",
      "defaultValue": "512",
      "displayType": "int",
      "unit": "MB",

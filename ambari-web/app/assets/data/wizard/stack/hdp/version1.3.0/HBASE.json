@@ -388,7 +388,7 @@
     {
       "href" : "http://192.168.56.101:8080/api/v1/stacks2/HDP/versions/1.3.0/stackServices/HBASE/configurations/hbase_regionserver_xmn_max",
       "StackConfigurations" : {
-        "property_description" : "Minimum heap size limit for RegionServers",
+        "property_description" : "Maximum limit for minimum RegionServers Java heap size",
         "property_name" : "hbase_regionserver_xmn_max",
         "property_value" : "512",
         "service_name" : "HBASE",
