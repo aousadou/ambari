@@ -361,7 +361,7 @@
             "hbase.hstore.compactionThreshold": "3", 
             "hbase.rootdir": "hdfs://c6401.ambari.apache.org:8020/apps/hbase/data", 
             "hbase.regionserver.handler.count": "60", 
-            "hbase.regionserver.global.memstore.size.lower.limit": "0.38",
+            "hbase.regionserver.global.memstore.size.lower.limit": "0.95",
             "hbase.hregion.memstore.block.multiplier": "2", 
             "hbase.hregion.memstore.flush.size": "134217728", 
             "hbase.superuser": "hbase", 

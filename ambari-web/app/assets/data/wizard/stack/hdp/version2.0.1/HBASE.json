@@ -174,7 +174,7 @@
       "StackConfigurations" : {
         "property_description" : "When memstores are being forced to flush to make room in\n      memory, keep flushing until we hit this mark. Defaults to 35% of heap.\n      This value equal to hbase.regionserver.global.memstore.size causes\n      the minimum possible flushing to occur when updates are blocked due to\n      memstore limiting.\n    ",
         "property_name" : "hbase.regionserver.global.memstore.size.lower.limit",
-        "property_value" : "0.38",
+        "property_value" : "0.95",
         "service_name" : "HBASE",
         "stack_name" : "HDP",
         "stack_version" : "2.0.1",
