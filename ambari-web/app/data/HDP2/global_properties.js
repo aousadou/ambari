@@ -483,7 +483,6 @@ module.exports =
      "displayType": "int",
      "unit": "MB",
      "isVisible": true,
-     "domain": "regionserver-global",
      "serviceName": "HBASE",
      "category": "HBASE_REGIONSERVER"
     },
@@ -495,7 +494,6 @@ module.exports =
       "defaultValue": "0.2",
       "displayType": "float",
       "isVisible": true,
-      "domain": "regionserver-global",
       "serviceName": "HBASE",
       "category": "HBASE_REGIONSERVER"
     },
