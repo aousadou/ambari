@@ -221,7 +221,7 @@ var urls = {
     'mock': '/data/alerts/HDP2/host_alerts.json'
   },
   'background_operations.get_most_recent': {
-    'real': '/clusters/{clusterName}/requests?to=end&page_size=10&fields=Requests',
+    'real': '/clusters/{clusterName}/requests?to=end&page_size={operationsCount}&fields=Requests',
     'mock': '/data/background_operations/list_on_start.json',
     'testInProduction': true
   },
@@ -797,6 +797,42 @@ var urls = {
             {
               "HostRoles": {
                 "component_name": data.componentName
+              }
+            }
+          ]
+        })
+      }
+    }
+  },
+  'admin.high_availability.create_journalnode': {
+    'real': '/clusters/{clusterName}/services?ServiceInfo/service_name=HDFS',
+    'mock': '',
+    'type': 'POST',
+    'format': function() {
+      return {
+        data: JSON.stringify({
+          "components": [
+            {
+              "ServiceComponentInfo": {
+                "component_name": "JOURNALNODE"
+              }
+            }
+          ]
+        })
+      }
+    }
+  },
+  'admin.high_availability.create_zkfc': {
+    'real': '/clusters/{clusterName}/services?ServiceInfo/service_name=HDFS',
+    'mock': '',
+    'type': 'POST',
+    'format': function() {
+      return {
+        data: JSON.stringify({
+          "components": [
+            {
+              "ServiceComponentInfo": {
+                "component_name": "ZKFC"
               }
             }
           ]
@@ -1829,7 +1865,7 @@ var ajax = Em.Object.extend({
     var statusCode = jqXHR.status + " status code";
     if (jqXHR.status === showStatus && !this.modalPopup) {
       this.modalPopup = App.ModalPopup.show({
-        header: jqXHR.statusText,
+        header: Em.I18n.t('common.error'),
         secondary: false,
         onPrimary: function () {
           this.hide();
