@@ -170,10 +170,10 @@
       }
     },
     {
-      "href" : "http://192.168.56.101:8080/api/v1/stacks2/HDP/versions/2.0.1/stackServices/HBASE/configurations/hbase.regionserver.global.memstore.lowerLimit",
+      "href" : "http://192.168.56.101:8080/api/v1/stacks2/HDP/versions/2.0.1/stackServices/HBASE/configurations/hbase.regionserver.global.memstore.size.lower.limit",
       "StackConfigurations" : {
-        "property_description" : "When memstores are being forced to flush to make room in\n      memory, keep flushing until we hit this mark. Defaults to 35% of heap.\n      This value equal to hbase.regionserver.global.memstore.upperLimit causes\n      the minimum possible flushing to occur when updates are blocked due to\n      memstore limiting.\n    ",
-        "property_name" : "hbase.regionserver.global.memstore.lowerLimit",
+        "property_description" : "When memstores are being forced to flush to make room in\n      memory, keep flushing until we hit this mark. Defaults to 35% of heap.\n      This value equal to hbase.regionserver.global.memstore.size causes\n      the minimum possible flushing to occur when updates are blocked due to\n      memstore limiting.\n    ",
+        "property_name" : "hbase.regionserver.global.memstore.size.lower.limit",
         "property_value" : "0.38",
         "service_name" : "HBASE",
         "stack_name" : "HDP",
@@ -182,10 +182,10 @@
       }
     },
     {
-      "href" : "http://192.168.56.101:8080/api/v1/stacks2/HDP/versions/2.0.1/stackServices/HBASE/configurations/hbase.regionserver.global.memstore.upperLimit",
+      "href" : "http://192.168.56.101:8080/api/v1/stacks2/HDP/versions/2.0.1/stackServices/HBASE/configurations/hbase.regionserver.global.memstore.size",
       "StackConfigurations" : {
         "property_description" : "Maximum size of all memstores in a region server before new\n      updates are blocked and flushes are forced. Defaults to 40% of heap\n    ",
-        "property_name" : "hbase.regionserver.global.memstore.upperLimit",
+        "property_name" : "hbase.regionserver.global.memstore.size",
         "property_value" : "0.4",
         "service_name" : "HBASE",
         "stack_name" : "HDP",

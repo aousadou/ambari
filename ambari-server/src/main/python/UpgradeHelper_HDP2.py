@@ -638,7 +638,7 @@ HBASE_SITE = {
   "hbase.hregion.max.filesize": "10737418240",
   "hbase.hstore.blockingStoreFiles": "10",
   "hbase.hstore.flush.retries.number": "120",
-  "hbase.regionserver.global.memstore.lowerLimit": "0.38",
+  "hbase.regionserver.global.memstore.size.lower.limit": "0.38",
   "hbase.regionserver.handler.count": "60",
   "hbase.rpc.engine": "DELETE_OLD",
   "hfile.block.cache.size": "0.40",

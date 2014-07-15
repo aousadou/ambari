@@ -360,7 +360,7 @@
             "hbase.regionserver.handler.count": "60", 
             "dfs.client.read.shortcircuit": "true", 
             "hbase.bulkload.staging.dir": "/apps/hbase/staging", 
-            "hbase.regionserver.global.memstore.lowerLimit": "0.38", 
+            "hbase.regionserver.global.memstore.lowerLimit": "0.38",
             "hbase.master.kerberos.principal": "hbase/_HOST@EXAMPLE.COM", 
             "hbase.hregion.memstore.block.multiplier": "2", 
             "hbase.hregion.memstore.flush.size": "134217728", 

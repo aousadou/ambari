@@ -630,16 +630,16 @@ module.exports =
     },
     {
       "id": "site property",
-      "name": "hbase.regionserver.global.memstore.upperLimit",
-      "displayName": "hbase.regionserver.global.memstore.upperLimit",
+      "name": "hbase.regionserver.global.memstore.size",
+      "displayName": "hbase.regionserver.global.memstore.size",
       "displayType": "float",
       "category": "Advanced",
       "serviceName": "HBASE"
     },
     {
       "id": "site property",
-      "name": "hbase.regionserver.global.memstore.lowerLimit",
-      "displayName": "hbase.regionserver.global.memstore.lowerLimit",
+      "name": "hbase.regionserver.global.memstore.size.lower.limit",
+      "displayName": "hbase.regionserver.global.memstore.size.lower.limit",
       "displayType": "float",
       "category": "Advanced",
       "serviceName": "HBASE"
