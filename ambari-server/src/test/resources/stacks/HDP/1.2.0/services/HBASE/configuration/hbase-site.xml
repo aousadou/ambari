@@ -68,7 +68,7 @@
     <description>The port for the HBase RegionServer web UI.</description>
   </property>
   <property>
-    <name>hbase.regionserver.global.memstore.size</name>
+    <name>hbase.regionserver.global.memstore.upperLimit</name>
     <value></value>
     <description>Maximum size of all memstores in a region server before new
       updates are blocked and flushes are forced. Defaults to 40% of heap
@@ -99,11 +99,11 @@
     </description>
   </property>
   <property>
-    <name>hbase.regionserver.global.memstore.size.lower.limit</name>
+    <name>hbase.regionserver.global.memstore.lowerLimit</name>
     <value></value>
     <description>When memstores are being forced to flush to make room in
       memory, keep flushing until we hit this mark. Defaults to 35% of heap.
-      This value equal to hbase.regionserver.global.memstore.size causes
+      This value equal to hbase.regionserver.global.memstore.upperLimit causes
       the minimum possible flushing to occur when updates are blocked due to
       memstore limiting.
     </description>
