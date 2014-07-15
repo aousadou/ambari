@@ -390,7 +390,7 @@
       "StackConfigurations" : {
         "property_description" : "Minimum heap size limit for RegionServers",
         "property_name" : "hbase_regionserver_xmn_max",
-        "property_value" : "256",
+        "property_value" : "512",
         "service_name" : "HBASE",
         "stack_name" : "HDP",
         "stack_version" : "1.3.0",

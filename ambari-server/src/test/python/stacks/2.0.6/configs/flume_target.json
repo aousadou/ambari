@@ -224,7 +224,7 @@
             "oozie_pid_dir": "/var/run/oozie", 
             "stormuiserver_host": "c6401.ambari.apache.org", 
             "hbase_regionserver_heapsize": "1024m",
-            "hbase_regionserver_xmn_max": "256m",
+            "hbase_regionserver_xmn_max": "512m",
             "hbase_regionserver_xmn_percent": "0.2",
             "logviewerserver_host": "c6402.ambari.apache.org", 
             "yarn_heapsize": "1024", 

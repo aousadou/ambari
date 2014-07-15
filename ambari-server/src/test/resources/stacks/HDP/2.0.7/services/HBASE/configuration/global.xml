@@ -53,11 +53,11 @@
   </property>
   <property>
     <name>hbase_regionserver_xmn_max</name>
-    <value>256</value>
+    <value>512</value>
     <description>HBase RegionServer max limit for minimum heap size.</description>
   </property>
   <property>
-    <name>hbase_regionserver_xmn_percentage</name>
+    <name>hbase_regionserver_xmn_percent</name>
     <value>0.2</value>
     <description>HBase RegionServer minimum heap size calculate in percentage of heap size.</description>
   </property>

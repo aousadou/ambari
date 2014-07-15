@@ -161,7 +161,7 @@
             "syncLimit": "5", 
             "oozie_pid_dir": "/var/run/oozie", 
             "hbase_regionserver_heapsize": "1024m",
-            "hbase_regionserver_xmn_max": "256m",
+            "hbase_regionserver_xmn_max": "512m",
             "hbase_regionserver_xmn_percent": "0.2",
             "dtnode_heapsize": "1024m", 
             "jtnode_heapsize": "1024m", 

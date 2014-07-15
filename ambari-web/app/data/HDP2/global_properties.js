@@ -479,7 +479,7 @@ module.exports =
      "name": "hbase_regionserver_xmn_max",
      "displayName": "RegionServers maximum limit for -Xmn",
      "description": "Maximum limit for Java minimum heap size for RegionServers (Java option -Xmn)",
-     "defaultValue": "256",
+     "defaultValue": "512",
      "displayType": "int",
      "unit": "MB",
      "isVisible": true,
