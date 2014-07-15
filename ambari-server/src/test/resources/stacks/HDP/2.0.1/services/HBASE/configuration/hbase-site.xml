@@ -96,6 +96,8 @@
     <value></value>
     <description>When memstores are being forced to flush to make room in
       memory, keep flushing until we hit this mark. Defaults to 95% of memstore size.
+      A 100% value for this value causes the minimum possible flushing to
+      occur when updates are blocked due to memstore limiting.
     </description>
   </property>
   <property>

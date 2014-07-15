@@ -172,7 +172,7 @@
     {
       "href" : "http://192.168.56.101:8080/api/v1/stacks2/HDP/versions/2.0.1/stackServices/HBASE/configurations/hbase.regionserver.global.memstore.size.lower.limit",
       "StackConfigurations" : {
-        "property_description" : "When memstores are being forced to flush to make room in\n      memory, keep flushing until we hit this mark. Defaults to 95% of memstore size.\n    ",
+        "property_description" : "When memstores are being forced to flush to make room in\n      memory, keep flushing until we hit this mark. Defaults to 95% of memstore size.\n     A 100% value for this value causes the minimum possible flushing\n    to occur when updates are blocked due to memstore limiting\n    ",
         "property_name" : "hbase.regionserver.global.memstore.size.lower.limit",
         "property_value" : "0.95",
         "service_name" : "HBASE",
