@@ -616,32 +616,6 @@ module.exports =
     },
     {
       "id": "site property",
-      "name": "hbase_regionserver_xmn_max",
-      "displayName": "RegionServers maximum limit for -Xmn",
-      "description": "Maximum limit for Java minimum heap size for RegionServers (Java option -Xmn)",
-      "defaultValue": "512",
-      "displayType": "int",
-      "unit": "MB",
-      "isVisible": true,
-      "serviceName": "HBASE",
-      "category": "HBASE_REGIONSERVER",
-      "index": 5
-    },
-    {
-      "id": "site property",
-      "name": "hbase_regionserver_xmn_percentage",
-      "displayName": "RegionServers Xmn is in percentage of Xmx",
-      "description": "Java minimum heap size for RegionServers is calculate with on percent of heap size",
-      "defaultValue": "0.2",
-      "displayType": "float",
-      "isVisible": true,
-      "domain": "regionserver-global",
-      "serviceName": "HBASE",
-      "category": "HBASE_REGIONSERVER",
-      "index": 6
-    },
-    {
-      "id": "site property",
       "name": "hbase.hregion.majorcompaction",
       "displayName": "HBase Region Major Compaction",
       "description": "The time between major compactions of all HStoreFiles in a region. Set to 0 to disable automated major compactions.",

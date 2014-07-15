@@ -486,7 +486,7 @@ module.exports =
      "domain": "regionserver-global",
      "serviceName": "HBASE",
      "category": "HBASE_REGIONSERVER",
-     "index": 5
+     "index": 2
     },
     {
       "id": "puppet var",
@@ -499,7 +499,7 @@ module.exports =
       "domain": "regionserver-global",
       "serviceName": "HBASE",
       "category": "HBASE_REGIONSERVER",
-      "index": 6
+      "index": 3
     },
     {
       "id": "puppet var",
