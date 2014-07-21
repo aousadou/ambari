@@ -2073,6 +2073,31 @@ module.exports =
       "index": 1
     },
     {
+     "id": "puppet var",
+     "name": "hbase_regionserver_xmn_max",
+     "displayName": "RegionServers maximum value for -Xmn",
+     "description": "Maximum value for minimum RegionServers Java heap size (Java option -Xmn)",
+     "defaultValue": "512",
+     "displayType": "int",
+     "unit": "MB",
+     "isVisible": true,
+     "serviceName": "HBASE",
+     "category": "HBASE_REGIONSERVER",
+     "index": 6
+    },
+    {
+      "id": "puppet var",
+      "name": "hbase_regionserver_xmn_ratio",
+      "displayName": "RegionServers -Xmn in -Xmx ratio",
+      "description": "Java minimum heap size for RegionServers is calculated as a percentage of max heap size",
+      "defaultValue": "0.2",
+      "displayType": "float",
+      "isVisible": true,
+      "serviceName": "HBASE",
+      "category": "HBASE_REGIONSERVER",
+      "index": 7
+    },
+    {
       "id": "puppet var",
       "name": "hbase_log_dir",
       "displayName": "HBase Log Dir",
