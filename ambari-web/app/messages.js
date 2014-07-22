@@ -104,6 +104,7 @@ Em.I18n.translations = {
   'common.metrics':'Metrics',
   'common.timeRange':'Time Range',
   'common.name':'Name',
+  'common.key':'Key',
   'common.value':'Value',
   'common.ipAddress':'IP Address',
   'common.cpu':'CPU',
@@ -782,6 +783,7 @@ Em.I18n.translations = {
 
   'form.validator.invalidIp':'Please enter valid ip address',
   'form.validator.configKey':'Invalid Key. Only alphanumerics, hyphens, underscores, asterisks and periods are allowed.',
+  'form.validator.configKey.specific':'"{0}" is invalid Key. Only alphanumerics, hyphens, underscores, asterisks and periods are allowed.',
 
   'admin.advanced.caution':'This section is for advanced user only.<br/>Proceed with caution.',
   'admin.advanced.button.uninstallIncludingData':'Uninstall cluster including all data.',
@@ -982,6 +984,13 @@ Em.I18n.translations = {
   'admin.rm_highAvailability.wizard.step2.header': 'Select Host',
   'admin.rm_highAvailability.wizard.step2.body': 'Select a host that will be running the additional ResourceManager',
   'admin.rm_highAvailability.wizard.step3.header': 'Review',
+  'admin.rm_highAvailability.wizard.step3.confirm.host.body':'<b>Confirm your host selections.</b>',
+  'admin.rm_highAvailability.wizard.step3.confirm.config.body':'<div class="alert alert-info">' +
+      '<b>Review Configuration Changes.</b></br>' +
+      'The following lists the configuration changes that will be made by the Wizard to enable ResourceManager HA. This information is for <b> review only </b> and is not editable.' +
+      '</div>',
+  'admin.rm_highAvailability.wizard.step3.currentRM': 'Current ResourceManager',
+  'admin.rm_highAvailability.wizard.step3.additionalRM': 'Additional ResourceManager',
   'admin.rm_highAvailability.wizard.step4.header': 'Configure Components',
 
   'admin.security.title':'Kerberos security has not been enabled',
@@ -1308,9 +1317,17 @@ Em.I18n.translations = {
   'services.service.config.failCreateConfig' : 'Failure in creating service configuration',
   'services.service.config.failSaveConfig':'Failure in saving service configuration',
   'services.service.config.failSaveConfigHostOverrides':'Failure in saving service configuration overrides',
-  'services.service.config.addPropertyWindow.errorMessage':'This is required',
+  'services.service.config.addPropertyWindow.error.required':'This is required',
   'services.service.config.addPropertyWindow.error.derivedKey':'This property is already defined',
+  'services.service.config.addPropertyWindow.error.derivedKey.specific':'Property "{0}" is already defined',
+  'services.service.config.addPropertyWindow.error.format':'Key and value should be separated by "=" sign',
+  'services.service.config.addPropertyWindow.error.lineNumber':'Line {0}: ',
   'services.service.config.addPropertyWindow.filterKeyLink' : 'Find property',
+  'services.service.config.addPropertyWindow.properties' : 'Properties',
+  'services.service.config.addPropertyWindow.propertiesHelper' : 'key=value (one per line)',
+  'services.service.config.addPropertyWindow.propertiesPlaceholder' : 'Enter key=value (one per line)',
+  'services.service.config.addPropertyWindow.bulkMode' : 'Bulk property add mode',
+  'services.service.config.addPropertyWindow.singleMode' : 'Single property add mode',
   'services.service.config.stopService.runningHostComponents':'{0} components on {1} hosts are running',
   'services.service.config.stopService.unknownHostComponents':'{0} components on {1} hosts are in unknown state.  These components might actually be running and need restarting later to make the changes effective.',
   'services.service.config.confirmDirectoryChange':'You are about to make changes to service directories that are core to {0}. Before you proceed, be absolutely certain of the implications and that you have taken necessary manual steps, if any, for the changes. Are you sure you want to proceed?',
