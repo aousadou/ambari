@@ -195,13 +195,13 @@ public class StackExtensionHelperTest {
             assertEquals("hbase-site.xml",
                     property.getFilename());
             foundHBaseClusterDistributed = true;
-          } else if (property.getName().equals("hbase.regionserver.xmn.max")) {
+          } else if (property.getName().equals("hbase_regionserver_xmn_max")) {
             assertEquals("512", property.getValue());
-            assertEquals("hbase-site.xml",
+            assertEquals("global.xml",
                 property.getFilename());
             foundHBaseRegionServerXmnMax = true;
-          } else if (property.getName().equals("hbase.regionserver.xmn.ratio")) {
-            assertEquals("hbase-site.xml",
+          } else if (property.getName().equals("hbase_regionserver_xmn_ratio")) {
+            assertEquals("global.xml",
                 property.getFilename());
             assertEquals("0.2", property.getValue());
             foundHBaseRegionServerXmnRatio = true;
@@ -210,9 +210,9 @@ public class StackExtensionHelperTest {
 
         assertTrue("Property hbase.cluster.distributed not found in a list of properties",
             foundHBaseClusterDistributed);
-        assertTrue("Property hbase.regionserver.xmn.max not found in a list of properties",
+        assertTrue("Property hbase_regionserver_xmn_max not found in a list of properties",
             foundHBaseRegionServerXmnMax);
-        assertTrue("Property hbase.regionserver.xmn.ratio not found in a list of properties",
+        assertTrue("Property hbase_regionserver_xmn_ratio not found in a list of properties",
             foundHBaseRegionServerXmnRatio);
 
         List<String> configDependencies = serviceInfo.getConfigDependencies();
