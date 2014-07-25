@@ -237,7 +237,7 @@
             "kinit_path_local": "/usr/bin", 
             "nagios_keytab_path": "/etc/security/keytabs/nagios.service.keytab", 
             "hbase_regionserver_heapsize": "1024m",
-            "hbase_regionserver_xmn_max": "512m",
+            "hbase_regionserver_xmn_max": "512",
             "hbase_regionserver_xmn_ratio": "0.2",
             "resourcemanager_http_primary_name": "HTTP", 
             "datanode_primary_name": "dn", 
