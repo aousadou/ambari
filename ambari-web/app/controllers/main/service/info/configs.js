@@ -30,6 +30,10 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   selectedService: null,
   serviceConfigTags: null,
   selectedConfigGroup: null,
+  configTypesInfo: {
+    items: [],
+    supportsFinal: []
+  },
   selectedServiceConfigTypes: [],
   selectedServiceSupportsFinal: [],
   configGroups: [],
@@ -97,18 +101,31 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   filter: '',
 
   /**
+   * List of filters for config properties to populate filter combobox
+   */
+  propertyFilters: [
+    {
+      attributeName: 'isOverridden',
+      caption: 'common.combobox.dropdown.overridden'
+    },
+    {
+      attributeName: 'isFinal',
+      caption: 'common.combobox.dropdown.final'
+    }
+  ],
+
+  /**
    * Dropdown menu items in filter combobox
    */
   filterColumns: function () {
-    var result = [];
-    for (var i = 1; i < 2; i++) {
-      result.push(Ember.Object.create({
-        name: this.t('common.combobox.dropdown.' + i),
+    return this.get('propertyFilters').map(function(filter) {
+      return Ember.Object.create({
+        attributeName: filter.attributeName,
+        name: this.t(filter.caption),
         selected: false
-      }));
-    }
-    return result;
-  }.property(),
+      })
+    }, this);
+  }.property('propertyFilters'),
 
   /**
    * clear and set properties to default value
@@ -186,26 +203,8 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
     var serviceName = this.get('content.serviceName');
 
     var stackService = App.StackService.find().findProperty('serviceName', serviceName);
-    if (stackService != null) {
-      var configTypes = stackService.get('configTypes');
-      if (configTypes) {
-        var configTypesInfo = {
-          items : [],
-          supportsFinal : []
-        };
-        for ( var key in configTypes) {
-          if (configTypes.hasOwnProperty(key)) {
-            configTypesInfo.items.push(key);
-            if (configTypes[key].supports && configTypes[key].supports.final === "true") {
-              configTypesInfo.supportsFinal.push(key);
-            }
-          }
-        }
-        for ( var configType in configTypes) {
-          self.set('selectedServiceConfigTypes', configTypesInfo.items || []);
-          self.set('selectedServiceSupportsFinal', configTypesInfo.supportsFinal || []);
-        }
-      }
+    if (stackService) {
+      self.set('configTypesInfo', App.config.getConfigTypesInfoFromService(stackService));
     }
 
     App.config.loadAdvancedConfig(serviceName, function (properties) {
@@ -679,10 +678,10 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
    */
   setSupportsFinal: function (serviceConfigProperty) {
     var fileName = serviceConfigProperty.get('filename');
-    var matchingConfigTypes = this.get('selectedServiceSupportsFinal').filter(function(configType) {
+    var matchingConfigType = this.get('configTypesInfo').supportsFinal.find(function(configType) {
       return fileName.startsWith(configType);
     });
-    serviceConfigProperty.set('supportsFinal', matchingConfigTypes.length > 0);
+    serviceConfigProperty.set('supportsFinal', !!matchingConfigType);
   },
 
   /**

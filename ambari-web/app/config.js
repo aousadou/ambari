@@ -78,8 +78,9 @@ App.supports = {
   jobs: true,
   ubuntu: true,
   views: false,
-  flume: false,
-  databaseConnection: true
+  flume: true,
+  databaseConnection: true,
+  configHistory: true
 };
 
 if (App.enableExperimental) {

@@ -23,9 +23,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.ambari.server.AmbariException;
+import org.apache.ambari.server.configuration.Configuration;
 import org.apache.ambari.server.orm.DBAccessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.ambari.server.configuration.Configuration;
 
 import com.google.inject.Inject;
 import com.google.inject.Injector;
@@ -64,8 +66,10 @@ public class UpgradeCatalog170 extends AbstractUpgradeCatalog {
 
   @Override
   protected void executeDDLUpdates() throws AmbariException, SQLException {
+    // !!! TODO: alerting DDL upgrade
 
     List<DBAccessor.DBColumnInfo> columns;
+    String dbType = getDbType();
 
     // add admin tables and initial values prior to adding referencing columns on existing tables
     columns = new ArrayList<DBAccessor.DBColumnInfo>();
@@ -155,6 +159,20 @@ public class UpgradeCatalog170 extends AbstractUpgradeCatalog {
         Integer.class, 1, 1, false));
     dbAccessor.addColumn("viewinstance", new DBAccessor.DBColumnInfo("resource_id",
         Long.class, 1, 1, false));
+
+    dbAccessor.addColumn("host_role_command", new DBAccessor.DBColumnInfo("output_log", String.class, 255, null, true));
+    dbAccessor.addColumn("host_role_command", new DBAccessor.DBColumnInfo("error_log", String.class, 255, null, true));
+
+    // Update historic records with the log paths, but only enough so as to not prolong the upgrade process
+    if (dbType.equals(Configuration.POSTGRES_DB_NAME) || dbType.equals(Configuration.ORACLE_DB_NAME)) {
+      // Postgres and Oracle use a different concatenation operator.
+      dbAccessor.executeQuery("UPDATE host_role_command SET output_log = ('/var/lib/ambari-agent/data/output-' || CAST(task_id AS VARCHAR(20)) || '.txt') WHERE task_id IN (SELECT task_id FROM host_role_command WHERE output_log IS NULL OR output_log = '' ORDER BY task_id DESC LIMIT 1000);");
+      dbAccessor.executeQuery("UPDATE host_role_command SET error_log = ('/var/lib/ambari-agent/data/errors-' || CAST(task_id AS VARCHAR(20)) || '.txt') WHERE task_id IN (SELECT task_id FROM host_role_command WHERE error_log IS NULL OR error_log = '' ORDER BY task_id DESC LIMIT 1000);");
+    } else if (dbType.equals(Configuration.MYSQL_DB_NAME)) {
+      // MySQL uses a different concatenation operator.
+      dbAccessor.executeQuery("UPDATE host_role_command SET output_log = CONCAT('/var/lib/ambari-agent/data/output-', task_id, '.txt') WHERE task_id IN (SELECT task_id FROM host_role_command WHERE output_log IS NULL OR output_log = '' ORDER BY task_id DESC LIMIT 1000);");
+      dbAccessor.executeQuery("UPDATE host_role_command SET error_log = CONCAT('/var/lib/ambari-agent/data/errors-', task_id, '.txt') WHERE task_id IN (SELECT task_id FROM host_role_command WHERE error_log IS NULL OR error_log = '' ORDER BY task_id DESC LIMIT 1000);");
+    }
   }
 
 
@@ -162,7 +180,32 @@ public class UpgradeCatalog170 extends AbstractUpgradeCatalog {
 
   @Override
   protected void executeDMLUpdates() throws AmbariException, SQLException {
-    // TODO : create admin principals for existing users and groups.
-    // TODO : create admin resources for existing clusters and view instances
+    // !!! TODO: create admin principals for existing users and groups.
+    // !!! TODO: create admin resources for existing clusters and view instances
+    // !!! TODO: alerting DML updates (sequences)
+
+    String dbType = getDbType();
+
+    // add new sequences for view entity
+    String valueColumnName = "\"value\"";
+    if (Configuration.ORACLE_DB_NAME.equals(dbType)
+        || Configuration.MYSQL_DB_NAME.equals(dbType)) {
+      valueColumnName = "value";
+    }
+
+    dbAccessor.executeQuery("INSERT INTO ambari_sequences(sequence_name, "
+        + valueColumnName + ") " + "VALUES('alert_definition_id_seq', 0)", true);
+
+    dbAccessor.executeQuery("INSERT INTO ambari_sequences(sequence_name, "
+        + valueColumnName + ") " + "VALUES('alert_group_id_seq', 0)", true);
+
+    dbAccessor.executeQuery("INSERT INTO ambari_sequences(sequence_name, "
+        + valueColumnName + ") " + "VALUES('alert_target_id_seq', 0)", true);
+
+    dbAccessor.executeQuery("INSERT INTO ambari_sequences(sequence_name, "
+        + valueColumnName + ") " + "VALUES('alert_history_id_seq', 0)", true);
+
+    dbAccessor.executeQuery("INSERT INTO ambari_sequences(sequence_name, "
+        + valueColumnName + ") " + "VALUES('alert_notice_id_seq', 0)", true);
   }
 }

@@ -337,7 +337,6 @@ App.config = Em.Object.create({
             }
             this.handleSpecialProperties(serviceConfigObj);
           } else {
-            serviceConfigObj.isVisible = false;  // if the property is not defined on ui metadata site_properties.js then it shouldn't be a part of errorCount
             serviceConfigObj.displayType = stringUtils.isSingleLine(serviceConfigObj.value) ? 'advanced' : 'multiLine';
           }
 
@@ -473,6 +472,8 @@ App.config = Em.Object.create({
           configData.filename = stored.filename;
           configData.description = stored.description;
           configData.isVisible = stored.isVisible;
+          configData.isFinal = stored.isFinal;
+          configData.supportsFinal = stored.supportsFinal;
           configData.isRequired = (configData.isRequired !== undefined) ? configData.isRequired : true;
           configData.isRequiredByAgent = (configData.isRequiredByAgent !== undefined) ? configData.isRequiredByAgent : true;
           configData.showLabel = stored.showLabel !== false;
@@ -507,6 +508,8 @@ App.config = Em.Object.create({
             configData.filename = storedCfg.filename;
             configData.description = storedCfg.description;
             configData.description = storedCfg.showLabel !== false;
+            configData.isFinal = storedCfg.isFinal;
+            configData.supportsFinal = storedCfg.supportsFinal;
           } else if (isAdvanced) {
             advanced = advancedConfigs.filterProperty('filename', configData.filename).findProperty('name', configData.name);
             this.setPropertyFromStack(configData, advanced);
@@ -532,6 +535,8 @@ App.config = Em.Object.create({
     configData.defaultValue = configData.value;
     configData.filename = advanced ? advanced.filename : configData.filename;
     configData.description = advanced ? advanced.description : configData.description;
+    configData.isFinal = !!(advanced && (advanced.isFinal === "true"));
+    configData.supportsFinal = !!(advanced && advanced.supportsFinal);
   },
 
 
@@ -834,6 +839,31 @@ App.config = Em.Object.create({
   },
 
   /**
+   * Get config types and config type attributes from stack service
+   *
+   * @param service
+   * @return {object}
+   */
+  getConfigTypesInfoFromService: function (service) {
+    var configTypes = service.get('configTypes');
+    var configTypesInfo = {
+      items: [],
+      supportsFinal: []
+    };
+    if (configTypes) {
+      for (var key in configTypes) {
+        if (configTypes.hasOwnProperty(key)) {
+          configTypesInfo.items.push(key);
+          if (configTypes[key].supports && configTypes[key].supports.final === "true") {
+            configTypesInfo.supportsFinal.push(key);
+          }
+        }
+      }
+    }
+    return configTypesInfo;
+  },
+
+  /**
    * Get properties from server by type and tag with properties, that belong to group
    * push them to common {serviceConfigs} and call callback function
    */
@@ -1007,6 +1037,9 @@ App.config = Em.Object.create({
       overrides: stored.overrides,
       isRequired: true,
       isVisible: stored.isVisible,
+      isFinal: stored.isFinal,
+      defaultIsFinal: stored.defaultIsFinal,
+      supportsFinal: stored.supportsFinal,
       showLabel: stored.showLabel !== false
     };
 

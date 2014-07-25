@@ -72,18 +72,7 @@ module.exports = Em.Route.extend({
 
   views: Em.Route.extend({
     route: '/views',
-    connectOutlets: function (router, context) {
-      router.get('mainController').connectOutlet('mainViews');
-    },
     index: Em.Route.extend({
-      route: '/',
-      enter: function (router) {
-        Em.run.next(function () {
-          router.transitionTo('allViews');
-        });
-      }
-    }),
-    allViews: Em.Route.extend({
       route: '/',
       connectOutlets: function (router, context) {
         router.get('mainController').connectOutlet('mainViews');
@@ -91,8 +80,12 @@ module.exports = Em.Route.extend({
     }),
     viewDetails: Em.Route.extend({
       route: '/:viewName/:version/:instanceName',
-      connectOutlets: function (router, view) {
-        router.get('mainController').connectOutlet('mainViewsDetails');
+      connectOutlets: function (router, params) {
+        router.get('mainController').dataLoading().done(function() {
+          // find and set content for `mainViewsDetails` and associated controller
+          router.get('mainController').connectOutlet('mainViewsDetails', App.router.get('clusterController.ambariViews')
+            .findProperty('href', ['/views', params.viewName, params.version, params.instanceName].join('/')));
+        });
       }
     })
   }),
@@ -118,7 +111,6 @@ module.exports = Em.Route.extend({
         });
       }
     }),
-    //on click nav tabs events, go to widgets view or heatmap view
     goToDashboardView: function (router, event) {
       router.transitionTo(event.context);
     },
@@ -161,7 +153,23 @@ module.exports = Em.Route.extend({
         event.view.set('active', "active");
         router.transitionTo(event.context);
       }
-    })
+    }),
+    configHistory: Em.Route.extend({
+      route: '/config_history',
+      connectOutlets: function (router, context) {
+        if (App.get('supports.configHistory')) {
+          router.set('mainDashboardController.selectedCategory', 'configHistory');
+          router.get('mainDashboardController').connectOutlet('mainConfigHistory');
+        } else {
+          router.transitionTo('main.dashboard.widgets');
+        }
+      }
+    }),
+    goToServiceConfigs: function (router, event) {
+      router.get('mainServiceItemController').set('routeToConfigs', true);
+      router.transitionTo('main.services.service.configs', App.Service.find(event.context));
+      router.get('mainServiceItemController').set('routeToConfigs', false);
+    }
   }),
 
   apps: Em.Route.extend({
@@ -656,7 +664,7 @@ module.exports = Em.Route.extend({
             if (!service || !service.get('isLoaded')) {
               service = App.Service.find().objectAt(0); // getting the first service to display
             }
-            if (service.get('routeToConfigs')) {
+            if (router.get('mainServiceItemController').get('routeToConfigs')) {
               router.transitionTo('service.configs', service);
             }
             else {

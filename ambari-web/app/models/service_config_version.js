@@ -15,43 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.ambari.server.state.alert;
 
-import com.google.gson.annotations.SerializedName;
 
-/**
- * Alert when the source type is defined as {@link SourceType#METRIC}
- */
-public class MetricAlert {
-  
-  private String host = null;
-  
-  @SerializedName("jmx")
-  private String jmxInfo = null;
-  
-  @SerializedName("ganglia")
-  private String gangliaInfo = null;
-  
-  /**
-   * @return the jmx info, if this metric is jmx-based
-   */
-  public String getJmxInfo() {
-    return jmxInfo;
-  }
-  
-  /**
-   * @return the ganglia info, if this metric is ganglia-based
-   */
-  public String getGangliaInfo() {
-    return gangliaInfo;
-  }
-  
-  /**
-   * @return the host info, which may include port information
-   */
-  public String getHost() {
-    return host;
-  }
-  
-  
-}
+var App = require('app');
+var dateUtil = require('utils/date');
+
+
+App.ServiceConfigVersion = DS.Model.extend({
+  serviceName: DS.attr('string'),
+  version: DS.attr('number'),
+  createTime: DS.attr('number'),
+  appliedTime: DS.attr('number'),
+  author: DS.attr('string'),
+  notes: DS.attr('string'),
+  serviceVersion: function(){
+    return this.get('serviceName') + ': '+ this.get('version');
+  }.property('serviceName', 'version'),
+  modifiedDate: function() {
+    return dateUtil.dateFormat(this.get('createTime'));
+  }.property('createTime'),
+  isCurrent: true
+});
+
+App.ServiceConfigVersion.FIXTURES = [];

@@ -416,9 +416,18 @@ public class AmbariManagementControllerTest {
       // manually change live state to stopped as no running action manager
       List<HostRoleCommand> commands = actionDB.getRequestTasks(resp.getRequestId());
       for (HostRoleCommand cmd : commands) {
-        if (!cmd.getRole().toString().endsWith("CHECK")) {
-          clusters.getCluster(clusterName).getService(serviceName).getServiceComponent(cmd.getRole().name())
-              .getServiceComponentHost(cmd.getHostName()).setState(State.STARTED);
+        String scName = cmd.getRole().toString();
+        if (!scName.endsWith("CHECK")) {
+          Cluster cluster = clusters.getCluster(clusterName);
+          String hostname = cmd.getHostName();
+          for (Service s : cluster.getServices().values()) {
+            if (s.getServiceComponents().containsKey(scName) &&
+              !s.getServiceComponent(scName).isClientComponent()) {
+              s.getServiceComponent(scName).getServiceComponentHost(hostname).
+                setState(State.STARTED);
+              break;
+            }
+          }
         }
       }
       return resp.getRequestId();
@@ -1551,6 +1560,50 @@ public class AmbariManagementControllerTest {
       // Expected
     }
 
+  }
+
+  @Test
+  /**
+   * Create a cluster with a service, and verify that the request tasks have the correct output log and error log paths.
+   */
+  public void testRequestStatusLogs() throws Exception {
+    testCreateServiceComponentHostSimple();
+
+    String clusterName = "foo1";
+    String serviceName = "HDFS";
+
+    Cluster cluster = clusters.getCluster(clusterName);
+    for (Host h : clusters.getHosts()) {
+      // Simulate each agent registering and setting the prefix path on its host
+      h.setPrefix(Configuration.PREFIX_DIR);
+    }
+
+    Map<String, Config> configs = new HashMap<String, Config>();
+    Map<String, String> properties = new HashMap<String, String>();
+    Map<String, Map<String, String>> propertiesAttributes = new HashMap<String, Map<String,String>>();
+
+    Config c1 = new ConfigImpl(cluster, "hdfs-site", properties, propertiesAttributes, injector);
+    c1.setVersionTag("v1");
+    cluster.addConfig(c1);
+    c1.persist();
+    configs.put(c1.getType(), c1);
+
+    ServiceRequest r = new ServiceRequest(clusterName, serviceName, State.INSTALLED.toString());
+    Set<ServiceRequest> requests = new HashSet<ServiceRequest>();
+    requests.add(r);
+
+    Map<String, String> mapRequestProps = new HashMap<String, String>();
+    mapRequestProps.put("context", "Called from a test");
+
+    RequestStatusResponse trackAction =
+        ServiceResourceProviderTest.updateServices(controller, requests, mapRequestProps, true, false);
+
+    List<ShortTaskStatus> taskStatuses = trackAction.getTasks();
+    Assert.assertFalse(taskStatuses.isEmpty());
+    for (ShortTaskStatus task : taskStatuses) {
+      Assert.assertEquals("Task output logs don't match", Configuration.PREFIX_DIR + "/output-" + task.getTaskId() + ".txt", task.getOutputLog());
+      Assert.assertEquals("Task error logs don't match", Configuration.PREFIX_DIR + "/errors-" + task.getTaskId() + ".txt", task.getErrorLog());
+    }
   }
 
   @Test
@@ -5309,11 +5362,9 @@ public class AmbariManagementControllerTest {
 
     clusters.getHost(host2).setState(HostState.HEARTBEAT_LOST);
 
-    // Start
-    requestId2 = startService(clusterName, serviceName1, true, true);
+    // Start MAPREDUCE, HDFS is started as a dependency
     requestId3 = startService(clusterName, serviceName2, true, true);
-    stages = actionDB.getAllStages(requestId2);
-    stages.addAll(actionDB.getAllStages(requestId3));
+    stages = actionDB.getAllStages(requestId3);
     HostRoleCommand clientWithHostDown = null;
     for (Stage stage : stages) {
       for (HostRoleCommand hrc : stage.getOrderedHostRoleCommands()) {
@@ -5323,6 +5374,16 @@ public class AmbariManagementControllerTest {
       }
     }
     Assert.assertNull(clientWithHostDown);
+
+    Assert.assertEquals(State.STARTED, clusters.getCluster(clusterName).
+      getService("MAPREDUCE").getServiceComponent("TASKTRACKER").
+      getServiceComponentHost(host1).getState());
+    Assert.assertEquals(State.STARTED, clusters.getCluster(clusterName).
+      getService("HDFS").getServiceComponent("NAMENODE").
+      getServiceComponentHost(host1).getState());
+    Assert.assertEquals(State.STARTED, clusters.getCluster(clusterName).
+      getService("HDFS").getServiceComponent("DATANODE").
+      getServiceComponentHost(host1).getState());
   }
 
   @Test

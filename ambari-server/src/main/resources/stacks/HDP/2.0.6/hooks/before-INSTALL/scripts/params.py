@@ -22,6 +22,7 @@ from resource_management.core.system import System
 import os
 
 config = Script.get_config()
+tmp_dir = Script.get_tmp_dir()
 
 #users and groups
 yarn_user = config['configurations']['yarn-env']['yarn_user']
@@ -65,6 +66,8 @@ ganglia_server_hosts = default("/clusterHostInfo/ganglia_server_host", [])
 storm_server_hosts = default("/clusterHostInfo/nimbus_hosts", [])
 falcon_host =  default('/clusterHostInfo/falcon_server_hosts', [])
 
+has_namenode = not len(namenode_host) == 0
+has_hs = not len(hs_host) == 0
 has_resourcemanager = not len(rm_host) == 0
 has_slaves = not len(slave_hosts) == 0
 has_nagios = not len(hagios_server_hosts) == 0

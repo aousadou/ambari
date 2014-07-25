@@ -76,7 +76,7 @@ GRANT ALL PRIVILEGES ON TABLE ambari.members TO :username;
 CREATE TABLE ambari.execution_command (command BYTEA, task_id BIGINT NOT NULL, PRIMARY KEY (task_id));
 GRANT ALL PRIVILEGES ON TABLE ambari.execution_command TO :username;
 
-CREATE TABLE ambari.host_role_command (task_id BIGINT NOT NULL, attempt_count SMALLINT NOT NULL, event VARCHAR(32000) NOT NULL, exitcode INTEGER NOT NULL, host_name VARCHAR(255) NOT NULL, last_attempt_time BIGINT NOT NULL, request_id BIGINT NOT NULL, role VARCHAR(255), stage_id BIGINT NOT NULL, start_time BIGINT NOT NULL, end_time BIGINT, status VARCHAR(255), std_error BYTEA, std_out BYTEA, structured_out BYTEA, role_command VARCHAR(255), command_detail VARCHAR(255), custom_command_name VARCHAR(255), PRIMARY KEY (task_id));
+CREATE TABLE ambari.host_role_command (task_id BIGINT NOT NULL, attempt_count SMALLINT NOT NULL, event VARCHAR(32000) NOT NULL, exitcode INTEGER NOT NULL, host_name VARCHAR(255) NOT NULL, last_attempt_time BIGINT NOT NULL, request_id BIGINT NOT NULL, role VARCHAR(255), stage_id BIGINT NOT NULL, start_time BIGINT NOT NULL, end_time BIGINT, status VARCHAR(255), std_error BYTEA, std_out BYTEA, output_log VARCHAR(255) NULL, error_log VARCHAR(255) NULL, structured_out BYTEA, role_command VARCHAR(255), command_detail VARCHAR(255), custom_command_name VARCHAR(255), PRIMARY KEY (task_id));
 GRANT ALL PRIVILEGES ON TABLE ambari.host_role_command TO :username;
 
 CREATE TABLE ambari.role_success_criteria (role VARCHAR(255) NOT NULL, request_id BIGINT NOT NULL, stage_id BIGINT NOT NULL, success_factor FLOAT NOT NULL, PRIMARY KEY (role, request_id, stage_id));
@@ -130,8 +130,8 @@ GRANT ALL PRIVILEGES ON TABLE ambari.requestschedulebatchrequest TO :username;
 CREATE TABLE ambari.blueprint (blueprint_name VARCHAR(255) NOT NULL, stack_name VARCHAR(255) NOT NULL, stack_version VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name));
 CREATE TABLE ambari.hostgroup (blueprint_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, cardinality VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name, name));
 CREATE TABLE ambari.hostgroup_component (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name, hostgroup_name, name));
-CREATE TABLE ambari.blueprint_configuration (blueprint_name varchar(255) NOT NULL, type_name varchar(255) NOT NULL, config_data varchar(32000) NOT NULL , PRIMARY KEY(blueprint_name, type_name));
-CREATE TABLE ambari.hostgroup_configuration (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, config_data TEXT NOT NULL, PRIMARY KEY(blueprint_name, hostgroup_name, type_name));
+CREATE TABLE ambari.blueprint_configuration (blueprint_name varchar(255) NOT NULL, type_name varchar(255) NOT NULL, config_data varchar(32000) NOT NULL, config_attributes varchar(32000), PRIMARY KEY(blueprint_name, type_name));
+CREATE TABLE ambari.hostgroup_configuration (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, config_data TEXT NOT NULL, config_attributes varchar(32000), PRIMARY KEY(blueprint_name, hostgroup_name, type_name));
 GRANT ALL PRIVILEGES ON TABLE ambari.blueprint TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.hostgroup TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.hostgroup_component TO :username;
@@ -360,8 +360,18 @@ INSERT INTO ambari.ambari_sequences (sequence_name, "value")
   union all
   select 'permission_id_seq', 5
   union all
-  select 'privilege_id_seq', 1;
-
+  select 'privilege_id_seq', 1
+  union all
+  select 'alert_definition_id_seq', 0
+  union all
+  select 'alert_group_id_seq', 0
+  union all
+  select 'alert_target_id_seq', 0
+  union all
+  select 'alert_history_id_seq', 0
+  union all
+  select 'alert_notice_id_seq', 0;
+  
 
 INSERT INTO ambari.adminresourcetype (resource_type_id, resource_type_name)
   SELECT 1, 'AMBARI'

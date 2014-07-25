@@ -15,11 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+'use strict';
 
-var App = require('app');
-var component = require('utils/component');
-require('models/host_component');
-require('models/stack_service_component');
-
-describe('utils/component', function(){
-});
+angular.module('ambariAdminConsole')
+.controller('MainCtrl',[function() {
+}]);

@@ -48,6 +48,10 @@ App.ServiceConfigView = Em.View.extend({
         return false;
     }
   }.property('controller.name', 'controller.selectedService'),
+  showConfigHistoryFlow: function() {
+    //TODO change condition to actual
+    return (this.get('controller.name') === 'mainServiceInfoConfigsController' && this.get('controller.selectedConfigGroup.isDefault'))
+  }.property('controller.name', 'controller.selectedConfigGroup.isDefault'),
   toggleRestartMessageView: function () {
     this.$('.service-body').toggle('blind', 200);
     this.set('isRestartMessageCollapsed', !this.get('isRestartMessageCollapsed'));
@@ -327,20 +331,17 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
     if (filter != null) {
       filter = filter.toLowerCase();
     }
-    //var isOnlyModified = this.get('parentView.columns').length && this.get('parentView.columns')[1].get('selected');
-    var isOnlyOverridden = columns!=null ? (columns.length && columns[0].get('selected')) : false;
-    //var isOnlyRestartRequired = this.get('parentView.columns').length && this.get('parentView.columns')[2].get('selected');
+    var selectedFilters = this.get('parentView.columns').filterProperty('selected', true);
     var filteredResult = this.get('categoryConfigs').filter(function (config) {
 
-     /* if (isOnlyModified && !config.get('isNotDefaultValue')) {
-        return false;
-      }
+      var passesFilters = true;
+      selectedFilters.forEach(function (filter) {
+        if (!config.get(filter.attributeName)) {
+          passesFilters = false;
+        }
+      });
 
-      if (isOnlyRestartRequired && !config.get('isRestartRequired')) {
-        return false;
-      }*/
-
-      if (isOnlyOverridden && !config.get('isOverridden')) {
+      if (!passesFilters) {
         return false;
       }
 
@@ -489,6 +490,17 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
       var configsOfFile = service.get('configs').filterProperty('filename', siteFileName);
       var siteFileProperties = App.config.get('configMapping').all().filterProperty('filename', siteFileName);
 
+      function shouldSupportFinal(filename) {
+        var stackService = App.StackService.find().findProperty('serviceName', serviceName);
+        var supportsFinal = App.config.getConfigTypesInfoFromService(stackService).supportsFinal;
+        var matchingConfigType = supportsFinal.find(function (configType) {
+          return filename.startsWith(configType);
+        });
+        return !!matchingConfigType;
+      }
+
+      var supportsFinal = shouldSupportFinal(siteFileName);
+
       function isDuplicatedConfigKey(name) {
         return siteFileProperties.findProperty('name', name) || configsOfFile.findProperty('name', name);
       }
@@ -506,6 +518,7 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
           id: 'site property',
           serviceName: serviceName,
           defaultValue: null,
+          supportsFinal: supportsFinal,
           filename: siteFileName || '',
           isUserProperty: true,
           isNotSaved: true
@@ -669,11 +682,17 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
     var serviceConfigProperty = event.contexts[0];
     var value = serviceConfigProperty.get('value');
     var dValue = serviceConfigProperty.get('defaultValue');
+    var supportsFinal = serviceConfigProperty.get('supportsFinal');
+    var defaultIsFinal = serviceConfigProperty.get('defaultIsFinal');
+
     if (dValue != null) {
       if (serviceConfigProperty.get('displayType') === 'password') {
         serviceConfigProperty.set('retypedPassword', dValue);
       }
       serviceConfigProperty.set('value', dValue);
+    }
+    if (supportsFinal) {
+      serviceConfigProperty.set('isFinal', defaultIsFinal);
     }
     this.miscConfigChange(serviceConfigProperty);
   },

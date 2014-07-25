@@ -49,7 +49,7 @@ CREATE TABLE members (member_id INTEGER, group_id INTEGER NOT NULL, user_id INTE
 
 CREATE TABLE execution_command (command BYTEA, task_id BIGINT NOT NULL, PRIMARY KEY (task_id));
 
-CREATE TABLE host_role_command (task_id BIGINT NOT NULL, attempt_count SMALLINT NOT NULL, event VARCHAR(32000) NOT NULL, exitcode INTEGER NOT NULL, host_name VARCHAR(255) NOT NULL, last_attempt_time BIGINT NOT NULL, request_id BIGINT NOT NULL, role VARCHAR(255), stage_id BIGINT NOT NULL, start_time BIGINT NOT NULL, end_time BIGINT, status VARCHAR(255), std_error BYTEA, std_out BYTEA, structured_out BYTEA, role_command VARCHAR(255), command_detail VARCHAR(255), custom_command_name VARCHAR(255), PRIMARY KEY (task_id));
+CREATE TABLE host_role_command (task_id BIGINT NOT NULL, attempt_count SMALLINT NOT NULL, event VARCHAR(32000) NOT NULL, exitcode INTEGER NOT NULL, host_name VARCHAR(255) NOT NULL, last_attempt_time BIGINT NOT NULL, request_id BIGINT NOT NULL, role VARCHAR(255), stage_id BIGINT NOT NULL, start_time BIGINT NOT NULL, end_time BIGINT, status VARCHAR(255), std_error BYTEA, std_out BYTEA, output_log VARCHAR(255) NULL, error_log VARCHAR(255) NULL, structured_out BYTEA, role_command VARCHAR(255), command_detail VARCHAR(255), custom_command_name VARCHAR(255), PRIMARY KEY (task_id));
 
 CREATE TABLE role_success_criteria (role VARCHAR(255) NOT NULL, request_id BIGINT NOT NULL, stage_id BIGINT NOT NULL, success_factor FLOAT NOT NULL, PRIMARY KEY (role, request_id, stage_id));
 
@@ -86,8 +86,8 @@ CREATE TABLE requestschedulebatchrequest (schedule_id bigint, batch_id bigint, r
 CREATE TABLE blueprint (blueprint_name VARCHAR(255) NOT NULL, stack_name VARCHAR(255) NOT NULL, stack_version VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name));
 CREATE TABLE hostgroup (blueprint_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, cardinality VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name, name));
 CREATE TABLE hostgroup_component (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name, hostgroup_name, name));
-CREATE TABLE blueprint_configuration (blueprint_name varchar(255) NOT NULL, type_name varchar(255) NOT NULL, config_data varchar(32000) NOT NULL , PRIMARY KEY(blueprint_name, type_name));
-CREATE TABLE hostgroup_configuration (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, config_data TEXT NOT NULL, PRIMARY KEY(blueprint_name, hostgroup_name, type_name));
+CREATE TABLE blueprint_configuration (blueprint_name varchar(255) NOT NULL, type_name varchar(255) NOT NULL, config_data varchar(32000) NOT NULL , config_attributes varchar(32000), PRIMARY KEY(blueprint_name, type_name));
+CREATE TABLE hostgroup_configuration (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, config_data TEXT NOT NULL, config_attributes varchar(32000), PRIMARY KEY(blueprint_name, hostgroup_name, type_name));
 
 CREATE TABLE viewmain (view_name VARCHAR(255) NOT NULL, label VARCHAR(255), version VARCHAR(255), resource_type_id INTEGER NOT NULL, icon VARCHAR(255), icon64 VARCHAR(255), archive VARCHAR(255), mask VARCHAR(255), PRIMARY KEY(view_name));
 CREATE TABLE viewinstancedata (view_instance_id BIGINT, view_name VARCHAR(255) NOT NULL, view_instance_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, user_name VARCHAR(255) NOT NULL, value VARCHAR(2000) NOT NULL, PRIMARY KEY(view_instance_id, name, user_name));
@@ -287,7 +287,17 @@ BEGIN;
   union all
   select 'permission_id_seq', 5
   union all
-  select 'privilege_id_seq', 1;
+  select 'privilege_id_seq', 1
+  union all
+  select 'alert_definition_id_seq', 0
+  union all
+  select 'alert_group_id_seq', 0
+  union all
+  select 'alert_target_id_seq', 0
+  union all
+  select 'alert_history_id_seq', 0
+  union all
+  select 'alert_notice_id_seq', 0;
 
   INSERT INTO adminresourcetype (resource_type_id, resource_type_name)
   SELECT 1, 'AMBARI'
@@ -323,7 +333,7 @@ BEGIN;
   UNION ALL
   SELECT 2, 'CLUSTER.READ', 2
   UNION ALL
-  SELECT 3, CLUSTER.OPERATE'', 2
+  SELECT 3, 'CLUSTER.OPERATE', 2
   UNION ALL
   SELECT 4, 'VIEW.USE', 3;
 

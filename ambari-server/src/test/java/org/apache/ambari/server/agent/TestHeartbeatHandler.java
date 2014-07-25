@@ -165,10 +165,25 @@ public class TestHeartbeatHandler {
     aq.enqueue(DummyHostname1, new ExecutionCommand());
     HeartBeat hb = new HeartBeat();
     hb.setResponseId(0);
-    hb.setNodeStatus(new HostStatus(Status.HEALTHY, DummyHostStatus));
+    HostStatus hs = new HostStatus(Status.HEALTHY, DummyHostStatus);
+    List<Alert> al = new ArrayList<Alert>();
+    al.add(new Alert());
+    hs.setAlerts(al);
+    hb.setNodeStatus(hs);
     hb.setHostname(DummyHostname1);
+    
+    for (Map.Entry<String, Cluster> entry : clusters.getClusters().entrySet()) {
+      Cluster cl = entry.getValue();
+      assertEquals(0, cl.getAlerts().size());
+    }
 
     handler.handleHeartBeat(hb);
+    
+    for (Map.Entry<String, Cluster> entry : clusters.getClusters().entrySet()) {
+      Cluster cl = entry.getValue();
+      assertEquals(1, cl.getAlerts().size());
+    }
+    
     assertEquals(HostState.HEALTHY, hostObject.getState());
     assertEquals(0, aq.dequeueAll(DummyHostname1).size());
   }
@@ -653,6 +668,7 @@ public class TestHeartbeatHandler {
     reg.setCurrentPingPort(DummyCurrentPingPort);
     reg.setHardwareProfile(hi);
     reg.setAgentVersion(metaInfo.getServerVersion());
+    reg.setPrefix(Configuration.PREFIX_DIR);
     handler.handleRegistration(reg);
     assertEquals(hostObject.getState(), HostState.HEALTHY);
     assertEquals(DummyOsType, hostObject.getOsType());
@@ -683,6 +699,7 @@ public class TestHeartbeatHandler {
     reg.setHostname(DummyHostname1);
     reg.setHardwareProfile(hi);
     reg.setAgentVersion(""); // Invalid agent version
+    reg.setPrefix(Configuration.PREFIX_DIR);
     try {
       handler.handleRegistration(reg);
       fail ("Expected failure for non compatible agent version");
@@ -808,12 +825,14 @@ public class TestHeartbeatHandler {
     reg.setHostname(DummyHostname1);
     reg.setHardwareProfile(hi);
     reg.setAgentVersion(metaInfo.getServerVersion());
+    reg.setPrefix(Configuration.PREFIX_DIR);
     RegistrationResponse response = handler.handleRegistration(reg);
 
     assertEquals(hostObject.getState(), HostState.HEALTHY);
     assertEquals("redhat5", hostObject.getOsType());
     assertEquals(RegistrationStatus.OK, response.getResponseStatus());
     assertEquals(0, response.getResponseId());
+    assertEquals(reg.getPrefix(), hostObject.getPrefix());
     assertTrue(response.getStatusCommands().isEmpty());
   }
 

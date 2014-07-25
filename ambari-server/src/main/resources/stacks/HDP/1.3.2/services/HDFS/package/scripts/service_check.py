@@ -76,7 +76,7 @@ class HdfsServiceCheck(Script):
       journalnode_port = params.journalnode_port
       smoke_test_user = params.smoke_user
       checkWebUIFileName = "checkWebUI.py"
-      checkWebUIFilePath = format("/tmp/{checkWebUIFileName}")
+      checkWebUIFilePath = format("{tmp_dir}/{checkWebUIFileName}")
       comma_sep_jn_hosts = ",".join(params.journalnode_hosts)
       checkWebUICmd = format(
         "su - {smoke_test_user} -c 'python {checkWebUIFilePath} -m "

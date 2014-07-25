@@ -118,7 +118,8 @@ App.WizardStep7Controller = Em.Controller.extend({
    * @type {bool}
    */
   isSubmitDisabled: function () {
-    return (!this.stepConfigs.filterProperty('showConfig', true).everyProperty('errorCount', 0) || this.get("miscModalVisible"));
+    if (!this.get('stepConfigs.length')) return true;
+    return (!this.get('stepConfigs').filterProperty('showConfig', true).everyProperty('errorCount', 0) || this.get("miscModalVisible"));
   }.property('stepConfigs.@each.errorCount', 'miscModalVisible'),
 
   /**
@@ -179,19 +180,31 @@ App.WizardStep7Controller = Em.Controller.extend({
   filter: '',
 
   /**
+   * List of filters for config properties to populate filter combobox
+   */
+  propertyFilters: [
+    {
+      attributeName: 'isOverridden',
+      caption: 'common.combobox.dropdown.overridden'
+    },
+    {
+      attributeName: 'isFinal',
+      caption: 'common.combobox.dropdown.final'
+    }
+  ],
+
+  /**
    * Dropdown menu items in filter combobox
-   * @type {Ember.Object[]}
    */
   filterColumns: function () {
-    var result = [];
-    for (var i = 1; i < 2; i++) {
-      result.push(Em.Object.create({
-        name: this.t('common.combobox.dropdown.' + i),
+    return this.get('propertyFilters').map(function(filter) {
+      return Ember.Object.create({
+        attributeName: filter.attributeName,
+        name: this.t(filter.caption),
         selected: false
-      }));
-    }
-    return result;
-  }.property(),
+      })
+    }, this);
+  }.property('propertyFilters'),
 
   /**
    * Clear controller's properties:
@@ -672,7 +685,7 @@ App.WizardStep7Controller = Em.Controller.extend({
 
     if (this.get('wizardController.name') === 'addServiceController') {
       App.router.get('configurationController').getConfigsByTags(this.get('serviceConfigTags')).done(function (loadedConfigs) {
-        self.setInstalledServiceConfigs(self.get('serviceConfigTags'), configs, loadedConfigs);
+        self.setInstalledServiceConfigs(self.get('serviceConfigTags'), configs, loadedConfigs, self.get('installedServiceNames'));
         self.applyServicesConfigs(configs, storedConfigs);
       });
     } else {
@@ -808,7 +821,7 @@ App.WizardStep7Controller = Em.Controller.extend({
    * @param configs
    * @method setInstalledServiceConfigs
    */
-  setInstalledServiceConfigs: function (serviceConfigTags, configs, configsByTags) {
+  setInstalledServiceConfigs: function (serviceConfigTags, configs, configsByTags, installedServiceNames) {
     var configsMap = {};
     var configTypeMap = {};
     var configMixin = App.get('config');
@@ -821,7 +834,7 @@ App.WizardStep7Controller = Em.Controller.extend({
       }
     });
     configs.forEach(function (_config) {
-      if (!Em.isNone(configsMap[_config.name])) {
+      if (!Em.isNone(configsMap[_config.name]) && installedServiceNames && installedServiceNames.contains(_config.serviceName)) {
         // prevent overriding already edited properties
         if (_config.defaultValue != configsMap[_config.name])
           _config.value = configsMap[_config.name];
