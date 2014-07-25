@@ -18,10 +18,22 @@
 
 package org.apache.ambari.server.api.util;
 
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 import org.apache.ambari.server.api.services.AmbariMetaInfo;
 import org.apache.ambari.server.metadata.ActionMetadata;
-import org.apache.ambari.server.state.*;
+import org.apache.ambari.server.state.CommandScriptDefinition;
+import org.apache.ambari.server.state.ComponentInfo;
+import org.apache.ambari.server.state.CustomCommandDefinition;
+import org.apache.ambari.server.state.PropertyInfo;
+import org.apache.ambari.server.state.ServiceInfo;
+import org.apache.ambari.server.state.ServiceOsSpecific;
+import org.apache.ambari.server.state.StackInfo;
+import org.apache.ambari.server.state.stack.ConfigurationXml;
+import org.junit.Test;
 
+import javax.xml.namespace.QName;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,15 +45,6 @@ import java.util.Map;
 
 import static org.easymock.EasyMock.*;
 import static org.junit.Assert.*;
-
-import org.apache.ambari.server.state.stack.ConfigurationXml;
-import org.junit.Test;
-
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-
-import javax.xml.namespace.QName;
 
 public class StackExtensionHelperTest {
 
@@ -180,8 +183,10 @@ public class StackExtensionHelperTest {
           }
         }
         assertEquals(28, emptyValueProperties.size());
-        assertEquals(66, properties.size());
-        boolean found = false;
+        assertEquals(68, properties.size());
+        boolean foundHBaseClusterDistributed = false;
+        boolean foundHBaseRegionServerXmnMax = false;
+        boolean foundHBaseRegionServerXmnRatio = false;
         for (PropertyInfo property : properties) {
           if (property.getName().equals("hbase.cluster.distributed")) {
             assertEquals("true",
@@ -189,10 +194,27 @@ public class StackExtensionHelperTest {
             assertTrue(property.getDescription().startsWith("The mode the"));
             assertEquals("hbase-site.xml",
                     property.getFilename());
-            found = true;
+            foundHBaseClusterDistributed = true;
+          } else if (property.getName().equals("hbase.regionserver.xmn.max")) {
+            assertEquals("512", property.getValue());
+            assertEquals("hbase-site.xml",
+                property.getFilename());
+            foundHBaseRegionServerXmnMax = true;
+          } else if (property.getName().equals("hbase.regionserver.xmn.ratio")) {
+            assertEquals("hbase-site.xml",
+                property.getFilename());
+            assertEquals("0.2", property.getValue());
+            foundHBaseRegionServerXmnRatio = true;
           }
         }
-        assertTrue("Property not found in a list of properties", found);
+
+        assertTrue("Property hbase.cluster.distributed not found in a list of properties",
+            foundHBaseClusterDistributed);
+        assertTrue("Property hbase.regionserver.xmn.max not found in a list of properties",
+            foundHBaseRegionServerXmnMax);
+        assertTrue("Property hbase.regionserver.xmn.ratio not found in a list of properties",
+            foundHBaseRegionServerXmnRatio);
+
         List<String> configDependencies = serviceInfo.getConfigDependencies();
         assertEquals(3, configDependencies.size());
         assertEquals("global", configDependencies.get(0));
