@@ -533,6 +533,30 @@ module.exports =
     },
     {
       "id": "site property",
+      "name": "hbase.regionserver.global.memstore.upperLimit",
+      "displayName": "hbase.regionserver.global.memstore.upperLimit",
+      "description": "",
+      "defaultValue": "",
+      "displayType": "float",
+      "category": "Advanced",
+      "serviceName": "HBASE"
+    },
+    {
+      "id": "site property",
+      "name": "hbase.regionserver.global.memstore.lowerLimit",
+      "displayName": "hbase.regionserver.global.memstore.lowerLimit",
+      "defaultValue": "",
+      "description": "When memstores are being forced to flush to make room in\
+      memory, keep flushing until we hit this mark. Defaults to 35% of heap.\
+      This value equal to hbase.regionserver.global.memstore.upperLimit causes\
+      the minimum possible flushing to occur when updates are blocked due to\
+      memstore limiting.",
+      "displayType": "float",
+      "category": "Advanced",
+      "serviceName": "HBASE"
+    },
+    {
+      "id": "site property",
       "name": "hbase.hstore.blockingStoreFiles",
       "displayName": "hstore blocking storefiles",
       "description": "If more than this number of StoreFiles in any one Store (one StoreFile is written per flush of " +
