@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -58,6 +59,10 @@ import org.apache.ambari.server.state.ServiceInfo;
 import org.apache.ambari.server.state.Stack;
 import org.apache.ambari.server.state.StackId;
 import org.apache.ambari.server.state.StackInfo;
+import org.apache.ambari.server.state.alert.AlertDefinition;
+import org.apache.ambari.server.state.alert.MetricSource;
+import org.apache.ambari.server.state.alert.Source;
+import org.apache.ambari.server.state.alert.SourceType;
 import org.apache.ambari.server.state.stack.LatestRepoCallable;
 import org.apache.ambari.server.state.stack.MetricDefinition;
 import org.apache.ambari.server.state.stack.RepositoryXml;
@@ -67,6 +72,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
@@ -86,6 +97,7 @@ public class AmbariMetaInfo {
   public static final String SERVICE_CONFIG_FILE_NAME_POSTFIX = ".xml";
   public static final String RCO_FILE_NAME = "role_command_order.json";
   public static final String SERVICE_METRIC_FILE_NAME = "metrics.json";
+  public static final String SERVICE_ALERT_FILE_NAME = "alerts.json";
   /**
    * This string is used in placeholder in places that are common for
    * all operating systems or in situations where os type is not important.
@@ -1049,5 +1061,74 @@ public class AmbariMetaInfo {
     }
     return requiredProperties;
   }
+  
+  /**
+   * @param stackName the stack name
+   * @param stackVersion the stack version
+   * @param serviceName the service name
+   * @return the alert definitions for a stack
+   * @throws AmbariException
+   */
+  public Set<AlertDefinition> getAlertDefinitions(String stackName, String stackVersion,
+      String serviceName) throws AmbariException {
+    
+    ServiceInfo svc = getService(stackName, stackVersion, serviceName);
 
+    if (null == svc.getAlertsFile() || !svc.getAlertsFile().exists()) {
+      LOG.debug("Alerts file for " + stackName + "/" + stackVersion + "/" + serviceName + " not found.");
+      return null;
+    }
+    
+    Map<String, List<AlertDefinition>> map = null;
+
+    GsonBuilder builder = new GsonBuilder().registerTypeAdapter(Source.class,
+        new JsonDeserializer<Source>() {
+          @Override
+          public Source deserialize(JsonElement json, Type typeOfT,
+              JsonDeserializationContext context) throws JsonParseException {
+            JsonObject jsonObj = (JsonObject) json;
+
+            SourceType type = SourceType.valueOf(jsonObj.get("type").getAsString());
+            Class<? extends Source> cls = null;
+            
+            switch (type) {
+              case METRIC:
+                cls = MetricSource.class;
+                break;
+              default:
+                break;
+            }
+
+            if (null != cls)
+              return context.deserialize(json, cls);
+            else
+              return null;
+          }
+        });
+    
+    Gson gson = builder.create();
+
+    try {
+      Type type = new TypeToken<Map<String, List<AlertDefinition>>>(){}.getType();
+      map = gson.fromJson(new FileReader(svc.getAlertsFile()), type);
+    } catch (Exception e) {
+      LOG.error ("Could not read the alert definition file", e);
+      throw new AmbariException("Could not read alert definition file", e);
+    }
+
+    Set<AlertDefinition> defs = new HashSet<AlertDefinition>();
+    
+    for (Entry<String, List<AlertDefinition>> entry : map.entrySet()) {
+      for (AlertDefinition ad : entry.getValue()) {
+        ad.setServiceName(serviceName);
+        if (!entry.getKey().equals("service")) {
+          ad.setComponentName(entry.getKey());
+        }
+      }
+      defs.addAll(entry.getValue());
+    }
+    
+    return defs;
+  }
+  
 }

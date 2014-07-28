@@ -69,7 +69,7 @@
         <component>
           <name>MYSQL_SERVER</name>
           <category>MASTER</category>
-          <cardinality>1</cardinality>
+          <cardinality>0-1</cardinality>
           <commandScript>
             <script>scripts/mysql_server.py</script>
             <scriptType>PYTHON</scriptType>
@@ -79,7 +79,7 @@
         <component>
           <name>HIVE_CLIENT</name>
           <category>CLIENT</category>
-          <cardinality>0+</cardinality>
+          <cardinality>1+</cardinality>
           <commandScript>
             <script>scripts/hive_client.py</script>
             <scriptType>PYTHON</scriptType>
@@ -128,7 +128,7 @@
 
       <configuration-dependencies>
         <config-type>hive-site</config-type>
-        <config-type>global</config-type>
+        <config-type>hive-env</config-type>
         <config-type>hive-log4j</config-type>
         <config-type>hive-exec-log4j</config-type>
       </configuration-dependencies>
@@ -165,8 +165,8 @@
       </commandScript>
 
       <configuration-dependencies>
-        <config-type>global</config-type>
         <config-type>hive-site</config-type>
+        <config-type>hive-env</config-type>
       </configuration-dependencies>
 
     </service>

@@ -92,6 +92,8 @@ App.Router = Em.Router.extend({
   }.property('loggedIn'),
 
   getAuthenticated: function () {
+    var dfd = $.Deferred();
+    var self = this;
     var auth = App.db.getAuthenticated();
     var authResp = (auth && auth === true);
     if (authResp) {
@@ -100,11 +102,14 @@ App.Router = Em.Router.extend({
         sender: this,
         success: 'onAuthenticationSuccess',
         error: 'onAuthenticationError'
-      });
+      }).complete(function () {
+          dfd.resolve(self.get('loggedIn'));
+        });
     } else {
       this.set('loggedIn', false);
+      dfd.resolve(false);
     }
-    return this.get('loggedIn');
+    return dfd.promise();
   },
 
   onAuthenticationSuccess: function (data) {
@@ -156,7 +161,7 @@ App.Router = Em.Router.extend({
     var hash = window.btoa(loginName + ":" + controller.get('password'));
     var usr = '';
 
-    if (App.testMode) {
+    if (App.get('testMode')) {
       if (loginName === "admin" && controller.get('password') === 'admin') {
         usr = 'admin';
       } else if (loginName === 'user' && controller.get('password') === 'user') {
@@ -249,7 +254,7 @@ App.Router = Em.Router.extend({
   },
 
   getSection: function (callback) {
-    if (App.testMode) {
+    if (App.get('testMode')) {
       if (App.alwaysGoToInstaller) {
         callback('installer');
       } else {
@@ -304,7 +309,7 @@ App.Router = Em.Router.extend({
     this.set('loginController.loginName', '');
     this.set('loginController.password', '');
     // When logOff is called by Sign Out button, context contains event object. As it is only case we should send logoff request, we are checking context below.
-    if (!App.testMode && context) {
+    if (!App.get('testMode') && context) {
       App.ajax.send({
         name: 'router.logoff',
         sender: this,
@@ -354,14 +359,16 @@ App.Router = Em.Router.extend({
        *  If the user is already logged in, redirect to where the user was previously
        */
       enter: function (router, context) {
-        if (router.getAuthenticated()) {
-          Ember.run.next(function () {
-            console.log(router.getLoginName() + ' already authenticated.  Redirecting...');
-            router.getSection(function (route) {
-              router.transitionTo(route, context);
+        router.getAuthenticated().done(function (loggedIn) {
+          if (loggedIn) {
+            Ember.run.next(function () {
+              console.log(router.getLoginName() + ' already authenticated.  Redirecting...');
+              router.getSection(function (route) {
+                router.transitionTo(route, context);
+              });
             });
-          });
-        }
+          }
+        });
       },
 
       connectOutlets: function (router, context) {

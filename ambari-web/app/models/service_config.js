@@ -36,7 +36,10 @@ App.ServiceConfig = Ember.Object.extend({
         }
       })
     });
-    var masterErrors = this.get('configs').filterProperty('isValid', false).filterProperty('isVisible', true).get('length');
+    var categoryNames = this.get('configCategories').mapProperty('name');
+    var masterErrors = this.get('configs').filter(function (item) {
+      return categoryNames.contains(item.get('category'));
+    }).filterProperty('isValid', false).filterProperty('isVisible', true).get('length');
     var slaveErrors = 0;
     this.get('configCategories').forEach(function (_category) {
       slaveErrors += _category.get('slaveErrorCount');
@@ -147,9 +150,10 @@ App.ServiceConfigProperty = Ember.Object.extend({
   isReconfigurable: true, // by default a config property is reconfigurable
   isEditable: true, // by default a config property is editable
   isFinal: false,
+  defaultIsFinal: false,
   supportsFinal: false,
   isVisible: true,
-  isRequiredByAgent: true, // Setting it to true implies property will be stored in global configuration
+  isRequiredByAgent: true, // Setting it to true implies property will be stored in configuration
   isSecureConfig: false,
   errorMessage: '',
   warnMessage: '',
@@ -225,10 +229,13 @@ App.ServiceConfigProperty = Ember.Object.extend({
    */
   isNotDefaultValue: function () {
     var value = this.get('value');
-    var dValue = this.get('defaultValue');
+    var defaultValue = this.get('defaultValue');
+    var supportsFinal = this.get('supportsFinal');
+    var isFinal = this.get('isFinal');
+    var defaultIsFinal = this.get('defaultIsFinal');
     var isEditable = this.get('isEditable');
-    return isEditable && dValue != null && value !== dValue;
-  }.property('value', 'defaultValue', 'isEditable'),
+    return isEditable && ((defaultValue != null && value !== defaultValue) || (supportsFinal && isFinal !== defaultIsFinal));
+  }.property('value', 'defaultValue', 'isEditable', 'isFinal', 'defaultIsFinal'),
 
   /**
    * Don't show "Undo" for hosts on Installer Step7

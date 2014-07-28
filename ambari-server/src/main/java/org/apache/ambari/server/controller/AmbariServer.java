@@ -44,15 +44,26 @@ import org.apache.ambari.server.bootstrap.BootStrapImpl;
 import org.apache.ambari.server.configuration.ComponentSSLConfiguration;
 import org.apache.ambari.server.configuration.Configuration;
 import org.apache.ambari.server.controller.internal.AbstractControllerResourceProvider;
+import org.apache.ambari.server.controller.internal.AlertDefinitionResourceProvider;
 import org.apache.ambari.server.controller.internal.BlueprintResourceProvider;
 import org.apache.ambari.server.controller.internal.ClusterResourceProvider;
+import org.apache.ambari.server.controller.internal.PermissionResourceProvider;
+import org.apache.ambari.server.controller.internal.PrivilegeResourceProvider;
 import org.apache.ambari.server.controller.internal.StackDefinedPropertyProvider;
 import org.apache.ambari.server.controller.internal.StackDependencyResourceProvider;
 import org.apache.ambari.server.controller.nagios.NagiosPropertyProvider;
 import org.apache.ambari.server.orm.GuiceJpaInitializer;
 import org.apache.ambari.server.orm.PersistenceType;
+import org.apache.ambari.server.orm.dao.AlertDefinitionDAO;
 import org.apache.ambari.server.orm.dao.BlueprintDAO;
+import org.apache.ambari.server.orm.dao.GroupDAO;
 import org.apache.ambari.server.orm.dao.MetainfoDAO;
+import org.apache.ambari.server.orm.dao.PermissionDAO;
+import org.apache.ambari.server.orm.dao.PrincipalDAO;
+import org.apache.ambari.server.orm.dao.PrivilegeDAO;
+import org.apache.ambari.server.orm.dao.ResourceDAO;
+import org.apache.ambari.server.orm.dao.ResourceTypeDAO;
+import org.apache.ambari.server.orm.dao.UserDAO;
 import org.apache.ambari.server.orm.dao.ViewDAO;
 import org.apache.ambari.server.orm.dao.ViewInstanceDAO;
 import org.apache.ambari.server.orm.entities.MetainfoEntity;
@@ -76,7 +87,6 @@ import org.apache.ambari.server.view.ViewRegistry;
 import org.apache.ambari.view.SystemException;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.nio.SelectChannelConnector;
 import org.eclipse.jetty.server.ssl.SslSelectChannelConnector;
 import org.eclipse.jetty.servlet.DefaultServlet;
@@ -292,12 +302,12 @@ public class AmbariServer {
       root.addServlet(sh, "/api/v1/*");
       sh.setInitOrder(2);
 
-      HandlerList handlerList = new HandlerList();
+      FailsafeHandlerList handlerList = new FailsafeHandlerList();
 
       try {
         ViewRegistry viewRegistry = ViewRegistry.getInstance();
         for (ViewInstanceEntity entity : viewRegistry.readViewArchives(configs)){
-          handlerList.addHandler(viewRegistry.getWebAppContext(entity));
+          handlerList.addFailsafeHandler(viewRegistry.getWebAppContext(entity));
         }
       } catch (SystemException e) {
         LOG.error("Caught exception deploying views.", e);
@@ -346,9 +356,9 @@ public class AmbariServer {
 
       if (configs.csrfProtectionEnabled()) {
         sh.setInitParameter("com.sun.jersey.spi.container.ContainerRequestFilters",
-                    "com.sun.jersey.api.container.filter.CsrfProtectionFilter");
+                    "org.apache.ambari.server.api.AmbariCsrfProtectionFilter");
         proxy.setInitParameter("com.sun.jersey.spi.container.ContainerRequestFilters",
-                    "com.sun.jersey.api.container.filter.CsrfProtectionFilter");
+                    "com.sun.jersey.api.container.filter.AmbariCsrfProtectionFilter");
       }
 
       //Set jetty thread pool
@@ -495,7 +505,7 @@ public class AmbariServer {
 
     LOG.info("DB store version is compatible");
   }
-  
+
   public void stop() throws Exception {
     try {
       server.stop();
@@ -526,9 +536,15 @@ public class AmbariServer {
         injector.getInstance(Gson.class), ambariMetaInfo);
     StackDependencyResourceProvider.init(ambariMetaInfo);
     ClusterResourceProvider.init(injector.getInstance(BlueprintDAO.class), ambariMetaInfo);
-    ViewRegistry.init(injector.getInstance(ViewDAO.class), injector.getInstance(ViewInstanceDAO.class));
+    AlertDefinitionResourceProvider.init(injector.getInstance(AlertDefinitionDAO.class));
+    PermissionResourceProvider.init(injector.getInstance(PermissionDAO.class));
+    PrivilegeResourceProvider.init(injector.getInstance(PrivilegeDAO.class), injector.getInstance(UserDAO.class),
+        injector.getInstance(GroupDAO.class), injector.getInstance(PrincipalDAO.class),
+        injector.getInstance(PermissionDAO.class), injector.getInstance(ResourceDAO.class));
+    ViewRegistry.init(injector.getInstance(ViewDAO.class), injector.getInstance(ViewInstanceDAO.class),
+        injector.getInstance(ResourceDAO.class), injector.getInstance(ResourceTypeDAO.class));
   }
-  
+
   /**
    * Sets up proxy authentication.  This must be done before the server is
    * initialized since <code>AmbariMetaInfo</code> requires potential URL
@@ -537,13 +553,13 @@ public class AmbariServer {
   static void setupProxyAuth() {
     final String proxyUser = System.getProperty("http.proxyUser");
     final String proxyPass = System.getProperty("http.proxyPassword");
-    
+
     // to skip some hosts from proxy, pipe-separate names using, i.e.:
     // -Dhttp.nonProxyHosts=*.domain.com|host.internal.net
-    
+
     if (null != proxyUser && null != proxyPass) {
       LOG.info("Proxy authentication enabled");
-      
+
       Authenticator.setDefault(new Authenticator() {
         @Override
         protected PasswordAuthentication getPasswordAuthentication() {
@@ -553,17 +569,17 @@ public class AmbariServer {
     } else {
       LOG.debug("Proxy authentication not specified");
     }
-  }  
+  }
 
   public static void main(String[] args) throws Exception {
     Injector injector = Guice.createInjector(new ControllerModule());
-    
+
     AmbariServer server = null;
     try {
       LOG.info("Getting the controller");
 
       setupProxyAuth();
-      
+
       injector.getInstance(GuiceJpaInitializer.class);
       server = injector.getInstance(AmbariServer.class);
       CertificateManager certMan = injector.getInstance(CertificateManager.class);

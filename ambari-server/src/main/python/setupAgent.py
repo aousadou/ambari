@@ -108,7 +108,7 @@ def findNearestAgentPackageVersion(projectVersion):
       Command = ["bash", "-c", "apt-cache -q show ambari-agent |grep 'Version\:'|cut -d ' ' -f 2|tr -d '\\n'|sed -s 's/[-|~][A-Za-z0-9]*//'"]
     else:
       Command = ["bash", "-c", "apt-cache -q show ambari-agent |grep 'Version\:'|cut -d ' ' -f 2|grep '" +
-               projectVersion + "'|tr -d '\\n'|sed -s 's/[-|~][A-Za-z\d]*//'"]
+               projectVersion + "'|tr -d '\\n'|sed -s 's/[-|~][A-Za-z0-9]*//'"]
   else:
     Command = ["bash", "-c", "yum -q list all ambari-agent | grep '" + projectVersion +
                               "' | sed -re 's/\s+/ /g' | cut -d ' ' -f 2 | head -n1 | sed -e 's/-\w[^:]*//1' "]
@@ -117,7 +117,7 @@ def findNearestAgentPackageVersion(projectVersion):
 
 def isAgentPackageAlreadyInstalled(projectVersion):
     if OSCheck.is_debian_family():
-      Command = ["bash", "-c", "dpkg -s ambari-agent  2>&1|grep 'Version\:'|grep " + projectVersion]
+      Command = ["bash", "-c", "dpkg-query -W -f='${Status} ${Version}\n' ambari-agent | grep -v deinstall | grep " + projectVersion]
     else:
       Command = ["bash", "-c", "rpm -qa | grep ambari-agent-"+projectVersion]
     ret = execOsCommand(Command)

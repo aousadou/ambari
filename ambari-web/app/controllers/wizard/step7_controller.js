@@ -118,7 +118,8 @@ App.WizardStep7Controller = Em.Controller.extend({
    * @type {bool}
    */
   isSubmitDisabled: function () {
-    return (!this.stepConfigs.filterProperty('showConfig', true).everyProperty('errorCount', 0) || this.get("miscModalVisible"));
+    if (!this.get('stepConfigs.length')) return true;
+    return (!this.get('stepConfigs').filterProperty('showConfig', true).everyProperty('errorCount', 0) || this.get("miscModalVisible"));
   }.property('stepConfigs.@each.errorCount', 'miscModalVisible'),
 
   /**
@@ -127,7 +128,7 @@ App.WizardStep7Controller = Em.Controller.extend({
    */
   selectedServiceNames: function () {
     return this.get('content.services').filterProperty('isSelected', true).filterProperty('isInstalled', false).mapProperty('serviceName');
-  }.property('content.services').cacheable(),
+  }.property('content.services', 'content.stacks.@each.isSelected').cacheable(),
 
   /**
    * List of installed and selected to install service names
@@ -137,7 +138,7 @@ App.WizardStep7Controller = Em.Controller.extend({
     return this.get('content.services').filter(function (service) {
       return service.get('isInstalled') || service.get('isSelected');
     }).mapProperty('serviceName');
-  }.property('content.services').cacheable(),
+  }.property('content.services', 'content.stacks.@each.isSelected').cacheable(),
 
   /**
    * List of installed service names
@@ -179,19 +180,31 @@ App.WizardStep7Controller = Em.Controller.extend({
   filter: '',
 
   /**
+   * List of filters for config properties to populate filter combobox
+   */
+  propertyFilters: [
+    {
+      attributeName: 'isOverridden',
+      caption: 'common.combobox.dropdown.overridden'
+    },
+    {
+      attributeName: 'isFinal',
+      caption: 'common.combobox.dropdown.final'
+    }
+  ],
+
+  /**
    * Dropdown menu items in filter combobox
-   * @type {Ember.Object[]}
    */
   filterColumns: function () {
-    var result = [];
-    for (var i = 1; i < 2; i++) {
-      result.push(Em.Object.create({
-        name: this.t('common.combobox.dropdown.' + i),
+    return this.get('propertyFilters').map(function(filter) {
+      return Ember.Object.create({
+        attributeName: filter.attributeName,
+        name: this.t(filter.caption),
         selected: false
-      }));
-    }
-    return result;
-  }.property(),
+      })
+    }, this);
+  }.property('propertyFilters'),
 
   /**
    * Clear controller's properties:
@@ -647,9 +660,8 @@ App.WizardStep7Controller = Em.Controller.extend({
       return;
     }
     this.clearStep();
-    App.config.setPreDefinedGlobalProperties();
     App.config.setPreDefinedServiceConfigs();
-
+    var self = this;
     //STEP 1: Load advanced configs
     var advancedConfigs = this.get('content.advancedServiceConfig');
     //STEP 2: Load on-site configs by service from local DB
@@ -672,14 +684,21 @@ App.WizardStep7Controller = Em.Controller.extend({
     this.set('groupsToDelete', this.get('wizardController').getDBProperty('groupsToDelete') || []);
 
     if (this.get('wizardController.name') === 'addServiceController') {
-      this.setInstalledServiceConfigs(this.get('serviceConfigTags'), configs);
+      App.router.get('configurationController').getConfigsByTags(this.get('serviceConfigTags')).done(function (loadedConfigs) {
+        self.setInstalledServiceConfigs(self.get('serviceConfigTags'), configs, loadedConfigs, self.get('installedServiceNames'));
+        self.applyServicesConfigs(configs, storedConfigs);
+      });
+    } else {
+      this.applyServicesConfigs(configs, storedConfigs);
     }
+  },
+
+  applyServicesConfigs: function (configs, storedConfigs) {
     if (this.get('allSelectedServiceNames').contains('STORM') || this.get('installedServiceNames').contains('STORM')) {
       this.resolveServiceDependencyConfigs('STORM', configs);
     }
     //STEP 6: Distribute configs by service and wrap each one in App.ServiceConfigProperty (configs -> serviceConfigs)
     this.setStepConfigs(configs, storedConfigs);
-
     this.checkHostOverrideInstaller();
     this.activateSpecialConfigs();
     this.selectProperService();
@@ -687,7 +706,6 @@ App.WizardStep7Controller = Em.Controller.extend({
       App.router.send('next');
     }
   },
-
   /**
    * If <code>App.supports.hostOverridesInstaller</code> is enabled should load config groups
    * and (if some services are already installed) load config groups for installed services
@@ -776,6 +794,7 @@ App.WizardStep7Controller = Em.Controller.extend({
   getConfigTagsSuccess: function (data) {
     var installedServiceSites = [];
     App.StackService.find().filterProperty('isInstalled').forEach(function (service) {
+      if (!service.get('configTypes')) return;
       var configTypes = Object.keys(service.get('configTypes'));
       installedServiceSites = installedServiceSites.concat(configTypes);
     }, this);
@@ -802,19 +821,20 @@ App.WizardStep7Controller = Em.Controller.extend({
    * @param configs
    * @method setInstalledServiceConfigs
    */
-  setInstalledServiceConfigs: function (serviceConfigTags, configs) {
+  setInstalledServiceConfigs: function (serviceConfigTags, configs, configsByTags, installedServiceNames) {
     var configsMap = {};
     var configTypeMap = {};
     var configMixin = App.get('config');
+    var self = this;
 
-    App.router.get('configurationController').getConfigsByTags(serviceConfigTags).forEach(function (configSite) {
+    configsByTags.forEach(function (configSite) {
       $.extend(configsMap, configSite.properties);
       for (var name in configSite.properties) {
         configTypeMap[name] = configSite.type;
       }
     });
     configs.forEach(function (_config) {
-      if (!Em.isNone(configsMap[_config.name])) {
+      if (!Em.isNone(configsMap[_config.name]) && installedServiceNames && installedServiceNames.contains(_config.serviceName)) {
         // prevent overriding already edited properties
         if (_config.defaultValue != configsMap[_config.name])
           _config.value = configsMap[_config.name];
@@ -824,8 +844,7 @@ App.WizardStep7Controller = Em.Controller.extend({
         delete configsMap[_config.name];
       }
     });
-
-    this.setServiceDatabaseConfigs(configs);
+    self.setServiceDatabaseConfigs(configs);
     //add user properties
     for (var name in configsMap) {
       configs.push(configMixin.addUserProperty({
@@ -836,6 +855,7 @@ App.WizardStep7Controller = Em.Controller.extend({
         defaultValue: configsMap[name],
         filename: (configMixin.get('filenameExceptions').contains(configTypeMap[name])) ? configTypeMap[name] : configTypeMap[name] + '.xml',
         category: 'Advanced',
+        hasInitialValue: true,
         isUserProperty: true,
         isOverridable: true,
         overrides: [],

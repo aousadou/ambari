@@ -33,7 +33,9 @@ App.serviceMetricsMapper = App.QuickDataMapper.create({
     $alerts: [ 1, 2, 3 ],
     host_components: 'host_components',
     tool_tip_content: 'tool_tip_content',
-    installed_clients: 'installed_clients'
+    installed_clients: 'installed_clients',
+    client_components: 'client_components',
+    slave_components: 'slave_components'
   },
   hdfsConfig: {
     version: 'nameNodeComponent.host_components[0].metrics.dfs.namenode.Version',
@@ -168,6 +170,7 @@ App.serviceMetricsMapper = App.QuickDataMapper.create({
     host_id: 'HostRoles.host_name',
     host_name: 'HostRoles.host_name',
     stale_configs: 'HostRoles.stale_configs',
+    ha_state: 'HostRoles.ha_state',
     display_name_advanced: 'display_name_advanced',
     $service_id: 'none' /* will be set outside of parse function */
   },
@@ -310,6 +313,7 @@ App.serviceMetricsMapper = App.QuickDataMapper.create({
    */
   computeAdditionalRelations: function (hostComponents, services) {
     var isSecondaryNamenode = hostComponents.findProperty('component_name', 'SECONDARY_NAMENODE');
+    var isRMHAEnabled = hostComponents.filterProperty('component_name', 'RESOURCEMANAGER').length > 1;
     services.setEach('tool_tip_content', '');
     // set tooltip for client-only services
     var clientOnlyServiceNames = App.get('services.clientOnly');
@@ -346,6 +350,15 @@ App.serviceMetricsMapper = App.QuickDataMapper.create({
               hostComponent.display_name_advanced = this.t('dashboard.services.hbase.masterServer.standby');
           } else {
             hostComponent.display_name_advanced = null;
+          }
+        } else if (hostComponent.component_name === 'RESOURCEMANAGER' && isRMHAEnabled && hostComponent.work_status === 'STARTED') {
+          switch (hostComponent.ha_state) {
+            case 'ACTIVE':
+              hostComponent.display_name_advanced = Em.I18n.t('dashboard.services.yarn.resourceManager.active');
+              break;
+            case 'STANDBY':
+              hostComponent.display_name_advanced = Em.I18n.t('dashboard.services.yarn.resourceManager.standby');
+              break;
           }
         }
         if (service) {
@@ -604,7 +617,8 @@ App.serviceMetricsMapper = App.QuickDataMapper.create({
     var flumeConfig = this.flumeConfig;
     finalConfig = jQuery.extend(finalConfig, flumeConfig);
     var finalJson = self.parseIt(item, finalConfig);
-    var flumeHandlers = item.components[0].host_components;
+    var flumeHandlers = item.components.findProperty('ServiceComponentInfo.component_name', "FLUME_HANDLER");
+    flumeHandlers = flumeHandlers ? flumeHandlers.host_components : [];
     finalJson.agents = [];
     finalJson.agentJsons = [];
     flumeHandlers.forEach(function(flumeHandler){

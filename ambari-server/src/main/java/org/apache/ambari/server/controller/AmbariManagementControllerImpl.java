@@ -30,6 +30,7 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -270,7 +271,8 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     return uriBuilder.toString();
   }
 
-  private RoleCommandOrder getRoleCommandOrder(Cluster cluster) {
+  @Override
+  public RoleCommandOrder getRoleCommandOrder(Cluster cluster) {
       RoleCommandOrder rco;
       rco = injector.getInstance(RoleCommandOrder.class);
       rco.initialize(cluster);
@@ -1281,10 +1283,10 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     // Flatten changed Schs that are going to be Started
     List<ServiceComponentHost> serviceComponentHosts = new ArrayList<ServiceComponentHost>();
     if (changedScHosts != null && !changedScHosts.isEmpty()) {
-      for (String sc : changedScHosts.keySet()) {
-        for (State state : changedScHosts.get(sc).keySet()) {
+      for (Entry<String, Map<State, List<ServiceComponentHost>>> stringMapEntry : changedScHosts.entrySet()) {
+        for (State state : stringMapEntry.getValue().keySet()) {
           if (state == State.STARTED) {
-            serviceComponentHosts.addAll(changedScHosts.get(sc).get(state));
+            serviceComponentHosts.addAll(stringMapEntry.getValue().get(state));
           }
         }
       }
@@ -1326,10 +1328,10 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     LOG.info("Client hosts for reinstall : " + clientSchs.size());
 
     if (changedScHosts != null) {
-      for (String sc : clientSchs.keySet()) {
-        Map<State, List<ServiceComponentHost>> schMap = new HashMap<State, List<ServiceComponentHost>>();
-        schMap.put(State.INSTALLED, clientSchs.get(sc));
-        changedScHosts.put(sc, schMap);
+      for (Entry<String, List<ServiceComponentHost>> stringListEntry : clientSchs.entrySet()) {
+        Map<State, List<ServiceComponentHost>> schMap = new EnumMap<State, List<ServiceComponentHost>>(State.class);
+        schMap.put(State.INSTALLED, stringListEntry.getValue());
+        changedScHosts.put(stringListEntry.getKey(), schMap);
       }
     }
   }
@@ -1357,6 +1359,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
   private void createHostAction(Cluster cluster,
                                 Stage stage, ServiceComponentHost scHost,
                                 Map<String, Map<String, String>> configurations,
+                                Map<String, Map<String, Map<String, String>>> configurationAttributes,
                                 Map<String, Map<String, String>> configTags,
                                 RoleCommand roleCommand,
                                 Map<String, String> commandParams,
@@ -1402,6 +1405,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     }
 
     execCmd.setConfigurations(configurations);
+    execCmd.setConfigurationAttributes(configurationAttributes);
     execCmd.setConfigurationTags(configTags);
     if (commandParams == null) { // if not defined
       commandParams = new TreeMap<String, String>();
@@ -1409,7 +1413,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     String commandTimeout = configs.getDefaultAgentTaskTimeout();
     /*
      * This script is only used for
-     * default commads like INSTALL/STOP/START
+     * default commands like INSTALL/STOP/START
      */
     CommandScriptDefinition script = componentInfo.getCommandScript();
     if (serviceInfo.getSchemaVersion().equals(AmbariMetaInfo.SCHEMA_VERSION_2)) {
@@ -1441,17 +1445,8 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
         + ", repoInfo=" + repoInfo);
     }
 
-    Map<String, String> hostParams = new TreeMap<String, String>();
+    Map<String, String> hostParams = createDefaultHostParams(cluster);
     hostParams.put(REPO_INFO, repoInfo);
-    hostParams.put(JDK_LOCATION, getJdkResourceUrl());
-    hostParams.put(JAVA_HOME, getJavaHome());
-    hostParams.put(JDK_NAME, getJDKName());
-    hostParams.put(JCE_NAME, getJCEName());
-    hostParams.put(STACK_NAME, stackId.getStackName());
-    hostParams.put(STACK_VERSION, stackId.getStackVersion());
-    hostParams.put(DB_NAME, getServerDB());
-    hostParams.put(MYSQL_JDBC_URL, getMysqljdbcUrl());
-    hostParams.put(ORACLE_JDBC_URL, getOjdbcUrl());
     hostParams.putAll(getRcaParameters());
 
     // Write down os specific info for the service
@@ -1741,6 +1736,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
 
             // [ type -> [ key, value ] ]
             Map<String, Map<String, String>> configurations = new TreeMap<String, Map<String, String>>();
+            Map<String, Map<String, Map<String, String>>> configurationAttributes = new TreeMap<String, Map<String, Map<String, String>>>();
             Host host = clusters.getHost(scHost.getHostName());
 
             Map<String, Map<String, String>> configTags =
@@ -1763,7 +1759,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
               requestParameters.put(keyName, requestProperties.get(keyName));
             }
 
-            createHostAction(cluster, stage, scHost, configurations, configTags,
+            createHostAction(cluster, stage, scHost, configurations, configurationAttributes, configTags,
               roleCommand, requestParameters, event);
           }
         }
@@ -1800,7 +1796,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     return null;
   }
 
-  private TreeMap<String, String> createDefaultHostParams(Cluster cluster) {
+  TreeMap<String, String> createDefaultHostParams(Cluster cluster) {
     StackId stackId = cluster.getDesiredStackVersion();
     TreeMap<String, String> hostLevelParams = new TreeMap<String, String>();
     hostLevelParams.put(JDK_LOCATION, getJdkResourceUrl());
@@ -2101,7 +2097,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
       } else {
         if (!changedScHosts.containsKey(sc.getName())) {
           changedScHosts.put(sc.getName(),
-              new HashMap<State, List<ServiceComponentHost>>());
+              new EnumMap<State, List<ServiceComponentHost>>(State.class));
         }
         if (!changedScHosts.get(sc.getName()).containsKey(newState)) {
           changedScHosts.get(sc.getName()).put(newState,

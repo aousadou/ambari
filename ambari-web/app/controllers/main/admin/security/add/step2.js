@@ -198,9 +198,9 @@ App.MainAdminSecurityAddStep2Controller = Em.Controller.extend({
     this.clearStep();
     this.loadUsers();
     this.addUserPrincipals(this.get('content.services'), this.get('securityUsers'));
-    this.addMasterHostToGlobals();
+    this.addMasterHostToConfigs();
     this.addHostPrincipals();
-    this.addSlaveHostToGlobals();
+    this.addSlaveHostToConfigs();
     this.renderServiceConfigs(this.get('content.services'));
     this.changeCategoryOnHa(this.get('content.services'), this.get('stepConfigs'));
     this.setStoredConfigsValue(this.get('content.serviceConfigProperties'));
@@ -320,7 +320,7 @@ App.MainAdminSecurityAddStep2Controller = Em.Controller.extend({
   loadUsers: function () {
     var securityUsers = App.router.get('mainAdminSecurityController').get('serviceUsers');
     if (Em.isNone(securityUsers) || securityUsers.length === 0) {
-      if (App.testMode) {
+      if (App.get('testMode')) {
         securityUsers = securityUsers || [];
         securityUsers.pushObject({id: 'puppet var', name: 'hdfs_user', value: 'hdfs'});
         securityUsers.pushObject({id: 'puppet var', name: 'mapred_user', value: 'mapred'});
@@ -368,18 +368,18 @@ App.MainAdminSecurityAddStep2Controller = Em.Controller.extend({
   },
 
   /**
-   * put hosts of slave component into defaultValue of global configs
+   * put hosts of slave component into defaultValue of configs
    */
-  addSlaveHostToGlobals: function () {
+  addSlaveHostToConfigs: function () {
     this.get('slaveComponentMap').forEach(function (service) {
       this.setHostsToConfig(service.serviceName, service.configName, [service.component]);
     }, this);
   },
 
   /**
-   * put hosts of master component into defaultValue of global configs
+   * put hosts of master component into defaultValue of configs
    */
-  addMasterHostToGlobals: function () {
+  addMasterHostToConfigs: function () {
     this.get('masterComponentMap').forEach(function (item) {
       this.setHostsToConfig(item.serviceName, item.configName, item.components);
     }, this);
@@ -404,7 +404,7 @@ App.MainAdminSecurityAddStep2Controller = Em.Controller.extend({
     if (hdfsService) {
       var properties = stepConfigs.findProperty('serviceName', 'HDFS').get('configs');
       var configCategories = hdfsService.configCategories;
-      if ((App.testMode && App.testNameNodeHA) || (this.get('content.isNnHa') === 'true')) {
+      if ((App.get('testMode') && App.get('testNameNodeHA')) || (this.get('content.isNnHa') === 'true')) {
         this.removeConfigCategory(properties, configCategories, 'SNameNode');
       } else {
         this.removeConfigCategory(properties, configCategories, 'JournalNode');

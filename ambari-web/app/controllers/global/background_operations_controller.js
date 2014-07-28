@@ -98,7 +98,7 @@ App.BackgroundOperationsController = Em.Controller.extend({
         'operationsCount': count
       }
     };
-    if (levelInfo.get('name') === 'TASK_DETAILS' && !App.testMode) {
+    if (levelInfo.get('name') === 'TASK_DETAILS' && !App.get('testMode')) {
       result.name = 'background_operations.get_by_task';
       result.successCallback = 'callBackFilteredByTask';
       result.data = {
@@ -170,6 +170,8 @@ App.BackgroundOperationsController = Em.Controller.extend({
     task.Tasks.status = data.Tasks.status;
     task.Tasks.stdout = data.Tasks.stdout;
     task.Tasks.stderr = data.Tasks.stderr;
+    task.Tasks.output_log = data.Tasks.output_log;
+    task.Tasks.error_log = data.Tasks.error_log;
     this.set('serviceTimestamp', App.dateTime());
   },
 
@@ -191,7 +193,7 @@ App.BackgroundOperationsController = Em.Controller.extend({
       currentRequestIds.push(request.Requests.id);
 
       if (rq) {
-        rq.set('progress', Math.ceil(request.Requests.progress_percent));
+        rq.set('progress', Math.floor(request.Requests.progress_percent));
         rq.set('status', request.Requests.request_status);
         rq.set('isRunning', isRunning);
         rq.set('startTime', request.Requests.start_time);

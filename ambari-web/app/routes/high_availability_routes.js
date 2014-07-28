@@ -19,7 +19,7 @@
 var App = require('app');
 
 module.exports = App.WizardRoute.extend({
-  route: '/highAvailability/enable',
+  route: '/highAvailability/NameNode/enable',
 
   enter: function (router) {
     Em.run.next(function () {
@@ -311,15 +311,12 @@ module.exports = App.WizardRoute.extend({
       var controller = router.get('highAvailabilityWizardController');
       controller.clearTasksData();
       controller.finish();
-      controller.get('popup').hide();
       App.clusterStatus.setClusterStatus({
         clusterName: controller.get('content.cluster.name'),
         clusterState: 'DEFAULT',
         wizardControllerName: 'highAvailabilityWizardController',
         localdb: App.db.data
-      });
-      router.transitionTo('main.index');
-      location.reload();
+      },{alwaysCallback: function() {controller.get('popup').hide();router.transitionTo('main.index');location.reload();}});
     }
   }),
 

@@ -64,6 +64,14 @@ App.WizardStep5Controller = Em.Controller.extend({
    * @type {string[]}
    */
   multipleComponents: function () {
+    return App.get('components.multipleMasters');
+  }.property('App.components.multipleMasters'),
+
+  /**
+   * Master components which could be assigned to multiple hosts
+   * @type {string[]}
+   */
+  addableComponents: function () {
     return App.get('components.addableMasterInstallerWizard');
   }.property('App.components.addableMasterInstallerWizard'),
 
@@ -208,7 +216,7 @@ App.WizardStep5Controller = Em.Controller.extend({
     this.clearStep();
     this.renderHostInfo();
     this.renderComponents(this.loadComponents());
-    this.get('multipleComponents').forEach(function (componentName) {
+    this.get('addableComponents').forEach(function (componentName) {
       this.updateComponent(componentName);
     }, this);
     if (!this.get("selectedServicesMasters").filterProperty('isInstalled', false).length) {
@@ -359,8 +367,6 @@ App.WizardStep5Controller = Em.Controller.extend({
   },
 
   /**
-<<<<<<< HEAD
-=======
    * @param {string} componentName
    * @returns {bool}
    * @private
@@ -371,7 +377,6 @@ App.WizardStep5Controller = Em.Controller.extend({
   },
 
   /**
->>>>>>> apache-ref/trunk
    * Put master components to <code>selectedServicesMasters</code>, which will be automatically rendered in template
    * @param {Ember.Enumerable} masterComponents
    * @method renderComponents
@@ -389,9 +394,8 @@ App.WizardStep5Controller = Em.Controller.extend({
       console.log("TRACE: render master component name is: " + item.component_name);
       var masterComponent = App.StackServiceComponent.find().findProperty('componentName', item.component_name);
       if (masterComponent.get('isMasterWithMultipleInstances')) {
-        if (item.component_name !== previousComponentName) serviceComponentId = 1;
         previousComponentName = item.component_name;
-        componentObj.set('serviceComponentId', serviceComponentId++);
+        componentObj.set('serviceComponentId', result.filterProperty('component_name', item.component_name).length + 1);
         componentObj.set("showRemoveControl", showRemoveControl);
       }
       componentObj.set('isHostNameValid', true);
@@ -512,7 +516,7 @@ App.WizardStep5Controller = Em.Controller.extend({
   assignHostToMaster: function (componentName, selectedHost, serviceComponentId) {
     var flag = this.isHostNameValid(componentName, selectedHost);
     this.updateIsHostNameValidFlag(componentName, serviceComponentId, flag);
-    if (zId) {
+    if (serviceComponentId) {
       this.get('selectedServicesMasters').filterProperty('component_name', componentName).findProperty("serviceComponentId", serviceComponentId).set("selectedHost", selectedHost);
     }
     else {
@@ -546,9 +550,9 @@ App.WizardStep5Controller = Em.Controller.extend({
   /**
    * Update <code>isHostNameValid</code> property with <code>flag</code> value
    * for component with name <code>componentName</code> and
-   * <code>zId</code>-property equal to <code>zId</code>-parameter value
+   * <code>serviceComponentId</code>-property equal to <code>serviceComponentId</code>-parameter value
    * @param {string} componentName
-   * @param {number} zId
+   * @param {number} serviceComponentId
    * @param {bool} flag
    * @method updateIsHostNameValidFlag
    */

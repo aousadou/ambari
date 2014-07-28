@@ -22,6 +22,7 @@ from resource_management.core.system import System
 import os
 
 config = Script.get_config()
+tmp_dir = Script.get_tmp_dir()
 
 #java params
 artifact_dir = "/tmp/HDP-artifacts/"
@@ -47,43 +48,42 @@ if System.get_instance().os_family == "suse":
   jsvc_path = "/usr/lib/bigtop-utils"
 else:
   jsvc_path = "/usr/libexec/bigtop-utils"
-hadoop_heapsize = config['configurations']['global']['hadoop_heapsize']
-namenode_heapsize = config['configurations']['global']['namenode_heapsize']
-namenode_opt_newsize =  config['configurations']['global']['namenode_opt_newsize']
-namenode_opt_maxnewsize =  config['configurations']['global']['namenode_opt_maxnewsize']
+hadoop_heapsize = config['configurations']['hadoop-env']['hadoop_heapsize']
+namenode_heapsize = config['configurations']['hadoop-env']['namenode_heapsize']
+namenode_opt_newsize =  config['configurations']['hadoop-env']['namenode_opt_newsize']
+namenode_opt_maxnewsize =  config['configurations']['hadoop-env']['namenode_opt_maxnewsize']
 
-jtnode_opt_newsize = default("jtnode_opt_newsize","200m")
-jtnode_opt_maxnewsize = default("jtnode_opt_maxnewsize","200m")
-jtnode_heapsize =  default("jtnode_heapsize","1024m")
+jtnode_opt_newsize = default("/configurations/mapred-env/jtnode_opt_newsize","200m")
+jtnode_opt_maxnewsize = default("/configurations/mapred-env/tnode_opt_maxnewsize","200m")
+jtnode_heapsize =  default("/configurations/mapred-env/jtnode_heapsize","1024m")
 ttnode_heapsize = "1024m"
 
-dtnode_heapsize = config['configurations']['global']['dtnode_heapsize']
-mapred_pid_dir_prefix = default("mapred_pid_dir_prefix","/var/run/hadoop-mapreduce")
+dtnode_heapsize = config['configurations']['hadoop-env']['dtnode_heapsize']
+mapred_pid_dir_prefix = default("/configurations/hadoop-env/mapred_pid_dir_prefix","/var/run/hadoop-mapreduce")
 mapreduce_libs_path = "/usr/lib/hadoop-mapreduce/*"
 hadoop_libexec_dir = "/usr/lib/hadoop/libexec"
-mapred_log_dir_prefix = default("mapred_log_dir_prefix","/var/log/hadoop-mapreduce")
+mapred_log_dir_prefix = "/var/log/hadoop-mapreduce"
 
-hdfs_log_dir_prefix = config['configurations']['global']['hdfs_log_dir_prefix']
-hadoop_pid_dir_prefix = config['configurations']['global']['hadoop_pid_dir_prefix']
+hdfs_log_dir_prefix = config['configurations']['hadoop-env']['hdfs_log_dir_prefix']
+hadoop_pid_dir_prefix = config['configurations']['hadoop-env']['hadoop_pid_dir_prefix']
 
 #users and groups
-yarn_user = config['configurations']['global']['yarn_user']
-hbase_user = config['configurations']['global']['hbase_user']
-nagios_user = config['configurations']['global']['nagios_user']
-oozie_user = config['configurations']['global']['oozie_user']
-webhcat_user = config['configurations']['global']['hcat_user']
-hcat_user = config['configurations']['global']['hcat_user']
-hive_user = config['configurations']['global']['hive_user']
-smoke_user =  config['configurations']['global']['smokeuser']
-mapred_user = config['configurations']['global']['mapred_user']
-hdfs_user = config['configurations']['global']['hdfs_user']
-zk_user = config['configurations']['global']['zk_user']
-gmetad_user = config['configurations']['global']["gmetad_user"]
-gmond_user = config['configurations']['global']["gmond_user"]
+hbase_user = config['configurations']['hbase-env']['hbase_user']
+nagios_user = config['configurations']['nagios-env']['nagios_user']
+oozie_user = config['configurations']['oozie-env']['oozie_user']
+webhcat_user = config['configurations']['hive-env']['hcat_user']
+hcat_user = config['configurations']['hive-env']['hcat_user']
+hive_user = config['configurations']['hive-env']['hive_user']
+smoke_user =  config['configurations']['hadoop-env']['smokeuser']
+mapred_user = config['configurations']['mapred-env']['mapred_user']
+hdfs_user = config['configurations']['hadoop-env']['hdfs_user']
+zk_user = config['configurations']['zookeeper-env']['zk_user']
+gmetad_user = config['configurations']['ganglia-env']["gmetad_user"]
+gmond_user = config['configurations']['ganglia-env']["gmond_user"]
 
-user_group = config['configurations']['global']['user_group']
-proxyuser_group =  config['configurations']['global']['proxyuser_group']
-nagios_group = config['configurations']['global']['nagios_group']
+user_group = config['configurations']['hadoop-env']['user_group']
+proxyuser_group =  config['configurations']['hadoop-env']['proxyuser_group']
+nagios_group = config['configurations']['nagios-env']['nagios_group']
 smoke_user_group =  "users"
 mapred_tt_group = default("/configurations/mapred-site/mapreduce.tasktracker.group", user_group)
 
@@ -104,6 +104,8 @@ zk_hosts = default("/clusterHostInfo/zookeeper_hosts", [])
 ganglia_server_hosts = default("/clusterHostInfo/ganglia_server_host", [])
 
 has_resourcemanager = not len(rm_host) == 0
+has_namenode = not len(namenode_host) == 0
+has_jt = not len(jtnode_host) == 0
 has_slaves = not len(slave_hosts) == 0
 has_nagios = not len(hagios_server_hosts) == 0
 has_oozie_server = not len(oozie_servers)  == 0
@@ -123,7 +125,7 @@ if has_ganglia_server:
   ganglia_server_host = ganglia_server_hosts[0]
 
 hbase_tmp_dir = config['configurations']['hbase-site']['hbase.tmp.dir']
-ignore_groupsusers_create = default("ignore_groupsusers_create", False)
+ignore_groupsusers_create = default("/configurations/hadoop-env/ignore_groupsusers_create", False)
 
 
 #repo params

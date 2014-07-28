@@ -21,8 +21,8 @@ from resource_management import *
 
 config = Script.get_config()
 
-user_group = config['configurations']['global']['user_group']
-proxyuser_group =  config['configurations']['global']['proxyuser_group']
+user_group = config['configurations']['hadoop-env']['user_group']
+proxyuser_group =  config['configurations']['hadoop-env']['proxyuser_group']
 
 security_enabled = False
 
@@ -33,6 +33,9 @@ flume_log_dir = '/var/log/flume'
 flume_run_dir = '/var/run/flume'
 flume_user = 'flume'
 flume_group = 'flume'
+
+if 'flume-env' in config['configurations'] and 'flume_user' in config['configurations']['flume-env']:
+  flume_user = config['configurations']['flume-env']['flume_user']
 
 if (('flume-conf' in config['configurations']) and('content' in config['configurations']['flume-conf'])):
   flume_conf_content = config['configurations']['flume-conf']['content']

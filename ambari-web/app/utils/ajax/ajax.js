@@ -124,6 +124,33 @@ var urls = {
     }
   },
 
+  'service.flume.agent.command': {
+    'real': '/clusters/{clusterName}/hosts/{host}/host_components/FLUME_HANDLER',
+    'mock': '',
+    'format': function (data) {
+      return {
+        type: 'PUT',
+        data: JSON.stringify({
+          "RequestInfo": {
+            "context": data.context,
+            "flume_handler": data.agentName,
+            "operation_level": {
+              level: "HOST_COMPONENT",
+              cluster_name: data.clusterName,
+              service_name: "FLUME",
+              host_name: data.host
+            }
+          },
+          "Body": {
+            "HostRoles": {
+              "state": data.state
+            }
+          }
+        })
+      }
+    }
+  },
+
   'common.host_components.update': {
     'real': '/clusters/{clusterName}/host_components?{urlParams}',
     'mock': '/data/wizard/deploy/poll_1.json',
@@ -134,7 +161,7 @@ var urls = {
           RequestInfo: {
             "context": data.context,
             "operation_level": {
-              level: "CLUSTER",
+              level: data.level || "CLUSTER",
               cluster_name: data.clusterName
             },
             query: data.query
@@ -255,26 +282,6 @@ var urls = {
     'real': '/clusters/{clusterName}/config_groups?ConfigGroup/tag={serviceName}&fields=*',
     'mock': '/data/configurations/config_group.json'
   },
-  'service.flume.agent.command': {
-    'real': '/clusters/{clusterName}/hosts/{host}/host_components/FLUME_HANDLER',
-    'mock': '',
-    'format': function (data) {
-      return {
-        type: 'PUT',
-        data: JSON.stringify({
-          "RequestInfo": {
-            "context": data.context,
-            "flume_handler": data.agentName
-          },
-          "Body": {
-            "HostRoles": {
-              "state": data.state
-            }
-          }
-        })
-      }
-    }
-  },
   'reassign.load_configs': {
     'real': '/clusters/{clusterName}/configurations?{urlParams}',
     'mock': ''
@@ -355,12 +362,7 @@ var urls = {
   },
   'config.on_site': {
     'real': '/clusters/{clusterName}/configurations?{params}',
-    'mock': '/data/configurations/cluster_level_configs.json?{params}',
-    'format': function() {
-      return {
-        async: false
-      };
-    }
+    'mock': '/data/configurations/cluster_level_configs.json?{params}'
   },
   'config.host_overrides': {
     'real': '/clusters/{clusterName}/configurations?{params}',
@@ -403,6 +405,12 @@ var urls = {
             'parameters': {
               'slave_type': data.slaveType,
               'excluded_hosts': data.hostName
+            },
+            'operation_level': {
+              level: "HOST_COMPONENT",
+              cluster_name: data.clusterName,
+              host_name: data.hostName,
+              service_name: data.serviceName
             }
           },
           "Requests/resource_filters": [{"service_name" : data.serviceName, "component_name" : data.componentName}]
@@ -608,7 +616,7 @@ var urls = {
     'testInProduction': true
   },
   'service.metrics.hdfs.space_utilization': {
-    'real': '/clusters/{clusterName}/hosts/{nameNodeName}/host_components/NAMENODE?fields=metrics/dfs/FSNamesystem/CapacityRemainingGB[{fromSeconds},{toSeconds},{stepSeconds}],metrics/dfs/FSNamesystem/CapacityUsedGB[{fromSeconds},{toSeconds},{stepSeconds}],metrics/dfs/FSNamesystem/CapacityTotalGB[{fromSeconds},{toSeconds},{stepSeconds}]',
+    'real': '/clusters/{clusterName}/hosts/{nameNodeName}/host_components/NAMENODE?fields=metrics/dfs/FSNamesystem/CapacityRemaining[{fromSeconds},{toSeconds},{stepSeconds}],metrics/dfs/FSNamesystem/CapacityUsed[{fromSeconds},{toSeconds},{stepSeconds}],metrics/dfs/FSNamesystem/CapacityTotal[{fromSeconds},{toSeconds},{stepSeconds}],metrics/dfs/FSNamesystem/CapacityNonDFSUsed[{fromSeconds},{toSeconds},{stepSeconds}]',
     'mock': '/data/services/metrics/hdfs/space_utilization.json',
     'testInProduction': true
   },
@@ -955,8 +963,7 @@ var urls = {
     'mock': '/data/stacks/HDP-2.1/service_components.json',
     'format': function(data) {
       return {
-        timeout: 10000,
-        async: !!data.async
+        timeout: 10000
       };
     }
   },
@@ -1150,21 +1157,11 @@ var urls = {
   },
   'wizard.stacks': {
     'real': '/stacks',
-    'mock': '/data/wizard/stack/stacks2.json',
-    'format': function() {
-      return {
-        async: false
-      };
-    }
+    'mock': '/data/wizard/stack/stacks2.json'
   },
   'wizard.stacks_versions': {
     'real': '/stacks/{stackName}/versions?fields=Versions,operatingSystems/repositories/Repositories',
-    'mock': '/data/wizard/stack/{stackName}_versions.json',
-    'format': function() {
-      return {
-        async: false
-      };
-    }
+    'mock': '/data/wizard/stack/{stackName}_versions.json'
   },
   'wizard.launch_bootstrap': {
     'real': '/bootstrap',

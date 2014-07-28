@@ -59,7 +59,7 @@
         <component>
           <name>MAPREDUCE_CLIENT</name>
           <category>CLIENT</category>
-          <cardinality>0+</cardinality> 
+          <cardinality>1+</cardinality>
           <commandScript>
             <script>scripts/client.py</script>
             <scriptType>PYTHON</scriptType>
@@ -103,8 +103,8 @@
       <configuration-dependencies>
         <config-type>capacity-scheduler</config-type>
         <config-type>core-site</config-type>
-        <config-type>global</config-type>
         <config-type>mapred-site</config-type>
+        <config-type>mapred-env</config-type>
         <config-type>mapred-queue-acls</config-type>
         <config-type>mapreduce-log4j</config-type>
       </configuration-dependencies>

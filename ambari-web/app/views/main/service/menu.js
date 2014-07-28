@@ -75,7 +75,7 @@ App.MainServiceMenuView = Em.CollectionView.extend({
     }.property('content.criticalAlertsCount'),
 
     isConfigurable: function () {
-      return !App.get('services.noConfigTypes').concat('HCATALOG').contains('content.serviceName');
+      return !App.get('services.noConfigTypes').concat('HCATALOG').contains(this.get('content.serviceName'));
     }.property('App.services.noConfigTypes','content.serviceName'),
 
     link: function() {
@@ -86,8 +86,9 @@ App.MainServiceMenuView = Em.CollectionView.extend({
     }.property('App.router.currentState.name', 'parentView.activeServiceId', 'isConfigurable'),
 
     goToConfigs: function () {
-      App.router.transitionTo('service.configs', this.get('content'));
-      App.router.set('currentState.name', 'configs');
+      App.router.set('mainServiceItemController.routeToConfigs', true);
+      App.router.transitionTo('services.service.configs', this.get('content'));
+      App.router.set('mainServiceItemController.routeToConfigs', false);
     },
 
     refreshRestartRequiredMessage: function() {
@@ -172,7 +173,7 @@ App.TopNavServiceMenuView = Em.CollectionView.extend({
     }.property('content.criticalAlertsCount'),
 
     isConfigurable: function () {
-      return !App.get('services.noConfigTypes').concat('HCATALOG').contains('content.serviceName');
+      return !App.get('services.noConfigTypes').concat('HCATALOG').contains(this.get('content.serviceName'));
     }.property('App.services.noConfigTypes','content.serviceName'),
 
     link: function() {
@@ -183,8 +184,9 @@ App.TopNavServiceMenuView = Em.CollectionView.extend({
     }.property('App.router.currentState.name', 'parentView.activeServiceId','isConfigurable'),
 
     goToConfigs: function () {
-      App.router.transitionTo('service.configs', this.get('content'));
-      App.router.set('currentState.name', 'configs');
+      App.router.set('mainServiceItemController.routeToConfigs', true);
+      App.router.transitionTo('services.service.configs', this.get('content'));
+      App.router.set('mainServiceItemController.routeToConfigs', false);
     },
 
     refreshRestartRequiredMessage: function() {

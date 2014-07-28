@@ -40,11 +40,13 @@ class TestTezClient(RMFTestCase):
       group = 'hadoop',
       conf_dir = '/etc/tez/conf',
       configurations = self.getConfig()['configurations']['tez-site'],
+      configuration_attributes = self.getConfig()['configuration_attributes']['tez-site'],
       mode = 0664
     )
 
-    self.assertResourceCalled('TemplateConfig', '/etc/tez/conf/tez-env.sh',
-      owner = 'tez'
+    self.assertResourceCalled('File', '/etc/tez/conf/tez-env.sh',
+      owner = 'tez',
+      content = InlineTemplate(self.getConfig()['configurations']['tez-env']['content'])
     )
 
     self.assertNoMoreResources()

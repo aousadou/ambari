@@ -36,6 +36,9 @@ App.Service = DS.Model.extend(App.ServiceModelMixin, {
    */
   installedClients: DS.attr('number'),
 
+  clientComponents: DS.hasMany('App.ClientComponent'),
+  slaveComponents: DS.hasMany('App.SlaveComponent'),
+
   /**
    * @type {bool}
    */
@@ -79,15 +82,15 @@ App.Service = DS.Model.extend(App.ServiceModelMixin, {
     var typeServiceMap = {
       GANGLIA: ['MONITORING'],
       NAGIOS:  ['MONITORING'],
-      HDFS: ['HA_MODE']
+      HDFS: ['HA_MODE'],
+      YARN: ['HA_MODE']
     };
     return typeServiceMap[this.get('serviceName')] || [];
   }.property('serviceName'),
 
   /**
    * For each host-component, if the desired_configs dont match the
-   * actual_configs, then a restart is required. Except for Global site
-   * properties, which need to be checked with map.
+   * actual_configs, then a restart is required.
    */
   isRestartRequired: function () {
     var rhc = this.get('hostComponents').filterProperty('staleConfigs', true);
@@ -178,7 +181,7 @@ App.Service.Health = {
  * association between service and extended model name
  * @type {Object}
  */
-App.Service.extendedModel = {
+  App.Service.extendedModel = {
   'HDFS': 'HDFSService',
   'MAPREDUCE': 'MapReduceService',
   'HBASE': 'HBaseService',

@@ -34,6 +34,7 @@ def oozie(is_server=False
   XmlConfig( "oozie-site.xml",
     conf_dir = params.conf_dir, 
     configurations = params.config['configurations']['oozie-site'],
+    configuration_attributes=params.config['configuration_attributes']['oozie-site'],
     owner = params.oozie_user,
     group = params.user_group,
     mode = 0664
@@ -44,9 +45,10 @@ def oozie(is_server=False
     group = params.user_group
   )
   
-  TemplateConfig( format("{conf_dir}/oozie-env.sh"),
-    owner = params.oozie_user
-  )
+  File(format("{conf_dir}/oozie-env.sh"),
+       owner=params.oozie_user,
+       content=InlineTemplate(params.oozie_env_sh_template)
+  )  
 
   if (params.log4j_props != None):
     File(format("{params.conf_dir}/oozie-log4j.properties"),

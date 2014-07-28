@@ -62,6 +62,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.google.inject.Injector;
+import java.util.HashSet;
 
 /**
  * Monitors the node state and heartbeats.
@@ -239,46 +240,67 @@ public class HeartbeatMonitor implements Runnable {
             stackId.getStackVersion());
 
     Map<String, Map<String, String>> configurations = new TreeMap<String, Map<String, String>>();
+    Map<String, Map<String,  Map<String, String>>> configurationAttributes = new TreeMap<String, Map<String, Map<String, String>>>();
 
-    // get the cluster config for type 'global'
+    // get the cluster config for type '*-env'
     // apply config group overrides
-
-    Config clusterConfig = cluster.getDesiredConfigByType(GLOBAL);
-    if (clusterConfig != null) {
-      // cluster config for 'global'
-      Map<String, String> props = new HashMap<String, String>(clusterConfig.getProperties());
-
-      // Apply global properties for this host from all config groups
-      Map<String, Map<String, String>> allConfigTags = configHelper
-              .getEffectiveDesiredTags(cluster, hostname);
-
-      Map<String, Map<String, String>> configTags = new HashMap<String,
-              Map<String, String>>();
-
-      for (Map.Entry<String, Map<String, String>> entry : allConfigTags.entrySet()) {
-        if (entry.getKey().equals(GLOBAL)) {
-          configTags.put(GLOBAL, entry.getValue());
+    //Config clusterConfig = cluster.getDesiredConfigByType(GLOBAL);
+    Collection<Config> clusterConfigs = cluster.getAllConfigs();
+    
+    for(Config clusterConfig: clusterConfigs) {
+      if(!clusterConfig.getType().endsWith("-env"))
+        continue;
+    
+      if (clusterConfig != null) {
+        // cluster config for 'global'
+        Map<String, String> props = new HashMap<String, String>(clusterConfig.getProperties());
+  
+        // Apply global properties for this host from all config groups
+        Map<String, Map<String, String>> allConfigTags = configHelper
+                .getEffectiveDesiredTags(cluster, hostname);
+  
+        Map<String, Map<String, String>> configTags = new HashMap<String,
+                Map<String, String>>();
+  
+        for (Map.Entry<String, Map<String, String>> entry : allConfigTags.entrySet()) {
+          if (entry.getKey().equals(clusterConfig.getType())) {
+            configTags.put(clusterConfig.getType(), entry.getValue());
+          }
         }
-      }
-
-      Map<String, Map<String, String>> properties = configHelper
-              .getEffectiveConfigProperties(cluster, configTags);
-
-      if (!properties.isEmpty()) {
-        for (Map<String, String> propertyMap : properties.values()) {
-          props.putAll(propertyMap);
+  
+        Map<String, Map<String, String>> properties = configHelper
+                .getEffectiveConfigProperties(cluster, configTags);
+  
+        if (!properties.isEmpty()) {
+          for (Map<String, String> propertyMap : properties.values()) {
+            props.putAll(propertyMap);
+          }
         }
-      }
+  
+        configurations.put(clusterConfig.getType(), props);
 
-      configurations.put(GLOBAL, props);
+        Map<String, Map<String, String>> attrs = new TreeMap<String, Map<String, String>>();
+        configHelper.cloneAttributesMap(clusterConfig.getPropertiesAttributes(), attrs);
+
+        Map<String, Map<String, Map<String, String>>> attributes = configHelper
+            .getEffectiveConfigAttributes(cluster, configTags);
+        for (Map<String, Map<String, String>> attributesMap : attributes.values()) {
+          configHelper.cloneAttributesMap(attributesMap, attrs);
+        }
+        configurationAttributes.put(clusterConfig.getType(), attrs);
+      }
     }
 
     StatusCommand statusCmd = new StatusCommand();
     if (sch.getServiceComponentName().equals("NAGIOS_SERVER")) {
       // this requires special treatment
 
-      Collection<Alert> alerts = cluster.getAlerts();
-      if (null != alerts && alerts.size() > 0) {
+      Collection<Alert> clusterAlerts = cluster.getAlerts();
+      Collection<Alert> alerts = new HashSet<Alert>();
+      for (Alert alert : clusterAlerts) {
+        if (!alert.getName().equals("host_alert")) alerts.add(alert);
+      }
+      if (alerts.size() > 0) {
         statusCmd = new NagiosAlertCommand();
         ((NagiosAlertCommand) statusCmd).setAlerts(alerts);
       }
@@ -288,6 +310,7 @@ public class HeartbeatMonitor implements Runnable {
     statusCmd.setServiceName(serviceName);
     statusCmd.setComponentName(componentName);
     statusCmd.setConfigurations(configurations);
+    statusCmd.setConfigurationAttributes(configurationAttributes);
 
     // Fill command params
     Map<String, String> commandParams = statusCmd.getCommandParams();

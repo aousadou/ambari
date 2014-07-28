@@ -71,14 +71,16 @@ App.supports = {
   ldapGroupMapping: false,
   localRepositories: true,
   highAvailability: true,
+  resourceManagerHighAvailability: false,
   deleteHost: true,
   autoRollbackHA: false,
   appTimelineServer: true,
   jobs: true,
   ubuntu: true,
   views: false,
-  flume: false,
-  databaseConnection: true
+  flume: true,
+  databaseConnection: true,
+  configHistory: true
 };
 
 if (App.enableExperimental) {

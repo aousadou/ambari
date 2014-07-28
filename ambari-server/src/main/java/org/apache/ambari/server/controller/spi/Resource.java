@@ -110,7 +110,11 @@ public interface Resource {
     ViewInstance,
     Blueprint,
     HostComponentProcess,
-    Permission;
+    Permission,
+    AlertDefinition,
+    AmbariPrivilege,
+    ClusterPrivilege,
+    ViewPrivilege;
 
     /**
      * Get the {@link Type} that corresponds to this InternalType.
@@ -182,6 +186,10 @@ public interface Resource {
     public static final Type Blueprint = InternalType.Blueprint.getType();
     public static final Type HostComponentProcess = InternalType.HostComponentProcess.getType();
     public static final Type Permission = InternalType.Permission.getType();
+    public static final Type AlertDefinition = InternalType.AlertDefinition.getType();
+    public static final Type AmbariPrivilege = InternalType.AmbariPrivilege.getType();
+    public static final Type ClusterPrivilege = InternalType.ClusterPrivilege.getType();
+    public static final Type ViewPrivilege = InternalType.ViewPrivilege.getType();
 
     /**
      * The type name.

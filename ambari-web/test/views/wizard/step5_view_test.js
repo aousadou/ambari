@@ -94,7 +94,8 @@ describe('App.SelectHostView', function() {
   describe('#changeHandler', function() {
 
     beforeEach(function() {
-      view.set('component', {component_name: 'ZOOKEEPER_SERVER', zId: 1});
+      view.get('controller').reopen({multipleComponents: ['HBASE_MASTER', 'ZOOKEEPER_SERVER']});
+      view.set('component', {component_name: 'ZOOKEEPER_SERVER', serviceComponentId: 1});
       view.set('controller.hosts', [Em.Object.create({host_info: 'h1 info', host_name: 'h1'})]);
       view.set('value', 'h1 info');
       view.set('controller.rebalanceComponentHostsCounter', 0);
@@ -173,7 +174,8 @@ describe('App.InputHostView', function() {
   describe('#changeHandler', function() {
 
     beforeEach(function() {
-      view.set('component', {component_name: 'ZOOKEEPER_SERVER', zId: 1});
+      view.get('controller').reopen({multipleComponents: ['HBASE_MASTER', 'ZOOKEEPER_SERVER']});
+      view.set('component', {component_name: 'ZOOKEEPER_SERVER', serviceComponentId: 1});
       view.set('controller.hosts', [Em.Object.create({host_info: 'h1 info', host_name: 'h1'})]);
       view.set('value', 'h1 info');
       view.set('controller.rebalanceComponentHostsCounter', 0);
@@ -267,6 +269,7 @@ describe('App.InputHostView', function() {
     tests.forEach(function(test) {
       it(test.m, function() {
         view.set('controller.hosts', test.hosts);
+        view.get('controller').reopen({multipleComponents: ['HBASE_MASTER', 'ZOOKEEPER_SERVER']});
         view.set('component', {component_name: test.componentName});
         view.set('controller.selectedServicesMasters', test.selectedServicesMasters);
         var r = view.getAvailableHosts();
@@ -379,7 +382,7 @@ describe('App.RemoveControlView', function() {
       view.get('controller').removeComponent.restore();
     });
     it('should call removeComponent', function() {
-      view.set('zId', 1);
+      view.set('serviceComponentId', 1);
       view.set('componentName', 'c1');
       view.click();
       expect(view.get('controller').removeComponent.calledWith('c1', 1)).to.equal(true);

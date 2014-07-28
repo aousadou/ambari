@@ -44,12 +44,18 @@ App.MainServiceItemController = Em.Controller.extend({
     }
   },
 
+  /**
+   * flag to control router switch between service summary and configs
+   * @type {boolean}
+   */
+  routeToConfigs: false,
+
   isClientsOnlyService: function() {
     return App.get('services.clientOnly').contains(this.get('content.serviceName'));
   }.property('content.serviceName'),
 
   isConfigurable: function () {
-    return !App.get('services.noConfigTypes').concat('HCATALOG').contains('content.serviceName');
+    return !App.get('services.noConfigTypes').concat('HCATALOG').contains(this.get('content.serviceName'));
   }.property('App.services.noConfigTypes','content.serviceName'),
 
   /**
@@ -64,13 +70,13 @@ App.MainServiceItemController = Em.Controller.extend({
       var config = this.get('callBackConfig')[(JSON.parse(ajaxOptions.data)).Body.ServiceInfo.state];
       var self = this;
       console.log('Send request for ' + config.c + ' successfully');
-      if (App.testMode) {
+      if (App.get('testMode')) {
         self.set('content.workStatus', App.Service.Health[config.f]);
         self.get('content.hostComponents').setEach('workStatus', App.HostComponentStatus[config.f]);
         setTimeout(function () {
           self.set('content.workStatus', App.Service.Health[config.c2]);
           self.get('content.hostComponents').setEach('workStatus', App.HostComponentStatus[config.hs]);
-        }, App.testModeDelayForActions);
+        }, App.get('testModeDelayForActions'));
       }
       // load data (if we need to show this background operations popup) from persist
       App.router.get('applicationController').dataLoading().done(function (initValue) {
@@ -338,7 +344,7 @@ App.MainServiceItemController = Em.Controller.extend({
   setStartStopState: function () {
     var serviceName = this.get('content.serviceName');
     var backgroundOperations = App.router.get('backgroundOperationsController.services');
-    if (backgroundOperations.length > 0) {
+    if (backgroundOperations && backgroundOperations.length > 0) {
       for (var i = 0; i < backgroundOperations.length; i++) {
         if (backgroundOperations[i].isRunning &&
             (backgroundOperations[i].dependentService === "ALL_SERVICES" ||
@@ -376,6 +382,11 @@ App.MainServiceItemController = Em.Controller.extend({
     var ability_controller = App.router.get('mainAdminHighAvailabilityController');
     ability_controller.setSecurityStatus();
     ability_controller.disableHighAvailability();
+  },
+
+  enableRMHighAvailability: function() {
+    var ability_controller = App.router.get('mainAdminHighAvailabilityController');
+    ability_controller.enableRMHighAvailability();
   },
 
   isPending:true

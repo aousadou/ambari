@@ -25,6 +25,12 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
   isStepDisabled: null,
 
   /**
+   * map of actions which load data required by which step
+   * used by <code>loadAllPriorSteps</code>
+   */
+  loadMap: {},
+
+  /**
    * Wizard properties in local storage, which should be cleaned right after wizard has been finished
    */
   dbPropertiesToClean: [
@@ -525,7 +531,7 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
    */
   loadServiceComponents: function () {
     this.clearStackModels();
-    App.ajax.send({
+    return App.ajax.send({
       name: 'wizard.service_components',
       sender: this,
       data: {
@@ -778,14 +784,27 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
    */
   loadAdvancedConfigs: function (dependentController) {
     var self = this;
-    var stackServices = this.get('content.services').filter(function(service){
+    var stackServices = this.get('content.services').filter(function (service) {
       return service.get('isInstalled') || service.get('isSelected');
-    }).mapProperty('serviceName');
+    });
     var counter = stackServices.length;
     var loadAdvancedConfigResult = [];
     dependentController.set('isAdvancedConfigLoaded', false);
-    stackServices.forEach(function (_serviceName) {
-      App.config.loadAdvancedConfig(_serviceName, function (properties) {
+    stackServices.forEach(function (service) {
+      var serviceName = service.get('serviceName');
+      App.config.loadAdvancedConfig(serviceName, function (properties) {
+        var supportsFinal = App.config.getConfigTypesInfoFromService(service).supportsFinal;
+
+        function shouldSupportFinal(filename) {
+          var matchingConfigType = supportsFinal.find(function (configType) {
+            return filename.startsWith(configType);
+          });
+          return !!matchingConfigType;
+        }
+
+        properties.forEach(function (property) {
+          property.supportsFinal = shouldSupportFinal(property.filename);
+        });
         loadAdvancedConfigResult.pushObjects(properties);
         counter--;
         //pass configs to controller after last call is completed
@@ -811,7 +830,7 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
    */
   saveServiceConfigProperties: function (stepController) {
     var serviceConfigProperties = [];
-    var updateServiceConfigProperties = [];
+    var fileNamesToUpdate = [];
     stepController.get('stepConfigs').forEach(function (_content) {
 
       if (_content.serviceName === 'YARN' && !App.supports.capacitySchedulerUi) {
@@ -828,9 +847,13 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
           serviceName: _configProperties.get('serviceName'),
           domain: _configProperties.get('domain'),
           isVisible: _configProperties.get('isVisible'),
+          isFinal: _configProperties.get('isFinal'),
+          defaultIsFinal: _configProperties.get('isFinal'),
+          supportsFinal: _configProperties.get('supportsFinal'),
           filename: _configProperties.get('filename'),
           displayType: _configProperties.get('displayType'),
           isRequiredByAgent: _configProperties.get('isRequiredByAgent'),
+          hasInitialValue: !!_configProperties.get('hasInitialValue'),
           isRequired: _configProperties.get('isRequired') // flag that allow saving property with empty value
         };
         serviceConfigProperties.push(configProperty);
@@ -840,23 +863,23 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
         // get only modified configs
         var configs = _content.get('configs').filterProperty('isNotDefaultValue').filter(function (config) {
           var notAllowed = ['masterHost', 'masterHosts', 'slaveHosts', 'slaveHost'];
-          return !notAllowed.contains(config.get('displayType'));
+          return !notAllowed.contains(config.get('displayType')) && !!config.filename;
         });
         // if modified configs detected push all service's configs for update
-        if (configs.length)
-          updateServiceConfigProperties = updateServiceConfigProperties.concat(serviceConfigProperties.filterProperty('serviceName', _content.get('serviceName')));
+        if (configs.length) {
+          fileNamesToUpdate = fileNamesToUpdate.concat(configs.mapProperty('filename').uniq());
+        }
         // watch for properties that are not modified but have to be updated
         if (_content.get('configs').someProperty('forceUpdate')) {
           // check for already added modified properties
-          if (!updateServiceConfigProperties.findProperty('serviceName', _content.get('serviceName'))) {
-            updateServiceConfigProperties = updateServiceConfigProperties.concat(serviceConfigProperties.filterProperty('serviceName', _content.get('serviceName')));
-          }
+          var forceUpdatedFileNames = configs.filterProperty('forceUpdate', true).mapProperty('filename').uniq();
+          fileNamesToUpdate = fileNamesToUpdate.concat(forceUpdatedFileNames).uniq();
         }
       }
     }, this);
     this.setDBProperty('serviceConfigProperties', serviceConfigProperties);
     this.set('content.serviceConfigProperties', serviceConfigProperties);
-    this.setDBProperty('configsToUpdate', updateServiceConfigProperties);
+    this.setDBProperty('fileNamesToUpdate', fileNamesToUpdate);
   },
   /**
    * save Config groups
@@ -981,5 +1004,81 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
     var clients = this.getDBProperty('clientInfo');
     this.set('content.clients', clients);
     console.log(this.get('content.controllerName') + ".loadClients: loaded list ", clients);
+  },
+
+  /**
+   * load methods assigned to each step
+   * methods executed in exact order as they described in map
+   * @return {object}
+   */
+  loadAllPriorSteps: function () {
+    var currentStep = this.get('currentStep');
+    var loadMap = this.get('loadMap');
+    var operationStack = [];
+    var dfd = $.Deferred();
+
+    for (var s in loadMap) {
+      if (parseInt(s) <= parseInt(currentStep)) {
+        operationStack.pushObjects(loadMap[s]);
+      }
+    }
+
+    var sequence = App.actionSequence.create({context: this});
+    sequence.setSequence(operationStack).onFinish(function () {
+      dfd.resolve();
+    }).start();
+
+    return dfd.promise();
+  },
+
+  /**
+   * return new object extended from clusterStatusTemplate
+   * @return Object
+   */
+  getCluster: function () {
+    return jQuery.extend({}, this.get('clusterStatusTemplate'), {name: App.router.getClusterName()});
+  },
+
+  /**
+   * Load services data from server.
+   */
+  loadServicesFromServer: function () {
+    var services = this.getDBProperty('services');
+    if (!services) {
+      services = {
+        selectedServices: [],
+        installedServices: []
+      };
+      App.StackService.find().forEach(function(item){
+        var isInstalled = App.Service.find().someProperty('id', item.get('serviceName'));
+        item.set('isSelected', isInstalled);
+        item.set('isInstalled', isInstalled);
+        if (isInstalled) {
+          services.selectedServices.push(item.get('serviceName'));
+          services.installedServices.push(item.get('serviceName'));
+        }
+      },this);
+      this.setDBProperty('services',services);
+    } else {
+      App.StackService.find().forEach(function(item) {
+        var isSelected =   services.selectedServices.contains(item.get('serviceName'));
+        var isInstalled = services.installedServices.contains(item.get('serviceName'));
+        item.set('isSelected', isSelected);
+        item.set('isInstalled', isInstalled);
+      },this);
+    }
+    this.set('content.services', App.StackService.find());
+  },
+
+  /**
+   * Load confirmed hosts.
+   * Will be used at <code>Assign Masters(step5)</code> step
+   */
+  loadConfirmedHosts: function () {
+    var hosts = App.db.getHosts();
+
+    if (hosts) {
+      this.set('content.hosts', hosts);
+    }
   }
 });

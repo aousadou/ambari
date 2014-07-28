@@ -255,11 +255,18 @@ module.exports = function (grunt) {
             cwd: '<%= yeoman.app %>',
             dest: '<%= yeoman.dist %>',
             src: [
-              '*.{ico,txt,php}',
+              '*.{ico,txt}',
               '.htaccess',
-              'images/{,*/}*.{webp,gif}',
-              'styles/fonts/*'
+              'img/*',
+              'styles/fonts/*',
+              'scripts/assets/**/*'
             ]
+          },
+          {
+            expand: true,
+            flatten: true,
+            src: '<%= yeoman.app %>/bower_components/jquery-ui/themes/base/images/*',
+            dest: '<%= yeoman.dist %>/styles/images/'
           }
         ]
       }
@@ -366,7 +373,7 @@ module.exports = function (grunt) {
     'concat',
     'cssmin',
     //'uglify',
-    'copy',
+    'copy:dist',
     //'rev',
     'usemin'
   ]);

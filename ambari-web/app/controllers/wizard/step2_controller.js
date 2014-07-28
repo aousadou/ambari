@@ -62,10 +62,10 @@ App.WizardStep2Controller = Em.Controller.extend({
 
   /**
    * "Shortcut" to <code>content.installOptions.hostNames</code>
-   * @type {string[]}
+   * @type {string}
    */
   hostNames: function () {
-    return this.get('content.installOptions.hostNames');
+    return this.get('content.installOptions.hostNames').toLowerCase();
   }.property('content.installOptions.hostNames'),
 
   /**

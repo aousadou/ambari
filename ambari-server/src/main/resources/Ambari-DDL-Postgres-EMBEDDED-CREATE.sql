@@ -31,7 +31,7 @@ ALTER ROLE :username SET search_path TO 'ambari';
 CREATE TABLE ambari.clusters (cluster_id BIGINT NOT NULL, cluster_info VARCHAR(255) NOT NULL, cluster_name VARCHAR(100) NOT NULL UNIQUE, provisioning_state VARCHAR(255) NOT NULL DEFAULT 'INIT', desired_cluster_state VARCHAR(255) NOT NULL, desired_stack_version VARCHAR(255) NOT NULL, PRIMARY KEY (cluster_id));
 GRANT ALL PRIVILEGES ON TABLE ambari.clusters TO :username;
 
-CREATE TABLE ambari.clusterconfig (version_tag VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, cluster_id BIGINT NOT NULL, config_data VARCHAR(32000) NOT NULL, config_attributes VARCHAR(32000) NOT NULL, create_timestamp BIGINT NOT NULL, PRIMARY KEY (cluster_id, type_name, version_tag));
+CREATE TABLE ambari.clusterconfig (version_tag VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, cluster_id BIGINT NOT NULL, config_data VARCHAR(32000) NOT NULL, config_attributes VARCHAR(32000), create_timestamp BIGINT NOT NULL, PRIMARY KEY (cluster_id, type_name, version_tag));
 GRANT ALL PRIVILEGES ON TABLE ambari.clusterconfig TO :username;
 
 CREATE TABLE ambari.clusterconfigmapping (cluster_id BIGINT NOT NULL, type_name VARCHAR(255) NOT NULL, version_tag VARCHAR(255) NOT NULL, create_timestamp BIGINT NOT NULL, selected INTEGER NOT NULL DEFAULT 0, user_name VARCHAR(255) NOT NULL DEFAULT '_db', PRIMARY KEY (cluster_id, type_name, create_timestamp));
@@ -64,10 +64,10 @@ GRANT ALL PRIVILEGES ON TABLE ambari.servicedesiredstate TO :username;
 CREATE TABLE ambari.roles (role_name VARCHAR(255) NOT NULL, PRIMARY KEY (role_name));
 GRANT ALL PRIVILEGES ON TABLE ambari.roles TO :username;
 
-CREATE TABLE ambari.users (user_id INTEGER, ldap_user INTEGER NOT NULL DEFAULT 0, user_name VARCHAR(255) NOT NULL, create_time TIMESTAMP DEFAULT NOW(), user_password VARCHAR(255), active INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (user_id), UNIQUE (ldap_user, user_name));
+CREATE TABLE ambari.users (user_id INTEGER, principal_id BIGINT NOT NULL, ldap_user INTEGER NOT NULL DEFAULT 0, user_name VARCHAR(255) NOT NULL, create_time TIMESTAMP DEFAULT NOW(), user_password VARCHAR(255), active INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (user_id), UNIQUE (ldap_user, user_name));
 GRANT ALL PRIVILEGES ON TABLE ambari.users TO :username;
 
-CREATE TABLE ambari.groups (group_id INTEGER, group_name VARCHAR(255) NOT NULL, ldap_group INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (group_id), UNIQUE (ldap_group, group_name));
+CREATE TABLE ambari.groups (group_id INTEGER, principal_id BIGINT NOT NULL, group_name VARCHAR(255) NOT NULL, ldap_group INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (group_id), UNIQUE (ldap_group, group_name));
 GRANT ALL PRIVILEGES ON TABLE ambari.groups TO :username;
 
 CREATE TABLE ambari.members (member_id INTEGER, group_id INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY (member_id), UNIQUE(group_id, user_id));
@@ -76,7 +76,7 @@ GRANT ALL PRIVILEGES ON TABLE ambari.members TO :username;
 CREATE TABLE ambari.execution_command (command BYTEA, task_id BIGINT NOT NULL, PRIMARY KEY (task_id));
 GRANT ALL PRIVILEGES ON TABLE ambari.execution_command TO :username;
 
-CREATE TABLE ambari.host_role_command (task_id BIGINT NOT NULL, attempt_count SMALLINT NOT NULL, event VARCHAR(32000) NOT NULL, exitcode INTEGER NOT NULL, host_name VARCHAR(255) NOT NULL, last_attempt_time BIGINT NOT NULL, request_id BIGINT NOT NULL, role VARCHAR(255), stage_id BIGINT NOT NULL, start_time BIGINT NOT NULL, end_time BIGINT, status VARCHAR(255), std_error BYTEA, std_out BYTEA, structured_out BYTEA, role_command VARCHAR(255), command_detail VARCHAR(255), custom_command_name VARCHAR(255), PRIMARY KEY (task_id));
+CREATE TABLE ambari.host_role_command (task_id BIGINT NOT NULL, attempt_count SMALLINT NOT NULL, event VARCHAR(32000) NOT NULL, exitcode INTEGER NOT NULL, host_name VARCHAR(255) NOT NULL, last_attempt_time BIGINT NOT NULL, request_id BIGINT NOT NULL, role VARCHAR(255), stage_id BIGINT NOT NULL, start_time BIGINT NOT NULL, end_time BIGINT, status VARCHAR(255), std_error BYTEA, std_out BYTEA, output_log VARCHAR(255) NULL, error_log VARCHAR(255) NULL, structured_out BYTEA, role_command VARCHAR(255), command_detail VARCHAR(255), custom_command_name VARCHAR(255), PRIMARY KEY (task_id));
 GRANT ALL PRIVILEGES ON TABLE ambari.host_role_command TO :username;
 
 CREATE TABLE ambari.role_success_criteria (role VARCHAR(255) NOT NULL, request_id BIGINT NOT NULL, stage_id BIGINT NOT NULL, success_factor FLOAT NOT NULL, PRIMARY KEY (role, request_id, stage_id));
@@ -130,17 +130,17 @@ GRANT ALL PRIVILEGES ON TABLE ambari.requestschedulebatchrequest TO :username;
 CREATE TABLE ambari.blueprint (blueprint_name VARCHAR(255) NOT NULL, stack_name VARCHAR(255) NOT NULL, stack_version VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name));
 CREATE TABLE ambari.hostgroup (blueprint_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, cardinality VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name, name));
 CREATE TABLE ambari.hostgroup_component (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, PRIMARY KEY(blueprint_name, hostgroup_name, name));
-CREATE TABLE ambari.blueprint_configuration (blueprint_name varchar(255) NOT NULL, type_name varchar(255) NOT NULL, config_data varchar(32000) NOT NULL , PRIMARY KEY(blueprint_name, type_name));
-CREATE TABLE ambari.hostgroup_configuration (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, config_data TEXT NOT NULL, PRIMARY KEY(blueprint_name, hostgroup_name, type_name));
+CREATE TABLE ambari.blueprint_configuration (blueprint_name varchar(255) NOT NULL, type_name varchar(255) NOT NULL, config_data varchar(32000) NOT NULL, config_attributes varchar(32000), PRIMARY KEY(blueprint_name, type_name));
+CREATE TABLE ambari.hostgroup_configuration (blueprint_name VARCHAR(255) NOT NULL, hostgroup_name VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, config_data TEXT NOT NULL, config_attributes varchar(32000), PRIMARY KEY(blueprint_name, hostgroup_name, type_name));
 GRANT ALL PRIVILEGES ON TABLE ambari.blueprint TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.hostgroup TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.hostgroup_component TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.blueprint_configuration TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.hostgroup_configuration TO :username;
 
-CREATE TABLE ambari.viewmain (view_name VARCHAR(255) NOT NULL, label VARCHAR(255), version VARCHAR(255), icon VARCHAR(255), icon64 VARCHAR(255), archive VARCHAR(255), mask VARCHAR(255), PRIMARY KEY(view_name));
+CREATE TABLE ambari.viewmain (view_name VARCHAR(255) NOT NULL, label VARCHAR(255), version VARCHAR(255), resource_type_id INTEGER NOT NULL, icon VARCHAR(255), icon64 VARCHAR(255), archive VARCHAR(255), mask VARCHAR(255), PRIMARY KEY(view_name));
 CREATE TABLE ambari.viewinstancedata (view_instance_id BIGINT, view_name VARCHAR(255) NOT NULL, view_instance_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, user_name VARCHAR(255) NOT NULL, value VARCHAR(2000) NOT NULL, PRIMARY KEY(view_instance_id, name, user_name));
-CREATE TABLE ambari.viewinstance (view_instance_id BIGINT, view_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, label VARCHAR(255), description VARCHAR(255), visible CHAR(1), icon VARCHAR(255), icon64 VARCHAR(255), PRIMARY KEY(view_instance_id));
+CREATE TABLE ambari.viewinstance (view_instance_id BIGINT, resource_id BIGINT NOT NULL, view_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, label VARCHAR(255), description VARCHAR(255), visible CHAR(1), icon VARCHAR(255), icon64 VARCHAR(255), PRIMARY KEY(view_instance_id));
 CREATE TABLE ambari.viewinstanceproperty (view_name VARCHAR(255) NOT NULL, view_instance_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, value VARCHAR(2000) NOT NULL, PRIMARY KEY(view_name, view_instance_name, name));
 CREATE TABLE ambari.viewparameter (view_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, description VARCHAR(255), required CHAR(1), masked CHAR(1), PRIMARY KEY(view_name, name));
 CREATE TABLE ambari.viewresource (view_name VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, plural_name VARCHAR(255), id_property VARCHAR(255), subResource_names VARCHAR(255), provider VARCHAR(255), service VARCHAR(255), resource VARCHAR(255), PRIMARY KEY(view_name, name));
@@ -152,6 +152,19 @@ GRANT ALL PRIVILEGES ON TABLE ambari.viewinstanceproperty TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.viewparameter TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.viewresource TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.viewentity TO :username;
+
+CREATE TABLE ambari.adminresourcetype (resource_type_id INTEGER NOT NULL, resource_type_name VARCHAR(255) NOT NULL, PRIMARY KEY(resource_type_id));
+CREATE TABLE ambari.adminresource (resource_id BIGINT NOT NULL, resource_type_id INTEGER NOT NULL, PRIMARY KEY(resource_id));
+CREATE TABLE ambari.adminprincipaltype (principal_type_id INTEGER NOT NULL, principal_type_name VARCHAR(255) NOT NULL, PRIMARY KEY(principal_type_id));
+CREATE TABLE ambari.adminprincipal (principal_id BIGINT NOT NULL, principal_type_id INTEGER NOT NULL, PRIMARY KEY(principal_id));
+CREATE TABLE ambari.adminpermission (permission_id BIGINT NOT NULL, permission_name VARCHAR(255) NOT NULL, resource_type_id INTEGER NOT NULL, PRIMARY KEY(permission_id));
+CREATE TABLE ambari.adminprivilege (privilege_id BIGINT, permission_id BIGINT NOT NULL, resource_id BIGINT NOT NULL, principal_id BIGINT NOT NULL, PRIMARY KEY(privilege_id));
+GRANT ALL PRIVILEGES ON TABLE ambari.adminresourcetype TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.adminresource TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.adminprincipaltype TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.adminprincipal TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.adminpermission TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.adminprivilege TO :username;
 
 --------altering tables by creating foreign keys----------
 ALTER TABLE members ADD CONSTRAINT FK_members_group_id FOREIGN KEY (group_id) REFERENCES groups (group_id);
@@ -199,7 +212,118 @@ ALTER TABLE ambari.viewinstance ADD CONSTRAINT FK_viewinst_view_name FOREIGN KEY
 ALTER TABLE ambari.viewinstanceproperty ADD CONSTRAINT FK_viewinstprop_view_name FOREIGN KEY (view_name, view_instance_name) REFERENCES ambari.viewinstance(view_name, name);
 ALTER TABLE ambari.viewinstancedata ADD CONSTRAINT FK_viewinstdata_view_name FOREIGN KEY (view_instance_id, view_name, view_instance_name) REFERENCES ambari.viewinstance(view_instance_id, view_name, name);
 ALTER TABLE ambari.viewentity ADD CONSTRAINT FK_viewentity_view_name FOREIGN KEY (view_name, view_instance_name) REFERENCES ambari.viewinstance(view_name, name);
+ALTER TABLE ambari.adminresource ADD CONSTRAINT FK_resource_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES adminresourcetype(resource_type_id);
+ALTER TABLE ambari.adminprincipal ADD CONSTRAINT FK_principal_principal_type_id FOREIGN KEY (principal_type_id) REFERENCES adminprincipaltype(principal_type_id);
+ALTER TABLE ambari.adminpermission ADD CONSTRAINT FK_permission_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES adminresourcetype(resource_type_id);
+ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_permission_id FOREIGN KEY (permission_id) REFERENCES adminpermission(permission_id);
+ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_resource_id FOREIGN KEY (resource_id) REFERENCES adminresource(resource_id);
+ALTER TABLE viewmain ADD CONSTRAINT FK_view_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES adminresourcetype(resource_type_id);
+ALTER TABLE ambari.viewinstance ADD CONSTRAINT FK_viewinstance_resource_id FOREIGN KEY (resource_id) REFERENCES adminresource(resource_id);
+ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
+ALTER TABLE ambari.users ADD CONSTRAINT FK_users_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
+ALTER TABLE ambari.groups ADD CONSTRAINT FK_groups_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
 
+-- Alerting Framework
+CREATE TABLE ambari.alert_definition (
+  definition_id BIGINT NOT NULL, 
+  cluster_id BIGINT NOT NULL, 
+  definition_name VARCHAR(255) NOT NULL,
+  service_name VARCHAR(255) NOT NULL,
+  component_name VARCHAR(255),
+  scope VARCHAR(255),
+  enabled SMALLINT DEFAULT 1 NOT NULL,
+  schedule_interval BIGINT NOT NULL,
+  source_type VARCHAR(255) NOT NULL,
+  alert_source TEXT NOT NULL,
+  hash VARCHAR(64) NOT NULL,
+  PRIMARY KEY (definition_id),
+  FOREIGN KEY (cluster_id) REFERENCES ambari.clusters(cluster_id),
+  CONSTRAINT uni_alert_def_name UNIQUE(cluster_id,definition_name)
+);
+
+CREATE TABLE ambari.alert_history (
+  alert_id BIGINT NOT NULL,
+  cluster_id BIGINT NOT NULL,
+  alert_definition_id BIGINT NOT NULL,
+  service_name VARCHAR(255) NOT NULL,
+  component_name VARCHAR(255),
+  host_name VARCHAR(255),
+  alert_instance VARCHAR(255),
+  alert_timestamp BIGINT NOT NULL,
+  alert_label VARCHAR(1024),
+  alert_state VARCHAR(255) NOT NULL,
+  alert_text TEXT,
+  PRIMARY KEY (alert_id),
+  FOREIGN KEY (alert_definition_id) REFERENCES ambari.alert_definition(definition_id),
+  FOREIGN KEY (cluster_id) REFERENCES ambari.clusters(cluster_id)
+);
+
+CREATE TABLE ambari.alert_current (
+  alert_id BIGINT NOT NULL,
+  maintenance_state VARCHAR(255),
+  original_timestamp BIGINT NOT NULL,
+  latest_timestamp BIGINT NOT NULL,
+  PRIMARY KEY (alert_id),
+  FOREIGN KEY (alert_id) REFERENCES ambari.alert_history(alert_id)
+);
+
+CREATE TABLE ambari.alert_group (
+  group_id BIGINT NOT NULL,
+  cluster_id BIGINT NOT NULL,
+  group_name VARCHAR(255) NOT NULL,
+  is_default SMALLINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (group_id),
+  CONSTRAINT uni_group_name UNIQUE(cluster_id,group_name)
+);
+
+CREATE TABLE ambari.alert_target (
+  target_id BIGINT NOT NULL,
+  target_name VARCHAR(255) NOT NULL UNIQUE,
+  notification_type VARCHAR(64) NOT NULL,
+  properties TEXT,
+  description VARCHAR(1024),
+  PRIMARY KEY (target_id)
+);
+
+CREATE TABLE ambari.alert_group_target (
+  group_id BIGINT NOT NULL,
+  target_id BIGINT NOT NULL,
+  FOREIGN KEY (group_id) REFERENCES ambari.alert_group(group_id),
+  FOREIGN KEY (target_id) REFERENCES ambari.alert_target(target_id)
+);
+
+CREATE TABLE ambari.alert_grouping (
+  definition_id BIGINT NOT NULL,
+  group_id BIGINT NOT NULL,
+  FOREIGN KEY (definition_id) REFERENCES ambari.alert_definition(definition_id),
+  FOREIGN KEY (group_id) REFERENCES ambari.alert_group(group_id)
+);
+
+CREATE TABLE ambari.alert_notice (
+  notification_id BIGINT NOT NULL,
+  target_id BIGINT NOT NULL,
+  history_id BIGINT NOT NULL,
+  notify_state VARCHAR(255) NOT NULL,
+  PRIMARY KEY (notification_id),
+  FOREIGN KEY (target_id) REFERENCES ambari.alert_target(target_id),  
+  FOREIGN KEY (history_id) REFERENCES ambari.alert_history(alert_id)
+);
+
+GRANT ALL PRIVILEGES ON TABLE ambari.alert_definition TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.alert_history TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.alert_current TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.alert_group TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.alert_target TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.alert_group_target TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.alert_grouping TO :username;
+GRANT ALL PRIVILEGES ON TABLE ambari.alert_notice TO :username;
+
+
+CREATE INDEX idx_alert_history_service on ambari.alert_history(service_name);
+CREATE INDEX idx_alert_history_host on ambari.alert_history(host_name);
+CREATE INDEX idx_alert_history_time on ambari.alert_history(alert_timestamp);
+CREATE INDEX idx_alert_history_state on ambari.alert_history(alert_state);
+CREATE INDEX idx_alert_group_name on ambari.alert_group(group_name);
 
 ---------inserting some data-----------
 BEGIN;
@@ -224,19 +348,71 @@ INSERT INTO ambari.ambari_sequences (sequence_name, "value")
   union all
   select 'operation_level_id_seq', 1
   union all
-  select 'view_instance_id_seq', 1;
+  select 'view_instance_id_seq', 1
+  union all
+  select 'resource_type_id_seq', 4
+  union all
+  select 'resource_id_seq', 2
+  union all
+  select 'principal_type_id_seq', 3
+  union all
+  select 'principal_id_seq', 2
+  union all
+  select 'permission_id_seq', 5
+  union all
+  select 'privilege_id_seq', 1
+  union all
+  select 'alert_definition_id_seq', 0
+  union all
+  select 'alert_group_id_seq', 0
+  union all
+  select 'alert_target_id_seq', 0
+  union all
+  select 'alert_history_id_seq', 0
+  union all
+  select 'alert_notice_id_seq', 0;
+  
 
+INSERT INTO ambari.adminresourcetype (resource_type_id, resource_type_name)
+  SELECT 1, 'AMBARI'
+  UNION ALL
+  SELECT 2, 'CLUSTER'
+  UNION ALL
+  SELECT 3, 'VIEW';
+
+INSERT INTO ambari.adminresource (resource_id, resource_type_id)
+  SELECT 1, 1;
 
 INSERT INTO ambari.Roles (role_name)
   SELECT 'admin'
   UNION ALL
   SELECT 'user';
 
-INSERT INTO ambari.Users (user_id, user_name, user_password)
-  SELECT 1, 'admin', '538916f8943ec225d97a9a86a2c6ec0818c1cd400e09e03b660fdaaec4af29ddbb6f2b1033b81b00';
+INSERT INTO ambari.adminprincipaltype (principal_type_id, principal_type_name)
+  SELECT 1, 'USER'
+  UNION ALL
+  SELECT 2, 'GROUP';
+
+INSERT INTO ambari.adminprincipal (principal_id, principal_type_id)
+  SELECT 1, 1;
+
+INSERT INTO ambari.Users (user_id, principal_id, user_name, user_password)
+  SELECT 1, 1, 'admin', '538916f8943ec225d97a9a86a2c6ec0818c1cd400e09e03b660fdaaec4af29ddbb6f2b1033b81b00';
 
 INSERT INTO ambari.user_roles (role_name, user_id)
   SELECT 'admin', 1;
+
+INSERT INTO ambari.adminpermission(permission_id, permission_name, resource_type_id)
+  SELECT 1, 'AMBARI.ADMIN', 1
+  UNION ALL
+  SELECT 2, 'CLUSTER.READ', 2
+  UNION ALL
+  SELECT 3, 'CLUSTER.OPERATE', 2
+  UNION ALL
+  SELECT 4, 'VIEW.USE', 3;
+
+INSERT INTO ambari.adminprivilege (privilege_id, permission_id, resource_id, principal_id)
+  SELECT 1, 1, 1, 1;
 
 INSERT INTO ambari.metainfo (metainfo_key, metainfo_value)
   SELECT 'version', '${ambariVersion}';

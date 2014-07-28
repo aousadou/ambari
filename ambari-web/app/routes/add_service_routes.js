@@ -45,18 +45,16 @@ module.exports = App.WizardRoute.extend({
             this.set('showCloseButton', false); // prevent user to click "Close" many times
             App.router.get('updateController').set('isWorking', true);
             var self = this;
+            App.router.get('updateController').updateServices(function(){
+              App.router.get('updateController').updateServiceMetric();
+            });
             App.clusterStatus.setClusterStatus({
               clusterName: App.router.get('content.cluster.name'),
               clusterState: 'DEFAULT',
               wizardControllerName: App.router.get('addServiceController.name'),
               localdb: App.db.data
-            });
-            App.router.get('updateController').updateServices(function(){
-              App.router.get('updateController').updateServiceMetric(function(){
-                self.hide();
-              });
-            });
-            App.router.transitionTo('main.services.index');
+            }, {alwaysCallback: function() {self.hide();App.router.transitionTo('main.services.index');location.reload();}});
+
           },
           didInsertElement: function(){
             this.fitHeight();
@@ -268,7 +266,7 @@ module.exports = App.WizardRoute.extend({
         controller.loadAllPriorSteps();
         var wizardStep9Controller = router.get('wizardStep9Controller');
         wizardStep9Controller.set('wizardController', controller);
-        if (!App.testMode) {              //if test mode is ON don't disable prior steps link.
+        if (!App.get('testMode')) {              //if test mode is ON don't disable prior steps link.
           controller.setLowerStepsDisable(6);
         }
         controller.connectOutlet('wizardStep9', controller.get('content'));
@@ -327,7 +325,6 @@ module.exports = App.WizardRoute.extend({
       addServiceController.finish();
       // We need to do recovery based on whether we are in Add Host or Installer wizard
       addServiceController.saveClusterState('DEFAULT');
-      location.reload();
     }
   }),
 

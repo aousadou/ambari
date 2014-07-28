@@ -39,13 +39,14 @@ class TestHiveClient(RMFTestCase):
       mode = 0644,
       conf_dir = '/etc/hive/conf',
       configurations = self.getConfig()['configurations']['hive-site'],
+      configuration_attributes = self.getConfig()['configuration_attributes']['hive-site']
     )
     self.assertResourceCalled('Execute', "/bin/sh -c 'cd /usr/lib/ambari-agent/ && curl -kf -x \"\" --retry 5 http://c6401.ambari.apache.org:8080/resources/DBConnectionVerification.jar -o DBConnectionVerification.jar'",
       not_if = '[ -f DBConnectionVerification.jar]',
       environment = {'no_proxy': 'c6401.ambari.apache.org'}
     )
     self.assertResourceCalled('File', '/etc/hive/conf/hive-env.sh',
-      content = Template('hive-env.sh.j2', conf_dir="/etc/hive/conf"),
+      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content'], conf_dir="/etc/hive/conf"),
       owner = 'hive',
       group = 'hadoop',
     )
@@ -92,13 +93,14 @@ class TestHiveClient(RMFTestCase):
       mode = 0644,
       conf_dir = '/etc/hive/conf',
       configurations = self.getConfig()['configurations']['hive-site'],
+      configuration_attributes = self.getConfig()['configuration_attributes']['hive-site']
     )
     self.assertResourceCalled('Execute', "/bin/sh -c 'cd /usr/lib/ambari-agent/ && curl -kf -x \"\" --retry 5 http://c6401.ambari.apache.org:8080/resources/DBConnectionVerification.jar -o DBConnectionVerification.jar'",
       not_if = '[ -f DBConnectionVerification.jar]',
       environment = {'no_proxy': 'c6401.ambari.apache.org'}
     )
     self.assertResourceCalled('File', '/etc/hive/conf/hive-env.sh',
-      content = Template('hive-env.sh.j2', conf_dir="/etc/hive/conf"),
+      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content'], conf_dir="/etc/hive/conf"),
       owner = 'hive',
       group = 'hadoop',
     )

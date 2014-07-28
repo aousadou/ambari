@@ -37,6 +37,7 @@ def oozie(is_server=False # TODO: see if see can remove this
   XmlConfig( "oozie-site.xml",
     conf_dir = params.conf_dir, 
     configurations = oozie_site,
+    configuration_attributes=params.config['configuration_attributes']['oozie-site'],
     owner = params.oozie_user,
     group = params.user_group,
     mode = 0664
@@ -46,8 +47,9 @@ def oozie(is_server=False # TODO: see if see can remove this
     group = params.user_group
   )
   
-  TemplateConfig( format("{conf_dir}/oozie-env.sh"),
-    owner = params.oozie_user
+  File(format("{conf_dir}/oozie-env.sh"),
+    owner=params.oozie_user,
+    content=InlineTemplate(params.oozie_env_sh_template)
   )
 
   if (params.log4j_props != None):

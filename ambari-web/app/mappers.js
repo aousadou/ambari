@@ -32,3 +32,4 @@ require('mappers/dataset_mapper');
 require('mappers/component_config_mapper');
 require('mappers/components_state_mapper');
 require('mappers/jobs/hive_jobs_mapper');
+require('mappers/service_config_version_mapper');

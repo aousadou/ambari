@@ -48,6 +48,10 @@ App.ServiceConfigView = Em.View.extend({
         return false;
     }
   }.property('controller.name', 'controller.selectedService'),
+  showConfigHistoryFlow: function() {
+    //TODO change condition to actual
+    return (this.get('controller.name') === 'mainServiceInfoConfigsController' && this.get('controller.selectedConfigGroup.isDefault'))
+  }.property('controller.name', 'controller.selectedConfigGroup.isDefault'),
   toggleRestartMessageView: function () {
     this.$('.service-body').toggle('blind', 200);
     this.set('isRestartMessageCollapsed', !this.get('isRestartMessageCollapsed'));
@@ -89,7 +93,7 @@ App.ServiceConfigView = Em.View.extend({
 });
 
 
-App.ServiceConfigsByCategoryView = Ember.View.extend({
+App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
 
   classNames: ['accordion-group', 'common-config-category'],
   classNameBindings: ['category.name', 'isShowBlock::hidden'],
@@ -327,20 +331,17 @@ App.ServiceConfigsByCategoryView = Ember.View.extend({
     if (filter != null) {
       filter = filter.toLowerCase();
     }
-    //var isOnlyModified = this.get('parentView.columns').length && this.get('parentView.columns')[1].get('selected');
-    var isOnlyOverridden = columns!=null ? (columns.length && columns[0].get('selected')) : false;
-    //var isOnlyRestartRequired = this.get('parentView.columns').length && this.get('parentView.columns')[2].get('selected');
+    var selectedFilters = this.get('parentView.columns').filterProperty('selected', true);
     var filteredResult = this.get('categoryConfigs').filter(function (config) {
 
-     /* if (isOnlyModified && !config.get('isNotDefaultValue')) {
-        return false;
-      }
+      var passesFilters = true;
+      selectedFilters.forEach(function (filter) {
+        if (!config.get(filter.attributeName)) {
+          passesFilters = false;
+        }
+      });
 
-      if (isOnlyRestartRequired && !config.get('isRestartRequired')) {
-        return false;
-      }*/
-
-      if (isOnlyOverridden && !config.get('isOverridden')) {
+      if (!passesFilters) {
         return false;
       }
 
@@ -360,7 +361,22 @@ App.ServiceConfigsByCategoryView = Ember.View.extend({
      }
     });
     filteredResult = this.sortByIndex(filteredResult);
-    var categoryBlock = $('.' + this.get('category.name') + '>.accordion-body');
+
+    if (filter && filteredResult.length ) {
+      if (typeof this.get('category.collapsedByDefault') === 'undefined') {
+        // Save state
+        this.set('category.collapsedByDefault', this.get('category.isCollapsed'));
+      }
+      this.set('category.isCollapsed', false);
+    } else if (filter && !filteredResult.length) {
+      this.set('category.isCollapsed', true);
+    } else if (!filter && typeof this.get('category.collapsedByDefault') !== 'undefined') {
+      // If user clear filter -- restore defaults
+      this.set('category.isCollapsed', this.get('category.collapsedByDefault'));
+      this.set('category.collapsedByDefault', undefined);
+    }
+
+    var categoryBlock = $('.' + this.get('category.name').split(' ').join('.') + '>.accordion-body');
     filteredResult.length && !this.get('category.isCollapsed') ? categoryBlock.show() : categoryBlock.hide();
     return filteredResult;
   }.property('categoryConfigs', 'parentView.filter', 'parentView.columns.@each.selected'),
@@ -444,98 +460,209 @@ App.ServiceConfigsByCategoryView = Ember.View.extend({
     var category = this.get('category');
     return category.indexOf("Advanced") != -1;
   },
-  showAddPropertyWindow: function (event) {
-    var configsOfFile = this.get('service.configs').filterProperty('filename', this.get('category.siteFileName'));
-    var self =this;
-    var serviceConfigObj = Ember.Object.create({
-      name: '',
-      value: '',
-      defaultValue: null,
-      filename: '',
-      isUserProperty: true,
-      isKeyError: false,
-      showFilterLink: false,
-      isNotSaved: true,
-      errorMessage: "",
-      observeAddPropertyValue: function () {
-        var name = this.get('name');
-        if (name.trim() != "") {
-          if (validator.isValidConfigKey(name)) {
-            var configMappingProperty = App.config.get('configMapping').all().filterProperty('filename',self.get('category.siteFileName')).findProperty('name', name);
-            if ((configMappingProperty == null) && (!configsOfFile.findProperty('name', name))) {
-              this.set("isKeyError", false);
-              this.set("errorMessage", "");
+
+  persistKey: function () {
+    return 'admin-bulk-add-properties-' + App.router.get('loginName');
+  },
+
+  showAddPropertyWindow: function () {
+    var persistController = this;
+    var modePersistKey = this.persistKey();
+
+    persistController.getUserPref(modePersistKey).pipe(function (data) {
+      return !!data;
+    }, function () {
+      return false;
+    }).always((function (isBulkMode) {
+
+      var category = this.get('category');
+      var siteFileName = category.get('siteFileName');
+
+      var service = this.get('service');
+      var serviceName = service.get('serviceName');
+
+      var secureConfigs = this.get('controller.secureConfigs').filterProperty('filename', siteFileName);
+
+      function isSecureConfig(configName) {
+        return !!secureConfigs.findProperty('name', configName);
+      }
+
+      var configsOfFile = service.get('configs').filterProperty('filename', siteFileName);
+      var siteFileProperties = App.config.get('configMapping').all().filterProperty('filename', siteFileName);
+
+      function shouldSupportFinal(filename) {
+        var stackService = App.StackService.find().findProperty('serviceName', serviceName);
+        var supportsFinal = App.config.getConfigTypesInfoFromService(stackService).supportsFinal;
+        var matchingConfigType = supportsFinal.find(function (configType) {
+          return filename.startsWith(configType);
+        });
+        return !!matchingConfigType;
+      }
+
+      var supportsFinal = shouldSupportFinal(siteFileName);
+
+      function isDuplicatedConfigKey(name) {
+        return siteFileProperties.findProperty('name', name) || configsOfFile.findProperty('name', name);
+      }
+
+      var serviceConfigs = this.get('serviceConfigs');
+
+      function createProperty(propertyName, propertyValue) {
+        serviceConfigs.pushObject(App.ServiceConfigProperty.create({
+          name: propertyName,
+          displayName: propertyName,
+          value: propertyValue,
+          displayType: stringUtils.isSingleLine(propertyValue) ? 'advanced' : 'multiLine',
+          isSecureConfig: isSecureConfig(propertyName),
+          category: category.get('name'),
+          id: 'site property',
+          serviceName: serviceName,
+          defaultValue: null,
+          supportsFinal: supportsFinal,
+          filename: siteFileName || '',
+          isUserProperty: true,
+          isNotSaved: true
+        }));
+      }
+
+      var serviceConfigObj = Ember.Object.create({
+        isBulkMode: isBulkMode,
+        bulkConfigValue: '',
+        bulkConfigError: false,
+        bulkConfigErrorMessage: '',
+
+        name: '',
+        value: '',
+        isKeyError: false,
+        showFilterLink: false,
+        errorMessage: '',
+        observeAddPropertyValue: function () {
+          var name = this.get('name');
+          if (name.trim() != '') {
+            if (validator.isValidConfigKey(name)) {
+              if (!isDuplicatedConfigKey(name)) {
+                this.set('showFilterLink', false);
+                this.set('isKeyError', false);
+                this.set('errorMessage', '');
+              } else {
+                this.set('showFilterLink', true);
+                this.set('isKeyError', true);
+                this.set('errorMessage', Em.I18n.t('services.service.config.addPropertyWindow.error.derivedKey'));
+              }
             } else {
-              this.set("showFilterLink", true);
-              this.set("isKeyError", true);
-              this.set("errorMessage", Em.I18n.t('services.service.config.addPropertyWindow.error.derivedKey'));
+              this.set('showFilterLink', false);
+              this.set('isKeyError', true);
+              this.set('errorMessage', Em.I18n.t('form.validator.configKey'));
             }
           } else {
-            this.set("isKeyError", true);
-            this.set("errorMessage", Em.I18n.t('form.validator.configKey'));
+            this.set('showFilterLink', false);
+            this.set('isKeyError', true);
+            this.set('errorMessage', Em.I18n.t('services.service.config.addPropertyWindow.error.required'));
           }
-        } else {
-          this.set("isKeyError", true);
-          this.set("errorMessage", Em.I18n.t('services.service.config.addPropertyWindow.errorMessage'));
+        }.observes('name')
+      });
+
+      function processConfig(config, callback) {
+        var lines = config.split('\n');
+        var errorMessages = [];
+        var parsedConfig = {};
+        var propertyCount = 0;
+
+        function lineNumber(index) {
+          return Em.I18n.t('services.service.config.addPropertyWindow.error.lineNumber').format(index + 1);
         }
-      }.observes("name")
-    });
 
-    var category = this.get('category');
-    serviceConfigObj.displayType = "advanced";
-    serviceConfigObj.category = category.get('name');
-
-    var serviceName = this.get('service.serviceName');
-    var serviceConfigsMetaData = App.config.get('preDefinedServiceConfigs');
-    var serviceConfigMetaData = serviceConfigsMetaData.findProperty('serviceName', serviceName);
-    var categoryMetaData = serviceConfigMetaData == null ? null : serviceConfigMetaData.get('configCategories').findProperty('name', category.get('name'));
-    if (categoryMetaData != null) {
-      serviceConfigObj.filename = categoryMetaData.siteFileName;
-    }
-
-    var self = this;
-    App.ModalPopup.show({
-      classNames: [ 'sixty-percent-width-modal'],
-      header: "Add Property",
-      primary: 'Add',
-      secondary: 'Cancel',
-      didInsertElement: function(){
-        this.$('input').focus();
-      },
-      onPrimary: function () {
-        serviceConfigObj.observeAddPropertyValue();
-        /**
-         * For the first entrance use this if (serviceConfigObj.name.trim() != "")
-         */
-        if (!serviceConfigObj.isKeyError) {
-          serviceConfigObj.displayName = serviceConfigObj.name;
-          serviceConfigObj.id = 'site property';
-          serviceConfigObj.serviceName = serviceName;
-          serviceConfigObj.displayType = stringUtils.isSingleLine(serviceConfigObj.get('value')) ? 'advanced' : 'multiLine';
-          var serviceConfigProperty = App.ServiceConfigProperty.create(serviceConfigObj);
-          self.get('controller.secureConfigs').filterProperty('filename', self.get('category.siteFileName')).forEach(function (_secureConfig) {
-            if (_secureConfig.name === serviceConfigProperty.get('name')) {
-              serviceConfigProperty.set('isSecureConfig', true);
+        lines.forEach(function (line, index) {
+          if (line.trim() === '') {
+            return;
+          }
+          var delimiter = '=';
+          var delimiterPosition = line.indexOf(delimiter);
+          if (delimiterPosition === -1) {
+            errorMessages.push(lineNumber(index) + Em.I18n.t('services.service.config.addPropertyWindow.error.format'));
+            return;
+          }
+          var key = Em.Handlebars.Utils.escapeExpression(line.slice(0, delimiterPosition).trim());
+          var value = line.slice(delimiterPosition + 1);
+          if (validator.isValidConfigKey(key)) {
+            if (!isDuplicatedConfigKey(key) && !(key in parsedConfig)) {
+              parsedConfig[key] = value;
+              propertyCount++;
+            } else {
+              errorMessages.push(lineNumber(index) + Em.I18n.t('services.service.config.addPropertyWindow.error.derivedKey.specific').format(key));
             }
-          }, this);
-          self.get('serviceConfigs').pushObject(serviceConfigProperty);
-          this.hide();
-        }
-      },
-      bodyClass: Ember.View.extend({
-        templateName: require('templates/common/configs/addPropertyWindow'),
-        controllerBinding: 'App.router.mainServiceInfoConfigsController',
-        serviceConfigProperty: serviceConfigObj,
-        filterByKey: function(event) {
-          var controller = (App.router.get('currentState.name') != 'configs')
-            ? App.router.get('wizardStep7Controller')
-            : App.router.get('mainServiceInfoConfigsController');
-          this.get('parentView').onClose();
-          controller.set('filter', event.view.get('serviceConfigProperty.name'));
-        }
-      })
-    });
+          } else {
+            errorMessages.push(lineNumber(index) + Em.I18n.t('form.validator.configKey.specific').format(key));
+          }
+        });
 
+        if (errorMessages.length > 0) {
+          callback(errorMessages.join('<br>'), parsedConfig);
+        } else if (propertyCount === 0) {
+          callback(Em.I18n.t('services.service.config.addPropertyWindow.propertiesPlaceholder', parsedConfig));
+        } else {
+          callback(null, parsedConfig);
+        }
+      }
+
+      App.ModalPopup.show({
+        classNames: ['sixty-percent-width-modal'],
+        header: 'Add Property',
+        primary: 'Add',
+        secondary: 'Cancel',
+        onPrimary: function () {
+          if (serviceConfigObj.isBulkMode) {
+            var popup = this;
+            processConfig(serviceConfigObj.bulkConfigValue, function (error, parsedConfig) {
+              if (error) {
+                serviceConfigObj.set('bulkConfigError', true);
+                serviceConfigObj.set('bulkConfigErrorMessage', error);
+              } else {
+                for (var key in parsedConfig) {
+                  if (parsedConfig.hasOwnProperty(key)) {
+                    createProperty(key, parsedConfig[key]);
+                  }
+                }
+                popup.hide();
+              }
+            });
+          } else {
+            serviceConfigObj.observeAddPropertyValue();
+            /**
+             * For the first entrance use this if (serviceConfigObj.name.trim() != '')
+             */
+            if (!serviceConfigObj.isKeyError) {
+              createProperty(serviceConfigObj.get('name'), serviceConfigObj.get('value'));
+              this.hide();
+            }
+          }
+        },
+        bodyClass: Ember.View.extend({
+          fileName: siteFileName,
+          templateName: require('templates/common/configs/addPropertyWindow'),
+          controllerBinding: 'App.router.mainServiceInfoConfigsController',
+          serviceConfigObj: serviceConfigObj,
+          didInsertElement: function() {
+            App.tooltip(this.$("[data-toggle=tooltip]"),{
+              placement: "top"
+            });
+          },
+          toggleBulkMode: function () {
+            var newMode = !this.serviceConfigObj.get('isBulkMode');
+            this.serviceConfigObj.set('isBulkMode', newMode);
+            persistController.postUserPref(modePersistKey, newMode);
+          },
+          filterByKey: function (event) {
+            var controller = (App.router.get('currentState.name') != 'configs')
+              ? App.router.get('wizardStep7Controller')
+              : App.router.get('mainServiceInfoConfigsController');
+            this.get('parentView').onClose();
+            controller.set('filter', event.view.get('serviceConfigObj.name'));
+          }
+        })
+      });
+
+    }).bind(this));
   },
 
   /**
@@ -555,11 +682,17 @@ App.ServiceConfigsByCategoryView = Ember.View.extend({
     var serviceConfigProperty = event.contexts[0];
     var value = serviceConfigProperty.get('value');
     var dValue = serviceConfigProperty.get('defaultValue');
+    var supportsFinal = serviceConfigProperty.get('supportsFinal');
+    var defaultIsFinal = serviceConfigProperty.get('defaultIsFinal');
+
     if (dValue != null) {
       if (serviceConfigProperty.get('displayType') === 'password') {
         serviceConfigProperty.set('retypedPassword', dValue);
       }
       serviceConfigProperty.set('value', dValue);
+    }
+    if (supportsFinal) {
+      serviceConfigProperty.set('isFinal', defaultIsFinal);
     }
     this.miscConfigChange(serviceConfigProperty);
   },

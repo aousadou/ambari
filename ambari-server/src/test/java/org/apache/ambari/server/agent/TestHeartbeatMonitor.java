@@ -66,6 +66,7 @@ import org.slf4j.LoggerFactory;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.persist.PersistService;
+import java.util.ArrayList;
 
 public class TestHeartbeatMonitor {
 
@@ -122,7 +123,7 @@ public class TestHeartbeatMonitor {
     }};
     
     ConfigFactory configFactory = injector.getInstance(ConfigFactory.class);
-    Config config = configFactory.createNew(cluster, "global",
+    Config config = configFactory.createNew(cluster, "hadoop-env",
         new HashMap<String,String>() {{ put("a", "b"); }}, new HashMap<String, Map<String,String>>());
     config.setVersionTag("version1");
     cluster.addConfig(config);
@@ -164,6 +165,14 @@ public class TestHeartbeatMonitor {
     hb.setTimestamp(System.currentTimeMillis());
     hb.setResponseId(12);
     handler.handleHeartBeat(hb);
+    
+    List<Alert> al = new ArrayList<Alert>();
+    Alert alert = new Alert("host_alert", null, "AMBARI", null, hostname1, AlertState.OK);
+    al.add(alert);
+    for (Map.Entry<String, Cluster> entry : clusters.getClusters().entrySet()) {
+      Cluster cl = entry.getValue();
+      cl.addAlerts(al);
+    }
 
     List<StatusCommand> cmds = hm.generateStatusCommands(hostname1);
     assertTrue("HeartbeatMonitor should generate StatusCommands for host1", cmds.size() == 3);
@@ -203,7 +212,7 @@ public class TestHeartbeatMonitor {
     }};
 
     ConfigFactory configFactory = injector.getInstance(ConfigFactory.class);
-    Config config = configFactory.createNew(cluster, "global",
+    Config config = configFactory.createNew(cluster, "hadoop-env",
       new HashMap<String, String>() {{
         put("a", "b");
       }}, new HashMap<String, Map<String,String>>());

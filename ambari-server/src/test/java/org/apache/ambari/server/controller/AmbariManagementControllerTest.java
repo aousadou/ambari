@@ -78,8 +78,10 @@ import org.apache.ambari.server.api.services.AmbariMetaInfo;
 import org.apache.ambari.server.configuration.Configuration;
 import org.apache.ambari.server.controller.internal.ComponentResourceProviderTest;
 import org.apache.ambari.server.controller.internal.HostResourceProviderTest;
+import org.apache.ambari.server.controller.internal.RequestOperationLevel;
 import org.apache.ambari.server.controller.internal.RequestResourceFilter;
 import org.apache.ambari.server.controller.internal.ServiceResourceProviderTest;
+import org.apache.ambari.server.controller.spi.Resource;
 import org.apache.ambari.server.customactions.ActionDefinition;
 import org.apache.ambari.server.metadata.ActionMetadata;
 import org.apache.ambari.server.orm.GuiceJpaInitializer;
@@ -414,9 +416,18 @@ public class AmbariManagementControllerTest {
       // manually change live state to stopped as no running action manager
       List<HostRoleCommand> commands = actionDB.getRequestTasks(resp.getRequestId());
       for (HostRoleCommand cmd : commands) {
-        if (!cmd.getRole().toString().endsWith("CHECK")) {
-          clusters.getCluster(clusterName).getService(serviceName).getServiceComponent(cmd.getRole().name())
-              .getServiceComponentHost(cmd.getHostName()).setState(State.STARTED);
+        String scName = cmd.getRole().toString();
+        if (!scName.endsWith("CHECK")) {
+          Cluster cluster = clusters.getCluster(clusterName);
+          String hostname = cmd.getHostName();
+          for (Service s : cluster.getServices().values()) {
+            if (s.getServiceComponents().containsKey(scName) &&
+              !s.getServiceComponent(scName).isClientComponent()) {
+              s.getServiceComponent(scName).getServiceComponentHost(hostname).
+                setState(State.STARTED);
+              break;
+            }
+          }
         }
       }
       return resp.getRequestId();
@@ -1552,6 +1563,50 @@ public class AmbariManagementControllerTest {
   }
 
   @Test
+  /**
+   * Create a cluster with a service, and verify that the request tasks have the correct output log and error log paths.
+   */
+  public void testRequestStatusLogs() throws Exception {
+    testCreateServiceComponentHostSimple();
+
+    String clusterName = "foo1";
+    String serviceName = "HDFS";
+
+    Cluster cluster = clusters.getCluster(clusterName);
+    for (Host h : clusters.getHosts()) {
+      // Simulate each agent registering and setting the prefix path on its host
+      h.setPrefix(Configuration.PREFIX_DIR);
+    }
+
+    Map<String, Config> configs = new HashMap<String, Config>();
+    Map<String, String> properties = new HashMap<String, String>();
+    Map<String, Map<String, String>> propertiesAttributes = new HashMap<String, Map<String,String>>();
+
+    Config c1 = new ConfigImpl(cluster, "hdfs-site", properties, propertiesAttributes, injector);
+    c1.setVersionTag("v1");
+    cluster.addConfig(c1);
+    c1.persist();
+    configs.put(c1.getType(), c1);
+
+    ServiceRequest r = new ServiceRequest(clusterName, serviceName, State.INSTALLED.toString());
+    Set<ServiceRequest> requests = new HashSet<ServiceRequest>();
+    requests.add(r);
+
+    Map<String, String> mapRequestProps = new HashMap<String, String>();
+    mapRequestProps.put("context", "Called from a test");
+
+    RequestStatusResponse trackAction =
+        ServiceResourceProviderTest.updateServices(controller, requests, mapRequestProps, true, false);
+
+    List<ShortTaskStatus> taskStatuses = trackAction.getTasks();
+    Assert.assertFalse(taskStatuses.isEmpty());
+    for (ShortTaskStatus task : taskStatuses) {
+      Assert.assertEquals("Task output logs don't match", Configuration.PREFIX_DIR + "/output-" + task.getTaskId() + ".txt", task.getOutputLog());
+      Assert.assertEquals("Task error logs don't match", Configuration.PREFIX_DIR + "/errors-" + task.getTaskId() + ".txt", task.getErrorLog());
+    }
+  }
+
+  @Test
   public void testInstallAndStartService() throws Exception {
     testCreateServiceComponentHostSimple();
 
@@ -2388,6 +2443,9 @@ public class AmbariManagementControllerTest {
     createServiceComponentHost(clusterName, serviceName, componentName2,
         host2, null);
 
+    RequestOperationLevel level = new RequestOperationLevel(
+            Resource.Type.HostComponent, clusterName, null, null, null);
+
     // Install
     installService(clusterName, serviceName, false, false);
 
@@ -2410,7 +2468,7 @@ public class AmbariManagementControllerTest {
     resourceFilters.add(resourceFilter);
 
     ExecuteActionRequest request = new ExecuteActionRequest(clusterName,
-      "DECOMMISSION", null, resourceFilters, null, params);
+      "DECOMMISSION", null, resourceFilters, level, params);
 
     Map<String, String> requestProperties = new HashMap<String, String>();
     requestProperties.put(REQUEST_CONTEXT_PROPERTY, "Called from a test");
@@ -2446,9 +2504,11 @@ public class AmbariManagementControllerTest {
           put("slave_type", "HBASE_REGIONSERVER");
           put("align_maintenance_state", "true");
         }};
-    request = new ExecuteActionRequest(clusterName, "DECOMMISSION", params);
     resourceFilter = new RequestResourceFilter("HBASE", "HBASE_MASTER", null);
-    request.getResourceFilters().add(resourceFilter);
+    ArrayList<RequestResourceFilter> filters = new ArrayList<RequestResourceFilter>();
+    filters.add(resourceFilter);
+    request = new ExecuteActionRequest(clusterName, "DECOMMISSION", null,
+            filters, level, params);
 
     response = controller.createAction(request, requestProperties);
 
@@ -2472,7 +2532,7 @@ public class AmbariManagementControllerTest {
       put("included_hosts", "h2");
     }};
     request = new ExecuteActionRequest(clusterName, "DECOMMISSION", null,
-      resourceFilters, null, params);
+      resourceFilters, level, params);
 
     response = controller.createAction(request,
         requestProperties);
@@ -4406,10 +4466,12 @@ public class AmbariManagementControllerTest {
     Config config1 = cf.createNew(cluster, "global",
         new HashMap<String, String>(){{ put("key1", "value1"); }}, new HashMap<String, Map<String,String>>());
     config1.setVersionTag("version1");
+    config1.setPropertiesAttributes(new HashMap<String, Map<String, String>>(){{ put("attr1", new HashMap<String, String>()); }});
 
     Config config2 = cf.createNew(cluster, "core-site",
         new HashMap<String, String>(){{ put("key1", "value1"); }}, new HashMap<String, Map<String,String>>());
     config2.setVersionTag("version1");
+    config2.setPropertiesAttributes(new HashMap<String, Map<String, String>>(){{ put("attr2", new HashMap<String, String>()); }});
 
     cluster.addConfig(config1);
     cluster.addConfig(config2);
@@ -5300,11 +5362,9 @@ public class AmbariManagementControllerTest {
 
     clusters.getHost(host2).setState(HostState.HEARTBEAT_LOST);
 
-    // Start
-    requestId2 = startService(clusterName, serviceName1, true, true);
+    // Start MAPREDUCE, HDFS is started as a dependency
     requestId3 = startService(clusterName, serviceName2, true, true);
-    stages = actionDB.getAllStages(requestId2);
-    stages.addAll(actionDB.getAllStages(requestId3));
+    stages = actionDB.getAllStages(requestId3);
     HostRoleCommand clientWithHostDown = null;
     for (Stage stage : stages) {
       for (HostRoleCommand hrc : stage.getOrderedHostRoleCommands()) {
@@ -5314,6 +5374,16 @@ public class AmbariManagementControllerTest {
       }
     }
     Assert.assertNull(clientWithHostDown);
+
+    Assert.assertEquals(State.STARTED, clusters.getCluster(clusterName).
+      getService("MAPREDUCE").getServiceComponent("TASKTRACKER").
+      getServiceComponentHost(host1).getState());
+    Assert.assertEquals(State.STARTED, clusters.getCluster(clusterName).
+      getService("HDFS").getServiceComponent("NAMENODE").
+      getServiceComponentHost(host1).getState());
+    Assert.assertEquals(State.STARTED, clusters.getCluster(clusterName).
+      getService("HDFS").getServiceComponent("DATANODE").
+      getServiceComponentHost(host1).getState());
   }
 
   @Test
@@ -6028,6 +6098,9 @@ public class AmbariManagementControllerTest {
     createServiceComponentHost(clusterName, serviceName, componentName3,
       host2, null);
 
+    RequestOperationLevel level = new RequestOperationLevel(
+            Resource.Type.HostComponent, clusterName, null, null, null);
+
     // Install
     installService(clusterName, serviceName, false, false);
 
@@ -6058,8 +6131,10 @@ public class AmbariManagementControllerTest {
       put("align_maintenance_state", "true");
     }};
     RequestResourceFilter resourceFilter = new RequestResourceFilter("HDFS", "NAMENODE", null);
-    ExecuteActionRequest request = new ExecuteActionRequest(clusterName, "DECOMMISSION", params);
-    request.getResourceFilters().add(resourceFilter);
+    ArrayList<RequestResourceFilter> filters = new ArrayList<RequestResourceFilter>();
+    filters.add(resourceFilter);
+    ExecuteActionRequest request = new ExecuteActionRequest(clusterName,
+            "DECOMMISSION", null, filters, level, params);
 
     Map<String, String> requestProperties = new HashMap<String, String>();
     requestProperties.put(REQUEST_CONTEXT_PROPERTY, "Called from a test");
@@ -6087,8 +6162,11 @@ public class AmbariManagementControllerTest {
       put("align_maintenance_state", "true");
     }};
     resourceFilter = new RequestResourceFilter("HDFS", "NAMENODE", null);
-    request = new ExecuteActionRequest(clusterName, "DECOMMISSION", params);
-    request.getResourceFilters().add(resourceFilter);
+    filters = new ArrayList<RequestResourceFilter>();
+    filters.add(resourceFilter);
+
+    request = new ExecuteActionRequest(clusterName, "DECOMMISSION",
+            null, filters, level, params);
 
     response = controller.createAction(request,
         requestProperties);
@@ -6127,8 +6205,10 @@ public class AmbariManagementControllerTest {
       put("align_maintenance_state", "true");
     }};
     resourceFilter = new RequestResourceFilter("HDFS", "NAMENODE", null);
-    request = new ExecuteActionRequest(clusterName, "DECOMMISSION", params);
-    request.getResourceFilters().add(resourceFilter);
+    filters = new ArrayList<RequestResourceFilter>();
+    filters.add(resourceFilter);
+    request = new ExecuteActionRequest(clusterName, "DECOMMISSION", null,
+            filters, level, params);
 
     response = controller.createAction(request,
         requestProperties);

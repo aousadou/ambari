@@ -21,6 +21,7 @@ var App = require('app');
 
 require('controllers/main/admin/security/add/step3');
 var stringUtils = require('utils/string_utils');
+var modelSetup = require('test/init_model_test');
 
 describe('App.MainAdminSecurityAddStep3Controller', function () {
 
@@ -67,21 +68,16 @@ describe('App.MainAdminSecurityAddStep3Controller', function () {
       });
     });
     afterEach(function(){
-      App.Host.find.restore();
       controller.getSecurityUsers.restore();
     });
 
     it('No hosts installed', function() {
-      sinon.stub(App.Host, 'find', function(){
-        return [];
-      });
+      controller.set('hosts', []);
       controller.loadStep();
       expect(controller.get('hostComponents')).to.be.empty;
     });
     it('One host installed', function () {
-      sinon.stub(App.Host, 'find', function () {
-        return [Em.Object.create({hostName: 'host1'})];
-      });
+      controller.set('hosts', [Em.Object.create({hostName: 'host1'})]);
       sinon.stub(controller, 'setMandatoryConfigs', function (result) {
         return result.push('setMandatoryConfigs');
       });
@@ -122,6 +118,7 @@ describe('App.MainAdminSecurityAddStep3Controller', function () {
   describe('#setComponentsConfig()', function() {
 
     beforeEach(function(){
+      modelSetup.setupStackServiceComponent();
       controller.set('content.serviceConfigProperties', [
         {
           serviceName: 'HDFS',
@@ -134,6 +131,10 @@ describe('App.MainAdminSecurityAddStep3Controller', function () {
           value: 'value1'
         }
       ]);
+    });
+
+    afterEach(function() {
+      modelSetup.cleanStackServiceComponent();
     });
 
     it('componentToConfigMap is empty', function() {

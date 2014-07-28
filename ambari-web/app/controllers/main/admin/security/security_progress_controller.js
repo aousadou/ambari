@@ -24,7 +24,6 @@ App.MainAdminSecurityProgressController = Em.Controller.extend({
   commands: [],
   configs: [],
   serviceConfigTags: [],
-  globalProperties: [],
   totalSteps: 3,
   isSubmitDisabled: true,
   hasHostPopup: true,
@@ -159,7 +158,7 @@ App.MainAdminSecurityProgressController = Em.Controller.extend({
           command.start();
         } else if (command.get('name') === 'APPLY_CONFIGURATIONS') {
           command.set('isStarted', true);
-          if (App.testMode) {
+          if (App.get('testMode')) {
             command.set('isError', false);
             command.set('isSuccess', true);
           } else {
@@ -167,7 +166,7 @@ App.MainAdminSecurityProgressController = Em.Controller.extend({
           }
         } else if (command.get('name') === 'DELETE_ATS') {
           command.set('isStarted', true);
-          if (App.testMode) {
+          if (App.get('testMode')) {
             command.set('isError', false);
             command.set('isSuccess', true);
           } else {
@@ -219,7 +218,7 @@ App.MainAdminSecurityProgressController = Em.Controller.extend({
     var urlPrefix = App.apiPrefix + '/clusters/' + App.get('clusterName');
     operationsInfo.forEach(function (operation) {
       var command = this.get('commands').findProperty('name', operation.name);
-      var url = (App.testMode) ? operation.testUrl : urlPrefix + operation.realUrl;
+      var url = (App.get('testMode')) ? operation.testUrl : urlPrefix + operation.realUrl;
       command.set('url', url);
       command.set('data', operation.data);
     }, this);
@@ -409,7 +408,7 @@ App.MainAdminSecurityProgressController = Em.Controller.extend({
         commands.pushObject(command);
       }, this);
       App.db.setSecurityDeployCommands(commands);
-      if (!App.testMode) {
+      if (!App.get('testMode')) {
         App.clusterStatus.setClusterStatus({
           clusterName: this.get('clusterName'),
           clusterState: 'ADD_SECURITY_STEP_4',

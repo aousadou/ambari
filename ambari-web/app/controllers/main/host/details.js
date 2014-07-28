@@ -356,7 +356,7 @@ App.MainHostDetailsController = Em.Controller.extend({
   upgradeComponentSuccessCallback: function (data, opt, params) {
     console.log('Send request for UPGRADE successfully');
 
-    if (App.testMode) {
+    if (App.get('testMode')) {
       this.mimicWorkStatusChange(params.component, App.HostComponentStatus.starting, App.HostComponentStatus.started);
     }
     this.showBackgroundOperationsPopup();
@@ -548,7 +548,7 @@ App.MainHostDetailsController = Em.Controller.extend({
     var self = this;
     console.log('Send request for INSTALLING NEW COMPONENT successfully');
 
-    if (App.testMode) {
+    if (App.get('testMode')) {
       this.mimicWorkStatusChange(params.component, App.HostComponentStatus.installing, App.HostComponentStatus.stopped);
     }
 
@@ -823,7 +823,7 @@ App.MainHostDetailsController = Em.Controller.extend({
    */
   installComponentSuccessCallback: function (data, opt, params) {
     console.log('Send request for REINSTALL COMPONENT successfully');
-    if (App.testMode) {
+    if (App.get('testMode')) {
       this.mimicWorkStatusChange(params.component, App.HostComponentStatus.installing, App.HostComponentStatus.stopped);
     }
     this.showBackgroundOperationsPopup();
@@ -951,6 +951,12 @@ App.MainHostDetailsController = Em.Controller.extend({
                 "parameters": {
                   "slave_type": slaveType,
                   "excluded_hosts": hostNames
+                },
+                'operation_level': {
+                  level: "HOST_COMPONENT",
+                  cluster_name: App.get('clusterName'),
+                  host_name: hostNames,
+                  service_name: serviceName
                 }
               },
               "Requests/resource_filters": [
@@ -1057,6 +1063,12 @@ App.MainHostDetailsController = Em.Controller.extend({
                 "parameters": {
                   "slave_type": slaveType,
                   "included_hosts": hostNames
+                },
+                'operation_level': {
+                  level: "HOST_COMPONENT",
+                  cluster_name: App.get('clusterName'),
+                  host_name: hostNames,
+                  service_name: serviceName
                 }
               },
               "Requests/resource_filters": [
@@ -1118,6 +1130,12 @@ App.MainHostDetailsController = Em.Controller.extend({
                 "parameters": {
                   "slave_type": slaveType,
                   "included_hosts": hostNames
+                },
+                'operation_level': {
+                  level: "HOST_COMPONENT",
+                  cluster_name: App.get('clusterName'),
+                  host_name: hostNames,
+                  service_name: serviceName
                 }
               },
               "Requests/resource_filters": [

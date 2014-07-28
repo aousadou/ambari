@@ -40,7 +40,7 @@ class TestHookAfterInstall(RMFTestCase):
                               not_if = 'ls /etc/hadoop/conf'
                               )
     self.assertResourceCalled('File', '/etc/hadoop/conf/hadoop-env.sh',
-                              content = Template('hadoop-env.sh.j2'),
+                              content = InlineTemplate(self.getConfig()['configurations']['hadoop-env']['content']),
                               owner = 'hdfs',
                               )
     self.assertResourceCalled('XmlConfig', 'core-site.xml',
@@ -48,5 +48,6 @@ class TestHookAfterInstall(RMFTestCase):
                               group = 'hadoop',
                               conf_dir = '/etc/hadoop/conf',
                               configurations = self.getConfig()['configurations']['core-site'],
+                              configuration_attributes = self.getConfig()['configuration_attributes']['core-site']
                               )
     self.assertNoMoreResources()

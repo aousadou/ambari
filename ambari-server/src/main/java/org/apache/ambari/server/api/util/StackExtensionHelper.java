@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -124,7 +125,7 @@ public class StackExtensionHelper {
   }
 
 
-  private ServiceInfo mergeServices(ServiceInfo parentService,
+  ServiceInfo mergeServices(ServiceInfo parentService,
                                     ServiceInfo childService) {
     ServiceInfo mergedServiceInfo = new ServiceInfo();
     mergedServiceInfo.setSchemaVersion(childService.getSchemaVersion());
@@ -133,10 +134,16 @@ public class StackExtensionHelper {
     mergedServiceInfo.setVersion(childService.getVersion());
     mergedServiceInfo.setConfigDependencies(
         childService.getConfigDependencies() != null ?
-            childService.getConfigDependencies() : parentService.getConfigDependencies());
+            childService.getConfigDependencies() :
+            parentService.getConfigDependencies() != null ?
+                parentService.getConfigDependencies() :
+                Collections.<String>emptyList());
     mergedServiceInfo.setConfigTypes(
         childService.getConfigTypes() != null ?
-            childService.getConfigTypes() : parentService.getConfigTypes());
+            childService.getConfigTypes() :
+            parentService.getConfigTypes() != null ?
+                parentService.getConfigTypes() :
+                Collections.<String, Map<String, Map<String, String>>>emptyMap());
     
     mergedServiceInfo.setRestartRequiredAfterChange(
             (childService.isRestartRequiredAfterChange() != null) 
@@ -178,6 +185,10 @@ public class StackExtensionHelper {
     // metrics
     if (null == childService.getMetricsFile() && null != parentService.getMetricsFile())
       mergedServiceInfo.setMetricsFile(parentService.getMetricsFile());
+    
+    // alerts
+    if (null == childService.getAlertsFile() && null != parentService.getAlertsFile())
+      mergedServiceInfo.setAlertsFile(parentService.getAlertsFile());    
 
     populateComponents(mergedServiceInfo, parentService, childService);
 
@@ -400,6 +411,9 @@ public class StackExtensionHelper {
           // get metrics file, if it exists
           File metricsJson = new File(serviceFolder.getAbsolutePath()
             + File.separator + AmbariMetaInfo.SERVICE_METRIC_FILE_NAME);
+          
+          File alertsJson = new File(serviceFolder.getAbsolutePath() +
+              File.separator + AmbariMetaInfo.SERVICE_ALERT_FILE_NAME);
 
           //Reading v2 service metainfo (may contain multiple services)
           // Get services from metadata
@@ -419,7 +433,10 @@ public class StackExtensionHelper {
             // process metrics.json
             if (metricsJson.exists())
               serviceInfo.setMetricsFile(metricsJson);
-
+            
+            if (alertsJson.exists())
+              serviceInfo.setAlertsFile(alertsJson);
+            
             // Get all properties from all "configs/*-site.xml" files
             setPropertiesFromConfigs(serviceFolder, serviceInfo);
 

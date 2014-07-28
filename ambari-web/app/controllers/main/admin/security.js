@@ -90,6 +90,7 @@ App.MainAdminSecurityController = Em.Controller.extend({
   loadStep: function () {
     var step2Controller = App.router.get('mainAdminSecurityAddStep2Controller');
     var services = this.get('services');
+    var self = this;
     step2Controller.set('content', Em.Object.create({services: []}));
     step2Controller.set('content.services', services);
     this.get('stepConfigs').clear();
@@ -98,18 +99,18 @@ App.MainAdminSecurityController = Em.Controller.extend({
     this.loadSecurityUsers();
     //loadSecurityUsers - desired configs fetched from server
     step2Controller.addUserPrincipals(services, this.get('securityUsers'));
-    step2Controller.addMasterHostToGlobals();
-    step2Controller.addSlaveHostToGlobals();
+    step2Controller.addMasterHostToConfigs();
+    step2Controller.addSlaveHostToConfigs();
     this.renderServiceConfigs(services);
     step2Controller.changeCategoryOnHa(services, this.get('stepConfigs'));
 
     services.forEach(function (_secureService) {
       this.setServiceTagNames(_secureService, this.get('desiredConfigs'));
     }, this);
-    var serverConfigs = App.router.get('configurationController').getConfigsByTags(this.get('serviceConfigTags'));
-    this.setConfigValuesFromServer(this.get('stepConfigs'), serverConfigs);
-
-    this.set('installedServices', App.Service.find().mapProperty('serviceName'));
+    App.router.get('configurationController').getConfigsByTags(this.get('serviceConfigTags')).done(function (serverConfigs) {
+      self.setConfigValuesFromServer(self.get('stepConfigs'), serverConfigs);
+      self.set('installedServices', App.Service.find().mapProperty('serviceName'));
+    });
   },
 
   /**
@@ -162,7 +163,7 @@ App.MainAdminSecurityController = Em.Controller.extend({
   loadSecurityUsers: function () {
     var securityUsers = this.get('serviceUsers');
     if (!securityUsers || securityUsers.length < 1) { // Page could be refreshed in middle
-      if (App.testMode) {
+      if (App.get('testMode')) {
         securityUsers.pushObject({id: 'puppet var', name: 'hdfs_user', value: 'hdfs'});
         securityUsers.pushObject({id: 'puppet var', name: 'mapred_user', value: 'mapred'});
         securityUsers.pushObject({id: 'puppet var', name: 'hbase_user', value: 'hbase'});
@@ -240,8 +241,8 @@ App.MainAdminSecurityController = Em.Controller.extend({
   },
 
   setSecurityStatus: function () {
-    if (App.testMode) {
-      this.set('securityEnabled', !App.testEnableSecurity);
+    if (App.get('testMode')) {
+      this.set('securityEnabled', !App.get('testEnableSecurity'));
       this.set('dataIsLoaded', true);
     } else {
       //get Security Status From Server
@@ -266,8 +267,8 @@ App.MainAdminSecurityController = Em.Controller.extend({
   getSecurityStatusFromServerSuccessCallback: function (data) {
     var configs = data.Clusters.desired_configs;
     this.set('desiredConfigs', configs);
-    if ('global' in configs && 'hdfs-site' in configs) {
-      this.set('tag.global', configs['global'].tag);
+    if ('hadoop-env' in configs && 'hdfs-site' in configs) {
+      this.set('tag.hadoop-env', configs['hadoop-env'].tag);
       this.set('tag.hdfs-site', configs['hdfs-site'].tag);
       this.getServiceConfigsFromServer();
     }
@@ -279,27 +280,29 @@ App.MainAdminSecurityController = Em.Controller.extend({
   getServiceConfigsFromServer: function () {
     var tags = [
       {
-        siteName: "global",
-        tagName: this.get('tag.global')
+        siteName: "hadoop-env",
+        tagName: this.get('tag.hadoop-env')
       },
       {
         siteName: "hdfs-site",
         tagName: this.get('tag.hdfs-site')
       }
     ];
+    var self = this;
 
-    var data = App.router.get('configurationController').getConfigsByTags(tags);
-    var configs = data.findProperty('tag', this.get('tag.global')).properties;
-    if (configs && (configs['security_enabled'] === 'true' || configs['security_enabled'] === true)) {
-      this.set('securityEnabled', true);
-    }
-    else {
-      this.set('securityEnabled', false);
-      var hdfsConfigs = data.findProperty('tag', this.get('tag.hdfs-site')).properties;
-      this.setNnHaStatus(hdfsConfigs);
-    }
-    this.loadUsers(configs);
-    this.set('dataIsLoaded', true);
+    App.router.get('configurationController').getConfigsByTags(tags).done(function(data) {
+      var configs = data.findProperty('tag', self.get('tag.hadoop-env')).properties;
+      if (configs && (configs['security_enabled'] === 'true' || configs['security_enabled'] === true)) {
+        self.set('securityEnabled', true);
+      }
+      else {
+        self.set('securityEnabled', false);
+        var hdfsConfigs = data.findProperty('tag', self.get('tag.hdfs-site')).properties;
+        self.setNnHaStatus(hdfsConfigs);
+      }
+      self.loadUsers(configs);
+      self.set('dataIsLoaded', true);
+    });
   },
 
   setNnHaStatus: function (hdfsConfigs) {
