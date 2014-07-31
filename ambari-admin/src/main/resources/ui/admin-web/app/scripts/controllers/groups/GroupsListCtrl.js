@@ -18,5 +18,19 @@
 'use strict';
 
 angular.module('ambariAdminConsole')
-.controller('GroupsListCtrl',['$scope', function($scope) {
+.controller('GroupsListCtrl',['$scope', 'Group', function($scope, Group) {
+	$scope.groups = [];
+
+	Group.all().then(function(groups) {
+		$scope.groups = groups;	
+	})
+	.catch(function(data) {
+		console.error('Get groups list error');
+	});
+
+	$scope.deleteGroup = function(group) {
+		group.destroy().then(function() {
+			$scope.groups.splice( $scope.groups.indexOf(group), 1);
+		});
+	};
 }]);

@@ -16,4 +16,29 @@
  * limitations under the License.
  */
 
-App.JobView = Ember.View.extend({});
+package org.apache.ambari.server.api.services.stackadvisor.commands;
+
+/**
+ * StackAdvisorCommand types enumeration. 
+ */
+public enum StackAdvisorCommandType {
+
+  RECOMMEND_COMPONENT_LAYOUT("recommend-component-layout"),
+
+  VALIDATE_COMPONENT_LAYOUT("validate-component-layout"),
+
+  RECOMMEND_CONFIGURATIONS("recommend-configurations"),
+
+  VALIDATE_CONFIGURATIONS("validate-configurations");
+
+  private final String name;
+
+  private StackAdvisorCommandType(String name) {
+    this.name = name;
+  }
+
+  @Override
+  public String toString() {
+    return name;
+  }
+}

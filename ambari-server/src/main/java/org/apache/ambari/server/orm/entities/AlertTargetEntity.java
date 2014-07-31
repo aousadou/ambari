@@ -17,18 +17,21 @@
  */
 package org.apache.ambari.server.orm.entities;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
+import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EntityManager;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.JoinTable;
 import javax.persistence.ManyToMany;
 import javax.persistence.NamedQueries;
 import javax.persistence.NamedQuery;
+import javax.persistence.PreRemove;
 import javax.persistence.Table;
 import javax.persistence.TableGenerator;
 
@@ -64,15 +67,9 @@ public class AlertTargetEntity {
   /**
    * Bi-directional many-to-many association to {@link AlertGroupEntity}
    */
-  @ManyToMany
-  @JoinTable(name = "alert_group_target", joinColumns = { @JoinColumn(name = "target_id", nullable = false) }, inverseJoinColumns = { @JoinColumn(name = "group_id", nullable = false) })
+  @ManyToMany(mappedBy = "alertTargets", cascade = { CascadeType.MERGE,
+      CascadeType.REFRESH })
   private Set<AlertGroupEntity> alertGroups;
-
-  /**
-   * Constructor.
-   */
-  public AlertTargetEntity() {
-  }
 
   /**
    * Gets the unique ID of this alert target.
@@ -160,24 +157,57 @@ public class AlertTargetEntity {
   }
 
   /**
-   * Gets all of the alert groups that this target is associated with.
+   * Gets an immutable set of the alert groups that this target is associated
+   * with.
    * 
    * @return the groups that will send to this target when an alert in that
-   *         group is received, or {@code null} for none.
+   *         group is received, or an empty set for none.
    */
   public Set<AlertGroupEntity> getAlertGroups() {
-    return alertGroups;
+    if (null == alertGroups)
+      return Collections.emptySet();
+
+    return Collections.unmodifiableSet(alertGroups);
   }
 
   /**
-   * Sets the alert groups that this target is associated with.
+   * Adds the specified alert group to the groups that this target is associated
+   * with. This is used to complement the JPA bidirectional association.
    * 
-   * @param alertGroups
-   *          the groups that will send to this target when an alert in that
-   *          group is received, or {@code null} for none.
+   * @param alertGroup
    */
-  public void setAlertGroups(Set<AlertGroupEntity> alertGroups) {
-    this.alertGroups = alertGroups;
+  protected void addAlertGroup(AlertGroupEntity alertGroup) {
+    if (null == alertGroups)
+      alertGroups = new HashSet<AlertGroupEntity>();
+
+    alertGroups.add(alertGroup);
+  }
+
+  /**
+   * Removes the specified alert group to the groups that this target is
+   * associated with. This is used to complement the JPA bidirectional
+   * association.
+   * 
+   * @param alertGroup
+   */
+  protected void removeAlertGroup(AlertGroupEntity alertGroup) {
+    if (null != alertGroups)
+      alertGroups.remove(alertGroup);
+  }
+
+  /**
+   * Called before {@link EntityManager#remove(Object)} for this entity, removes
+   * the non-owning relationship between targets and groups.
+   */
+  @PreRemove
+  public void preRemove() {
+    Set<AlertGroupEntity> groups = getAlertGroups();
+    if (null == groups || groups.size() == 0)
+      return;
+
+    for (AlertGroupEntity group : groups) {
+      group.removeAlertTarget(this);
+    }
   }
 
   /**

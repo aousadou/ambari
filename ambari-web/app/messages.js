@@ -608,6 +608,7 @@ Em.I18n.translations = {
   'installer.step6.body':'Assign slave and client components to hosts you want to run them on.<br/>Hosts that are assigned master components are shown with <i class=icon-asterisks>&#10037;</i>. <br/>&quot;Client&quot; will install ',
   'installer.step6.error.mustSelectOne':'You must assign at least one host to each component.',
   'installer.step6.error.mustSelectOneForHost':'You must assign at least one slave/client component to each.',
+  'installer.step6.error.mustSelectComponents': 'You must assign at least: {0}',
   'installer.step6.wizardStep6Host.title':'master components hosted on {0}',
   'installer.step6.addHostWizard.body':'Assign HBase master and ZooKeeper server.',
   'installer.step6.error.mustSelectOneForSlaveHost': 'You must assign at least one slave/client component to each host with no master component',
@@ -840,6 +841,7 @@ Em.I18n.translations = {
   'admin.highAvailability.error.security':'You cannot enable NameNode HA via this wizard as your cluster is already secured.  First, disable security by going to Admin > Security, and then run this Enable NameNode HA wizard again.  After NameNode HA is enabled, you can go back to Admin > Security to secure the cluster.',
   'admin.rm_highAvailability.error.hostsNum':'You must have at least 3 hosts in your cluster to enable ResourceManager HA.',
   'admin.rm_highAvailability.error.zooKeeperNum':'You must have at least 3 ZooKeeper Servers in your cluster to enable ResourceManager HA.',
+  'admin.rm_highAvailability.closePopup':'Enable ResourceManager HA Wizard is in progress. You must allow the wizard to complete for Ambari to be in usable state. If you choose to quit, you must follow manual instructions to complete or revert enabling ResourceManager HA as documented in the Ambari User Guide. Are you sure you want to exit the wizard?',
 
   'admin.highAvailability.wizard.header':'Enable NameNode HA Wizard',
   'admin.highAvailability.wizard.progressPage.notice.inProgress':'Please wait while NameNode HA is being deployed.',
@@ -1165,6 +1167,9 @@ Em.I18n.translations = {
   'services.service.summary.clientCount': '{0} Client Hosts',
   'services.service.summary.historyServer': 'History Server Web UI',
   'services.service.actions.run.rebalancer':'Run Rebalancer',
+  'services.service.actions.run.yarnRefreshQueues.menu':'Refresh YARN Capacity Scheduler',
+  'services.service.actions.run.yarnRefreshQueues.context':'Refresh YARN Capacity Scheduler',
+  'services.service.actions.run.yarnRefreshQueues.error':'Error during remote command: ',
   'services.service.actions.run.compaction':'Run Compaction',
   'services.service.actions.run.smoke':'Run Service Check',
   'services.service.actions.reassign.master':'Move {0}',
@@ -1947,6 +1952,7 @@ Em.I18n.translations = {
   'dashboard.configHistory.info-bar.showMore': 'Show more',
   'dashboard.configHistory.info-bar.save.popup.title': 'Save Configuration',
   'dashboard.configHistory.info-bar.save.popup.placeholder': 'What did you change?',
+  'dashboard.configHistory.info-bar.revert.button': 'Revert to this version',
 
   'timeRange.presets.1hour':'1h',
   'timeRange.presets.12hour':'12h',

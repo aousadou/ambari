@@ -36,7 +36,6 @@ import org.apache.ambari.server.state.ServiceFactory;
 import org.apache.ambari.server.state.State;
 import org.apache.ambari.server.state.configgroup.ConfigGroupFactory;
 import org.apache.ambari.server.state.scheduler.RequestExecutionFactory;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -75,7 +74,7 @@ public interface AmbariManagementController {
    *
    * @throws AmbariException when the configuration cannot be created.
    */
-  public void createConfiguration(ConfigurationRequest request)
+  public ConfigurationResponse createConfiguration(ConfigurationRequest request)
       throws AmbariException;
 
   /**
@@ -155,6 +154,15 @@ public interface AmbariManagementController {
    * @throws AmbariException if the configurations could not be read
    */
   public Set<TaskStatusResponse> getTaskStatus(Set<TaskStatusRequest> requests)
+      throws AmbariException;
+
+  /**
+   * Get service config version history
+   * @param requests service config version requests
+   * @return service config versions
+   * @throws AmbariException
+   */
+  Set<ServiceConfigVersionResponse> getServiceConfigVersions(Set<ServiceConfigVersionRequest> requests)
       throws AmbariException;
 
   /**
@@ -248,6 +256,15 @@ public interface AmbariManagementController {
    * @throws AmbariException if the resources cannot be updated
    */
   public void updateGroups(Set<GroupRequest> requests) throws AmbariException;
+
+  /**
+   * Updates the members of the group specified.
+   *
+   * @param requests the members to be set for this group
+   *
+   * @throws AmbariException if the resources cannot be updated
+   */
+  public void updateMembers(Set<MemberRequest> requests) throws AmbariException;
 
 
   // ----- Delete -----------------------------------------------------------
@@ -627,6 +644,13 @@ public interface AmbariManagementController {
   public ExecutionScheduleManager getExecutionScheduleManager();
 
   /**
+   * Get cached clusterUpdateResults, used only for service config versions currently
+   * @param clusterRequest
+   * @return
+   */
+  ClusterResponse getClusterUpdateResults(ClusterRequest clusterRequest);
+
+  /**
    * Get JobTracker hostname
    */
   public String getJobTrackerHost(Cluster cluster);
@@ -641,8 +665,43 @@ public interface AmbariManagementController {
       throws AmbariException;
 
   /**
+<<<<<<< HEAD
    * Get Role Command Order
    */
   public RoleCommandOrder getRoleCommandOrder(Cluster cluster);
+
+  /**
+=======
+>>>>>>> a96596eb4c0e9551156585a67181b64df75e335a
+   * Performs a test if LDAP server is reachable.
+   *
+   * @return true if connection to LDAP was established
+   */
+  public boolean checkLdapConfigured();
+
+  /**
+   * Retrieves users from external LDAP.
+   *
+   * @return key-value pairs UserName-Synced
+   * @throws AmbariException if LDAP is configured incorrectly
+   */
+  public Map<String, Boolean> getLdapUsersSyncInfo() throws AmbariException;
+
+  /**
+   * Retrieves groups from external LDAP.
+   *
+   * @return key-value pairs GroupName-Synced
+   * @throws AmbariException if LDAP is configured incorrectly
+   */
+  public Map<String, Boolean> getLdapGroupsSyncInfo() throws AmbariException;
+
+  /**
+   * Synchronizes local users and groups with given data.
+   *
+   * @param users users to be synchronized
+   * @param groups groups to be synchronized
+   * @throws AmbariException if synchronization data was invalid
+   */
+  public void synchronizeLdapUsersAndGroups(Set<String> users, Set<String> groups) throws AmbariException;
 }
 

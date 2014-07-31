@@ -278,6 +278,23 @@ var urls = {
       };
     }
   },
+  'service.item.refreshQueueYarnRequest':{
+    'real': '/clusters/{clusterName}/requests',
+    'mock': '',
+    'format' : function(data) {
+        return {
+          type : 'POST',
+          data : JSON.stringify({
+            RequestInfo: {
+              'context': data.context,
+              'command': data.command,
+              'parameters/forceRefreshConfigTags' : data.forceRefreshConfigTags
+            },
+            "Requests/resource_filters": [{"service_name" : data.serviceName, "component_name" : data.componentName, 'hosts': data.hosts}]
+          })
+        }
+      }
+  },
   'service.load_config_groups': {
     'real': '/clusters/{clusterName}/config_groups?ConfigGroup/tag={serviceName}&fields=*',
     'mock': '/data/configurations/config_group.json'
@@ -386,6 +403,10 @@ var urls = {
   },
   'host.host_component.decommission_status': {
     'real': '/clusters/{clusterName}/services/{serviceName}/components/{componentName}/?fields=ServiceComponentInfo,host_components/HostRoles/state',
+    'mock': ''
+  },
+  'host_components.hbase_regionserver.active': {
+    'real': '/clusters/{clusterName}/host_components?HostRoles/component_name=HBASE_REGIONSERVER&HostRoles/maintenance_state=OFF&HostRoles/desired_admin_state=INSERVICE&HostRoles/host_name.in({hostNames})',
     'mock': ''
   },
   'host.host_component.decommission_status_datanode': {
@@ -1119,6 +1140,20 @@ var urls = {
     }
   },
 
+  'wizard.step5.recommendations': {
+    'real': '{stackVersionUrl}/recommendations',
+    'mock': '/data/stacks/HDP-2.1/recommendations.json',
+    'type': 'POST',
+    'format': function (data) {
+      return {
+        data: JSON.stringify({
+          hosts: data.hosts,
+          services: data.services
+        })
+      }
+    }
+  },
+
   'preinstalled.checks': {
     'real':'/requests',
     'mock':'',
@@ -1704,6 +1739,16 @@ var urls = {
         data: JSON.stringify({
           "RequestInfo": {"query" : data.parameters }
         })
+      }
+    }
+  },
+  'service.config.version.get': {
+    //TODO set actual url when API is ready
+    'real': '',
+    'mock': '',
+    format: function(data) {
+      return {
+        url: data.url
       }
     }
   }

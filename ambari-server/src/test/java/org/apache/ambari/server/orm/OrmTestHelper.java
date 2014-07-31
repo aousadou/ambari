@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.persistence.EntityManager;
 
@@ -31,6 +32,8 @@ import org.apache.ambari.server.Role;
 import org.apache.ambari.server.RoleCommand;
 import org.apache.ambari.server.actionmanager.HostRoleStatus;
 import org.apache.ambari.server.orm.dao.AlertDefinitionDAO;
+import org.apache.ambari.server.orm.dao.AlertDispatchDAO;
+import org.apache.ambari.server.orm.dao.AlertsDAO;
 import org.apache.ambari.server.orm.dao.ClusterDAO;
 import org.apache.ambari.server.orm.dao.HostDAO;
 import org.apache.ambari.server.orm.dao.HostRoleCommandDAO;
@@ -38,6 +41,9 @@ import org.apache.ambari.server.orm.dao.RequestDAO;
 import org.apache.ambari.server.orm.dao.RoleDAO;
 import org.apache.ambari.server.orm.dao.StageDAO;
 import org.apache.ambari.server.orm.dao.UserDAO;
+import org.apache.ambari.server.orm.entities.AlertDefinitionEntity;
+import org.apache.ambari.server.orm.entities.AlertGroupEntity;
+import org.apache.ambari.server.orm.entities.AlertTargetEntity;
 import org.apache.ambari.server.orm.entities.ClusterEntity;
 import org.apache.ambari.server.orm.entities.ClusterServiceEntity;
 import org.apache.ambari.server.orm.entities.HostEntity;
@@ -50,6 +56,7 @@ import org.apache.ambari.server.orm.entities.RoleEntity;
 import org.apache.ambari.server.orm.entities.StageEntity;
 import org.apache.ambari.server.orm.entities.UserEntity;
 import org.apache.ambari.server.state.HostState;
+import org.apache.ambari.server.state.alert.Scope;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.Assert;
 
@@ -76,6 +83,12 @@ public class OrmTestHelper {
 
   @Inject
   public AlertDefinitionDAO alertDefinitionDAO;
+
+  @Inject
+  public AlertDispatchDAO alertDispatchDAO;
+
+  @Inject
+  public AlertsDAO alertsDAO;
 
   public EntityManager getEntityManager() {
     return entityManagerProvider.get();
@@ -264,5 +277,69 @@ public class OrmTestHelper {
     Assert.notNull(clusterEntity);
     Assert.isTrue(clusterEntity.getClusterId() > 0);
     return clusterEntity.getClusterId();
+  }
+
+  /**
+   * Creates an alert target.
+   * 
+   * @return
+   */
+  @Transactional
+  public AlertTargetEntity createAlertTarget() throws Exception {
+    AlertTargetEntity target = new AlertTargetEntity();
+    target.setDescription("Target Description");
+    target.setNotificationType("EMAIL");
+    target.setProperties("Target Properties");
+    target.setTargetName("Target Name " + System.currentTimeMillis());
+
+    alertDispatchDAO.create(target);
+    return alertDispatchDAO.findTargetById(target.getTargetId());
+  }
+  
+  /**
+   * Creates an alert definition.
+   * 
+   * @param clusterId
+   * @return
+   * @throws Exception
+   */
+  @Transactional
+  public AlertDefinitionEntity createAlertDefinition(long clusterId)
+      throws Exception {
+    AlertDefinitionEntity definition = new AlertDefinitionEntity();
+    definition.setDefinitionName("Alert Definition "
+        + System.currentTimeMillis());
+    definition.setServiceName("Service " + System.currentTimeMillis());
+    definition.setComponentName(null);
+    definition.setClusterId(clusterId);
+    definition.setHash(UUID.randomUUID().toString());
+    definition.setScheduleInterval(60);
+    definition.setScope(Scope.SERVICE);
+    definition.setSource("Source " + System.currentTimeMillis());
+    definition.setSourceType("SCRIPT");
+    
+    alertDefinitionDAO.create(definition);
+    return alertDefinitionDAO.findById(definition.getDefinitionId());
+  }
+
+  /**
+   * Creates an alert group.
+   * 
+   * @param clusterId
+   * @param targets
+   * @return
+   * @throws Exception
+   */
+  @Transactional
+  public AlertGroupEntity createAlertGroup(long clusterId,
+      Set<AlertTargetEntity> targets) throws Exception {
+    AlertGroupEntity group = new AlertGroupEntity();
+    group.setDefault(false);
+    group.setGroupName("Group Name " + System.currentTimeMillis());
+    group.setClusterId(clusterId);
+    group.setAlertTargets(targets);
+
+    alertDispatchDAO.create(group);
+    return alertDispatchDAO.findGroupById(group.getGroupId());
   }
 }

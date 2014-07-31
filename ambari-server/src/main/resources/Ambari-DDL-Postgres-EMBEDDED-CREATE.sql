@@ -31,11 +31,20 @@ ALTER ROLE :username SET search_path TO 'ambari';
 CREATE TABLE ambari.clusters (cluster_id BIGINT NOT NULL, cluster_info VARCHAR(255) NOT NULL, cluster_name VARCHAR(100) NOT NULL UNIQUE, provisioning_state VARCHAR(255) NOT NULL DEFAULT 'INIT', desired_cluster_state VARCHAR(255) NOT NULL, desired_stack_version VARCHAR(255) NOT NULL, PRIMARY KEY (cluster_id));
 GRANT ALL PRIVILEGES ON TABLE ambari.clusters TO :username;
 
-CREATE TABLE ambari.clusterconfig (version_tag VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, cluster_id BIGINT NOT NULL, config_data VARCHAR(32000) NOT NULL, config_attributes VARCHAR(32000), create_timestamp BIGINT NOT NULL, PRIMARY KEY (cluster_id, type_name, version_tag));
+CREATE TABLE ambari.clusterconfig (config_id BIGINT NOT NULL, version_tag VARCHAR(255) NOT NULL, version BIGINT NOT NULL, type_name VARCHAR(255) NOT NULL, cluster_id BIGINT NOT NULL, config_data VARCHAR(32000) NOT NULL, config_attributes VARCHAR(32000), create_timestamp BIGINT NOT NULL, PRIMARY KEY (config_id));
 GRANT ALL PRIVILEGES ON TABLE ambari.clusterconfig TO :username;
 
 CREATE TABLE ambari.clusterconfigmapping (cluster_id BIGINT NOT NULL, type_name VARCHAR(255) NOT NULL, version_tag VARCHAR(255) NOT NULL, create_timestamp BIGINT NOT NULL, selected INTEGER NOT NULL DEFAULT 0, user_name VARCHAR(255) NOT NULL DEFAULT '_db', PRIMARY KEY (cluster_id, type_name, create_timestamp));
 GRANT ALL PRIVILEGES ON TABLE ambari.clusterconfigmapping TO :username;
+
+CREATE TABLE ambari.serviceconfig (service_config_id BIGINT NOT NULL, cluster_id BIGINT NOT NULL, service_name VARCHAR(255) NOT NULL, version BIGINT NOT NULL, create_timestamp BIGINT NOT NULL, PRIMARY KEY (service_config_id));
+GRANT ALL PRIVILEGES ON TABLE ambari.serviceconfig TO :username;
+
+CREATE TABLE ambari.serviceconfigmapping (service_config_id BIGINT NOT NULL, config_id BIGINT NOT NULL, PRIMARY KEY(service_config_id, config_id));
+GRANT ALL PRIVILEGES ON TABLE ambari.serviceconfigmapping TO :username;
+
+CREATE TABLE ambari.serviceconfigapplication (apply_id BIGINT NOT NULL, service_config_id BIGINT NOT NULL, apply_timestamp BIGINT NOT NULL, user_name VARCHAR(255) NOT NULL DEFAULT '_db',  PRIMARY KEY(apply_id));
+GRANT ALL PRIVILEGES ON TABLE ambari.serviceconfigapplication TO :username;
 
 CREATE TABLE ambari.clusterservices (service_name VARCHAR(255) NOT NULL, cluster_id BIGINT NOT NULL, service_enabled INTEGER NOT NULL, PRIMARY KEY (service_name, cluster_id));
 GRANT ALL PRIVILEGES ON TABLE ambari.clusterservices TO :username;
@@ -212,16 +221,23 @@ ALTER TABLE ambari.viewinstance ADD CONSTRAINT FK_viewinst_view_name FOREIGN KEY
 ALTER TABLE ambari.viewinstanceproperty ADD CONSTRAINT FK_viewinstprop_view_name FOREIGN KEY (view_name, view_instance_name) REFERENCES ambari.viewinstance(view_name, name);
 ALTER TABLE ambari.viewinstancedata ADD CONSTRAINT FK_viewinstdata_view_name FOREIGN KEY (view_instance_id, view_name, view_instance_name) REFERENCES ambari.viewinstance(view_instance_id, view_name, name);
 ALTER TABLE ambari.viewentity ADD CONSTRAINT FK_viewentity_view_name FOREIGN KEY (view_name, view_instance_name) REFERENCES ambari.viewinstance(view_name, name);
-ALTER TABLE ambari.adminresource ADD CONSTRAINT FK_resource_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES adminresourcetype(resource_type_id);
-ALTER TABLE ambari.adminprincipal ADD CONSTRAINT FK_principal_principal_type_id FOREIGN KEY (principal_type_id) REFERENCES adminprincipaltype(principal_type_id);
-ALTER TABLE ambari.adminpermission ADD CONSTRAINT FK_permission_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES adminresourcetype(resource_type_id);
-ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_permission_id FOREIGN KEY (permission_id) REFERENCES adminpermission(permission_id);
-ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_resource_id FOREIGN KEY (resource_id) REFERENCES adminresource(resource_id);
-ALTER TABLE viewmain ADD CONSTRAINT FK_view_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES adminresourcetype(resource_type_id);
-ALTER TABLE ambari.viewinstance ADD CONSTRAINT FK_viewinstance_resource_id FOREIGN KEY (resource_id) REFERENCES adminresource(resource_id);
-ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
-ALTER TABLE ambari.users ADD CONSTRAINT FK_users_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
-ALTER TABLE ambari.groups ADD CONSTRAINT FK_groups_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
+ALTER TABLE ambari.clusterconfig ADD CONSTRAINT UQ_config_type_tag UNIQUE (cluster_id, type_name, version_tag);
+ALTER TABLE ambari.clusterconfig ADD CONSTRAINT UQ_config_type_version UNIQUE (cluster_id, type_name, version);
+ALTER TABLE ambari.serviceconfig ADD CONSTRAINT UQ_scv_service_version UNIQUE (cluster_id, service_name, version);
+ALTER TABLE ambari.serviceconfigmapping ADD CONSTRAINT FK_scvm_scv FOREIGN KEY (service_config_id) REFERENCES ambari.serviceconfig(service_config_id);
+ALTER TABLE ambari.serviceconfigmapping ADD CONSTRAINT FK_scvm_config FOREIGN KEY (config_id) REFERENCES ambari.clusterconfig(config_id);
+ALTER TABLE ambari.serviceconfigapplication ADD CONSTRAINT FK_scva_scv FOREIGN KEY (service_config_id) REFERENCES ambari.serviceconfig(service_config_id);
+ALTER TABLE ambari.adminresource ADD CONSTRAINT FK_resource_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES ambari.adminresourcetype(resource_type_id);
+ALTER TABLE ambari.adminprincipal ADD CONSTRAINT FK_principal_principal_type_id FOREIGN KEY (principal_type_id) REFERENCES ambari.adminprincipaltype(principal_type_id);
+ALTER TABLE ambari.adminpermission ADD CONSTRAINT FK_permission_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES ambari.adminresourcetype(resource_type_id);
+ALTER TABLE ambari.adminpermission ADD CONSTRAINT UQ_permission_name_resource_type_id UNIQUE (permission_name, resource_type_id);
+ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_permission_id FOREIGN KEY (permission_id) REFERENCES ambari.adminpermission(permission_id);
+ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_resource_id FOREIGN KEY (resource_id) REFERENCES ambari.adminresource(resource_id);
+ALTER TABLE ambari.viewmain ADD CONSTRAINT FK_view_resource_type_id FOREIGN KEY (resource_type_id) REFERENCES ambari.adminresourcetype(resource_type_id);
+ALTER TABLE ambari.viewinstance ADD CONSTRAINT FK_viewinstance_resource_id FOREIGN KEY (resource_id) REFERENCES ambari.adminresource(resource_id);
+ALTER TABLE ambari.adminprivilege ADD CONSTRAINT FK_privilege_principal_id FOREIGN KEY (principal_id) REFERENCES ambari.adminprincipal(principal_id);
+ALTER TABLE ambari.users ADD CONSTRAINT FK_users_principal_id FOREIGN KEY (principal_id) REFERENCES ambari.adminprincipal(principal_id);
+ALTER TABLE ambari.groups ADD CONSTRAINT FK_groups_principal_id FOREIGN KEY (principal_id) REFERENCES ambari.adminprincipal(principal_id);
 
 -- Alerting Framework
 CREATE TABLE ambari.alert_definition (
@@ -232,7 +248,7 @@ CREATE TABLE ambari.alert_definition (
   component_name VARCHAR(255),
   scope VARCHAR(255),
   enabled SMALLINT DEFAULT 1 NOT NULL,
-  schedule_interval BIGINT NOT NULL,
+  schedule_interval INTEGER NOT NULL,
   source_type VARCHAR(255) NOT NULL,
   alert_source TEXT NOT NULL,
   hash VARCHAR(64) NOT NULL,
@@ -260,11 +276,14 @@ CREATE TABLE ambari.alert_history (
 
 CREATE TABLE ambari.alert_current (
   alert_id BIGINT NOT NULL,
+  definition_id BIGINT NOT NULL,
+  history_id BIGINT NOT NULL UNIQUE,
   maintenance_state VARCHAR(255),
   original_timestamp BIGINT NOT NULL,
   latest_timestamp BIGINT NOT NULL,
   PRIMARY KEY (alert_id),
-  FOREIGN KEY (alert_id) REFERENCES ambari.alert_history(alert_id)
+  FOREIGN KEY (definition_id) REFERENCES ambari.alert_definition(definition_id),
+  FOREIGN KEY (history_id) REFERENCES ambari.alert_history(alert_id)
 );
 
 CREATE TABLE ambari.alert_group (
@@ -288,15 +307,17 @@ CREATE TABLE ambari.alert_target (
 CREATE TABLE ambari.alert_group_target (
   group_id BIGINT NOT NULL,
   target_id BIGINT NOT NULL,
+  PRIMARY KEY (group_id, target_id),
   FOREIGN KEY (group_id) REFERENCES ambari.alert_group(group_id),
-  FOREIGN KEY (target_id) REFERENCES ambari.alert_target(target_id)
+  FOREIGN KEY (target_id) REFERENCES ambari.alert_target(target_id)  
 );
 
 CREATE TABLE ambari.alert_grouping (
   definition_id BIGINT NOT NULL,
   group_id BIGINT NOT NULL,
+  PRIMARY KEY (group_id, definition_id),
   FOREIGN KEY (definition_id) REFERENCES ambari.alert_definition(definition_id),
-  FOREIGN KEY (group_id) REFERENCES ambari.alert_group(group_id)
+  FOREIGN KEY (group_id) REFERENCES ambari.alert_group(group_id)  
 );
 
 CREATE TABLE ambari.alert_notice (
@@ -318,12 +339,13 @@ GRANT ALL PRIVILEGES ON TABLE ambari.alert_group_target TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.alert_grouping TO :username;
 GRANT ALL PRIVILEGES ON TABLE ambari.alert_notice TO :username;
 
-
+CREATE INDEX idx_alert_history_def_id on ambari.alert_history(alert_definition_id);
 CREATE INDEX idx_alert_history_service on ambari.alert_history(service_name);
 CREATE INDEX idx_alert_history_host on ambari.alert_history(host_name);
 CREATE INDEX idx_alert_history_time on ambari.alert_history(alert_timestamp);
 CREATE INDEX idx_alert_history_state on ambari.alert_history(alert_state);
 CREATE INDEX idx_alert_group_name on ambari.alert_group(group_name);
+CREATE INDEX idx_alert_notice_state on ambari.alert_notice(notify_state);
 
 ---------inserting some data-----------
 BEGIN;
@@ -370,8 +392,16 @@ INSERT INTO ambari.ambari_sequences (sequence_name, "value")
   union all
   select 'alert_history_id_seq', 0
   union all
-  select 'alert_notice_id_seq', 0;
-  
+  select 'alert_notice_id_seq', 0
+  union all
+  select 'alert_current_id_seq', 0
+  union all
+  select 'config_id_seq', 1
+  union all
+  select 'service_config_id_seq', 1
+  union  all
+  select 'service_config_application_id_seq', 1;
+
 
 INSERT INTO ambari.adminresourcetype (resource_type_id, resource_type_name)
   SELECT 1, 'AMBARI'

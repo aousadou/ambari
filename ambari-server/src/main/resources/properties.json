@@ -6,6 +6,7 @@
         "Clusters/version",
         "Clusters/state",
         "Clusters/desired_configs",
+        "Clusters/desired_serviceconfigversions",
         "Clusters/total_hosts",
         "Clusters/health_report",
         "_"
@@ -81,7 +82,16 @@
     "Configuration":[
         "Config/tag",
         "Config/type",
-        "Config/cluster_name"
+        "Config/cluster_name",
+        "Config/version"
+    ],
+    "ServiceConfigVersion":[
+        "ServiceConfigVersion/cluster_name",
+        "ServiceConfigVersion/service_name",
+        "ServiceConfigVersion/serviceconfigversion",
+        "ServiceConfigVersion/createtime",
+        "ServiceConfigVersion/appliedtime",
+        "ServiceConfigVersion/user"
     ],
     "ConfigGroup": [
         "ConfigGroup/id",
@@ -123,6 +133,7 @@
         "Requests/completed_task_count",
         "Requests/queued_task_count",
         "Requests/progress_percent",
+        "Requests/abort_reason",
         "_"
     ],
     "RequestSchedule" : [
@@ -352,6 +363,40 @@
         "configurations",
         "validate_topology"
     ],
+    "Recommendation":[
+        "Recommendation/id",
+        "Versions/stack_name",
+        "Versions/stack_version",
+        "hosts",
+        "services",
+        "recommendations",
+        "recommendations/blueprint",
+        "recommendations/blueprint/configurations",
+        "recommendations/blueprint/host_groups",
+        "recommendations/blueprint/host_groups/name",
+        "recommendations/blueprint/host_groups/components",
+        "recommendations/blueprint_cluster_binding",
+        "recommendations/blueprint_cluster_binding/host_groups",
+        "recommendations/blueprint_cluster_binding/host_groups/name",
+        "recommendations/blueprint_cluster_binding/host_groups/hosts"
+    ],
+    "Validation":[
+        "Validation/id",
+        "Versions/stack_name",
+        "Versions/stack_version",
+        "items",
+        "items/type",
+        "items/level",
+        "items/message",
+        "items/component-name",
+        "items/host",
+        "items/config-type",
+        "items/config-name",
+        "items/host-group",
+        "hosts",
+        "services",
+        "recommendations"
+    ],
     "HostComponentProcess": [
       "HostComponentProcess/cluster_name",
       "HostComponentProcess/host_name",
@@ -369,5 +414,14 @@
       "AlertDefinition/enabled",
       "AlertDefinition/scope",
       "AlertDefinition/source"
+    ],      
+    "Controller":[
+        "Controllers/name",
+        "LDAP/configured",
+        "LDAP/users",
+        "LDAP/groups",
+        "LDAP/synced_users",
+        "LDAP/synced_groups",
+        "_"
     ]
 }

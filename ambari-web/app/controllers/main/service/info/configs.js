@@ -43,6 +43,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   isApplyingChanges: false,
   saveConfigsFlag: true,
   putClusterConfigsCallsNumber: null,
+  compareServiceVersion: null,
   // contain Service Config Property, when user proceed from Select Config Group dialog
   overrideToAdd: null,
   serviceConfigs: function () {
@@ -357,10 +358,76 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
       self.set('allConfigs', configs);
       //STEP 8: add configs as names of host components
       self.addHostNamesToConfig();
-      //STEP 9: Load and add overriden configs of group
-      App.config.loadServiceConfigGroupOverrides(self.get('allConfigs'), self.get('loadedGroupToOverrideSiteToTagMap'), self.get('configGroups'), self.onLoadOverrides, self);
+      //STEP load configs of version being compared against
+      self.loadCompareVersionConfigs(self.get('allConfigs')).done(function () {
+        //STEP 9: Load and add overriden configs of group
+        App.config.loadServiceConfigGroupOverrides(self.get('allConfigs'), self.get('loadedGroupToOverrideSiteToTagMap'), self.get('configGroups'), self.onLoadOverrides, self);
+      });
     });
   }.observes('selectedConfigGroup'),
+
+  /**
+   * load version configs for comparison
+   * @param allConfigs
+   * @return {object}
+   */
+  loadCompareVersionConfigs: function (allConfigs) {
+    var dfd = $.Deferred();
+    var self = this;
+    var compareServiceVersion = this.get('compareServiceVersion');
+
+    if (compareServiceVersion) {
+      this.getCompareVersionConfigs(compareServiceVersion).done(function (json) {
+        var serviceVersionMap = {};
+
+        json.items[0].configurations.forEach(function (configuration) {
+          for (var prop in configuration.properties) {
+            serviceVersionMap[prop] = {
+              name: prop,
+              value: configuration.properties[prop],
+              type: configuration.type,
+              tag: configuration.tag,
+              version: configuration.version
+            }
+          }
+        });
+        allConfigs.forEach(function (serviceConfig) {
+          var compareConfig = serviceVersionMap[serviceConfig.name];
+
+          if (compareConfig) {
+            serviceConfig.compareConfig = App.ServiceConfigProperty.create(serviceConfig);
+            serviceConfig.compareConfig.set('value', compareConfig.value);
+            serviceConfig.compareConfig.set('serviceVersion', compareServiceVersion);
+            serviceConfig.isComparison = true;
+          }
+        });
+        self.set('compareServiceVersion', null)
+        dfd.resolve();
+      }).fail(function () {
+          dfd.resolve();
+        });
+    } else {
+      allConfigs.setEach('isComparison', false);
+      dfd.resolve();
+    }
+    return dfd.promise();
+  },
+
+  /**
+   * get configs of chosen version from server to compare
+   * @param compareServiceVersion
+   * @return {$.ajax}
+   */
+  getCompareVersionConfigs: function (compareServiceVersion) {
+    return App.ajax.send({
+      name: 'service.config.version.get',
+      sender: this,
+      data: {
+        serviceVersion: compareServiceVersion,
+        url: '/data/configurations/service_version.json'
+      }
+    })
+  },
 
   checkDatabaseProperties: function (serviceConfig) {
     if (!['OOZIE', 'HIVE'].contains(this.get('content.serviceName'))) return;
@@ -585,7 +652,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   },
 
   /**
-   * create {Em.Object}service_cfg_property based on {Object}_serviceConfigProperty and additional info
+   * create {Em.Object} service_cfg_property based on {Object}_serviceConfigProperty and additional info
    * @param {Object} _serviceConfigProperty - config object
    * @param {Boolean} defaultGroupSelected - true if selected cfg group is default
    * @param {Object} serviceConfigsData - service cfg object
@@ -597,7 +664,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
     if (!_serviceConfigProperty) return null;
     var overrides = _serviceConfigProperty.overrides;
     // we will populate the override properties below
-    _serviceConfigProperty.overrides = null;
+    Em.set(_serviceConfigProperty, 'overrides', null);
     _serviceConfigProperty.isOverridable = Em.isNone(_serviceConfigProperty.isOverridable) ? true : _serviceConfigProperty.isOverridable;
 
     var serviceConfigProperty = App.ServiceConfigProperty.create(_serviceConfigProperty);
@@ -619,9 +686,11 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   checkOverrideProperty: function (componentConfig) {
     var overrideToAdd = this.get('overrideToAdd');
     if (overrideToAdd) {
-      overrideToAdd = componentConfig.configs.findProperty('name', overrideToAdd.name);
-      if (overrideToAdd) {
-        this.addOverrideProperty(overrideToAdd);
+      overrideToAdd = componentConfig.configs.filter(function(c){
+        return c.name == overrideToAdd.name && c.filename == overrideToAdd.filename;
+      });
+      if (overrideToAdd[0]) {
+        this.addOverrideProperty(overrideToAdd[0]);
         this.set('overrideToAdd', null);
       }
     }
@@ -666,8 +735,10 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
    */
   setEditability: function (serviceConfigProperty, defaultGroupSelected) {
     serviceConfigProperty.set('isEditable', false);
-    if (App.get('isAdmin') && defaultGroupSelected && !this.get('isHostsConfigsPage')) {
-      serviceConfigProperty.set('isEditable', serviceConfigProperty.get('isReconfigurable'));
+    if (App.get('isAdmin') && defaultGroupSelected && !this.get('isHostsConfigsPage') && !serviceConfigProperty.get('group')) {
+      serviceConfigProperty.set('isEditable', serviceConfigProperty.get('isReconfigurable') && !serviceConfigProperty.get('isComparison'));
+    } else if (serviceConfigProperty.get('group') && this.get('selectedConfigGroup.name') === serviceConfigProperty.get('group.name')) {
+      serviceConfigProperty.set('isEditable', true);
     }
   },
 
@@ -728,7 +799,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   },
 
   /**
-   * create new overiden property and set approperiate fields
+   * create new overridden property and set appropriate fields
    * @param override
    * @param _serviceConfigProperty
    * @param serviceConfigProperty
@@ -847,12 +918,13 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   saveConfigs: function () {
     var selectedConfigGroup = this.get('selectedConfigGroup');
     var configs = this.get('stepConfigs').findProperty('serviceName', this.get('content.serviceName')).get('configs');
+    var self = this;
 
     if (selectedConfigGroup.get('isDefault')) {
       if (this.get('content.serviceName') === 'YARN' && !App.supports.capacitySchedulerUi) {
         configs = App.config.textareaIntoFileConfigs(configs, 'capacity-scheduler.xml');
       }
-      this.saveSiteConfigs(configs);
+      this.saveSiteConfigs(configs.filterProperty('group', null));
 
       /**
        * First we put cluster configurations, which automatically creates /configurations
@@ -865,6 +937,9 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
       configs.filterProperty('isOverridden', true).forEach(function (config) {
         overridenConfigs = overridenConfigs.concat(config.get('overrides'));
       });
+      // find custom original properties that assigned to selected config group
+      overridenConfigs = overridenConfigs.concat(configs.filterProperty('group')
+        .filter(function(config) { return config.get('group.name') == self.get('selectedConfigGroup.name'); }));
       this.formatConfigValues(overridenConfigs);
       selectedConfigGroup.get('hosts').forEach(function (hostName) {
         groupHosts.push({"host_name": hostName});
@@ -888,12 +963,14 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
    * On save configs handler. Open save configs popup with appropriate message.
    */
   onDoPUTClusterConfigurations: function () {
-    var header, message, messageClass, value, status, urlParams = '';
-    var result = {
+    var header, message, messageClass, value, status, urlParams = '',
+    result = {
       flag: this.get('saveConfigsFlag'),
       message: null,
       value: null
-    };
+    },
+    extendedModel = App.Service.extendedModel[this.get('content.serviceName')],
+    currentService = extendedModel ? App[extendedModel].find(this.get('content.serviceName')) : App.Service.find(this.get('content.serviceName'));
 
     if (!result.flag) {
       result.message = Em.I18n.t('services.service.config.failSaveConfig');
@@ -922,6 +999,10 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
       message = result.message;
       messageClass = 'alert alert-error';
       value = result.value;
+    }
+    if(currentService){
+      App.QuickViewLinks.proto().set('content', currentService);
+      App.QuickViewLinks.proto().loadTags();
     }
     this.showSaveConfigsPopup(header, flag, message, messageClass, value, status, urlParams);
   },
@@ -1100,32 +1181,24 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   buildGroupDesiredConfigs: function (configs, timeTag) {
     var sites = [];
     var time = timeTag || (new Date).getTime();
+    var siteFileNames = configs.mapProperty('filename');
+    sites = siteFileNames.map(function (filename) {
+      return {
+        type: filename.replace('.xml', ''),
+        tag: 'version' + time,
+        properties: []
+      };
+    });
+
     configs.forEach(function (config) {
       var type = config.get('filename').replace('.xml', '');
       var site = sites.findProperty('type', type);
-      if (site) {
-        site.properties.push({
-          name: config.get('name'),
-          value: config.get('value')
-        });
-      } else {
-        site = {
-          type: type,
-          tag: 'version' + time,
-          properties: [
-            {
-              name: config.get('name'),
-              value: config.get('value')
-            }
-          ]
-        };
-        sites.push(site);
-      }
+      site.properties.push(config);
     });
-    sites.forEach(function (site) {
-      site.properties = this.createSiteObj(site.type, site.tag, site.properties).properties;
+
+    return sites.map(function (site) {
+      return this.createSiteObj(site.type, site.tag, site.properties);
     }, this);
-    return sites;
   },
   /**
    * persist properties of config groups to server
@@ -2180,7 +2253,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   },
 
   /**
-   * If user chabges cfg group if some configs was changed popup with propose to save changes must be shown
+   * If user changes cfg group if some configs was changed popup with propose to save changes must be shown
    * @param {object} event - triggered event for selecting another config-group
    * @method selectConfigGroup
    */

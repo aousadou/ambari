@@ -28,7 +28,9 @@ module.exports = Em.Application.create({
     revision: 4,
     adapter: DS.FixtureAdapter.create({
       simulateRemoteResponse: false
-    })
+    }),
+    typeMaps: {},
+    recordCache: []
   }),
   isAdmin: false,
   /**
@@ -186,6 +188,10 @@ module.exports = Em.Application.create({
 
     clients: function () {
       return App.StackServiceComponent.find().filterProperty('isClient').mapProperty('componentName')
+    }.property('App.router.clusterController.isLoaded'),
+
+    masterBehavior: function () {
+      return App.StackServiceComponent.find().filterProperty('isMasterBehavior').mapProperty('componentName')
     }.property('App.router.clusterController.isLoaded')
   })
 });

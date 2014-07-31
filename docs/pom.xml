@@ -575,6 +575,31 @@
             </organization>
         </developer>
       </developers>
+      <contributors>
+         <contributor>
+         <name>Scott Creeley</name>
+         <organization>Redhat</organization>
+         </contributor>
+         <contributor>
+         <name>Michael Harp</name>
+         <organization>Teradata</organization>
+         </contributor>
+         <contributor>
+         <name>Janos Matyas</name>
+         <organization>SequenceIQ</organization>
+         </contributor>
+         <contributor>
+         <name>Greg Hill</name>
+         <organization>Rackspace</organization>
+         </contributor>
+         <contributor>
+         <name>Steve Ratay</name>
+         <organization>Teradata</organization>
+         </contributor>
+       </contributors>
+
+
+
     <organization>
         <name>Apache Software Foundation</name>
         <url>http://www.apache.org/</url>

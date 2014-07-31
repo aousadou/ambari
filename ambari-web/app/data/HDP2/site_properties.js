@@ -2073,6 +2073,27 @@ module.exports =
       "index": 1
     },
     {
+     "id": "puppet var",
+     "name": "hbase_regionserver_xmn_max",
+     "displayName": "RegionServers maximum value for -Xmn",
+     "displayType": "int",
+     "unit": "MB",
+     "isVisible": true,
+     "serviceName": "HBASE",
+     "category": "HBASE_REGIONSERVER",
+     "index": 6
+    },
+    {
+      "id": "puppet var",
+      "name": "hbase_regionserver_xmn_ratio",
+      "displayName": "RegionServers -Xmn in -Xmx ratio",
+      "displayType": "float",
+      "isVisible": true,
+      "serviceName": "HBASE",
+      "category": "HBASE_REGIONSERVER",
+      "index": 7
+    },
+    {
       "id": "puppet var",
       "name": "hbase_log_dir",
       "displayName": "HBase Log Dir",
@@ -2981,52 +3002,6 @@ module.exports =
       "filename": "zookeeper-env.xml",
       "category": "Advanced",
       "index": 1
-    },
-  /**********************************************HUE***************************************/
-    {
-      "id": "puppet var",
-      "name": "hueserver_host",
-      "displayName": "Hue Server host",
-      "value": "",
-      "defaultValue": "",
-      "description": "The host that has been assigned to run Hue Server",
-      "displayType": "masterHost",
-      "isOverridable": false,
-      "isRequiredByAgent": false,
-      "isVisible": true,
-      "serviceName": "HUE",
-      "filename": "hue-env.xml",
-      "category": "Hue Server"
-    },
-    {
-      "id": "puppet var",
-      "name": "hue_log_dir",
-      "displayName": "HUE Log Dir",
-      "description": "Directory for HUE logs",
-      "defaultValue": "/var/log/hue",
-      "isReconfigurable": false,
-      "displayType": "directory",
-      "isOverridable": false,
-      "isRequiredByAgent": false,
-      "isVisible": true,
-      "serviceName": "HUE",
-      "filename": "hue-env.xml",
-      "category": "Advanced"
-    },
-    {
-      "id": "puppet var",
-      "name": "hue_pid_dir",
-      "displayName": "HUE Pid Dir",
-      "description": "Directory in which the pid files for HUE processes will be created",
-      "defaultValue": "/var/run/hue",
-      "isReconfigurable": false,
-      "displayType": "directory",
-      "isOverridable": false,
-      "isRequiredByAgent": false,
-      "isVisible": true,
-      "serviceName": "HUE",
-      "filename": "hue-env.xml",
-      "category": "Advanced"
     },
   /**********************************************GANGLIA***************************************/
     {

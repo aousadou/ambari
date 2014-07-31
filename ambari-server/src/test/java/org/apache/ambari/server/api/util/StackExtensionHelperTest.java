@@ -46,7 +46,7 @@ import javax.xml.namespace.QName;
 public class StackExtensionHelperTest {
 
   private final String stackRootStr = "./src/test/resources/stacks/".
-          replaceAll("/", File.separator);
+      replaceAll("/", File.separator);
 
   private Injector injector = Guice.createInjector(new MockModule());
   
@@ -180,8 +180,10 @@ public class StackExtensionHelperTest {
           }
         }
         assertEquals(28, emptyValueProperties.size());
-        assertEquals(66, properties.size());
-        boolean found = false;
+        assertEquals(68, properties.size());
+        boolean foundHBaseClusterDistributed = false;
+        boolean foundHBaseRegionServerXmnMax = false;
+        boolean foundHBaseRegionServerXmnRatio = false;
         for (PropertyInfo property : properties) {
           if (property.getName().equals("hbase.cluster.distributed")) {
             assertEquals("true",
@@ -189,10 +191,27 @@ public class StackExtensionHelperTest {
             assertTrue(property.getDescription().startsWith("The mode the"));
             assertEquals("hbase-site.xml",
                     property.getFilename());
-            found = true;
+            foundHBaseClusterDistributed = true;
+          } else if (property.getName().equals("hbase_regionserver_xmn_max")) {
+            assertEquals("512", property.getValue());
+            assertEquals("global.xml",
+                property.getFilename());
+            foundHBaseRegionServerXmnMax = true;
+          } else if (property.getName().equals("hbase_regionserver_xmn_ratio")) {
+            assertEquals("global.xml",
+                property.getFilename());
+            assertEquals("0.2", property.getValue());
+            foundHBaseRegionServerXmnRatio = true;
           }
         }
-        assertTrue("Property not found in a list of properties", found);
+
+        assertTrue("Property hbase.cluster.distributed not found in a list of properties",
+            foundHBaseClusterDistributed);
+        assertTrue("Property hbase_regionserver_xmn_max not found in a list of properties",
+            foundHBaseRegionServerXmnMax);
+        assertTrue("Property hbase_regionserver_xmn_ratio not found in a list of properties",
+            foundHBaseRegionServerXmnRatio);
+
         List<String> configDependencies = serviceInfo.getConfigDependencies();
         assertEquals(3, configDependencies.size());
         assertEquals("global", configDependencies.get(0));
@@ -315,6 +334,7 @@ public class StackExtensionHelperTest {
     helper.populateConfigTypesFromDependencies(serviceInfo);
 
     Map<String, Map<String, Map<String, String>>> configTypes = serviceInfo.getConfigTypes();
+    assertNotNull(configTypes);
     assertEquals(0, configTypes.size());
   }
 
@@ -328,7 +348,7 @@ public class StackExtensionHelperTest {
     helper.populateConfigTypesFromDependencies(serviceInfo);
 
     Map<String, Map<String, Map<String, String>>> configTypes = serviceInfo.getConfigTypes();
-    assertTrue(configTypes == null);
+    assertNull(configTypes);
   }
 
   @Test
@@ -579,7 +599,8 @@ public class StackExtensionHelperTest {
     assertEquals("yarn.scheduler.capacity.maximum-applications", propertyInfo.getName());
     assertEquals("Maximum number of applications that can be pending and running.", propertyInfo.getDescription());
     assertEquals("10000", propertyInfo.getValue());
-    assertEquals(true, propertyInfo.isFinal());
+    assertEquals(1, propertyInfo.getAttributesMap().size());
+    assertEquals("true", propertyInfo.getAttributesMap().get("final"));
     assertEquals(null, propertyInfo.getFilename());
     assertEquals(false, propertyInfo.isDeleted());
     assertEquals(false, propertyInfo.isRequireInput());
@@ -589,7 +610,8 @@ public class StackExtensionHelperTest {
     assertEquals("yarn.scheduler.capacity.maximum-am-resource-percent", propertyInfo.getName());
     assertEquals("Maximum percent of resources in the cluster.", propertyInfo.getDescription());
     assertEquals("0.2", propertyInfo.getValue());
-    assertEquals(false, propertyInfo.isFinal());
+    assertEquals(1, propertyInfo.getAttributesMap().size());
+    assertEquals("false", propertyInfo.getAttributesMap().get("final"));
     assertEquals(null, propertyInfo.getFilename());
     assertEquals(true, propertyInfo.isDeleted());
     assertEquals(false, propertyInfo.isRequireInput());
@@ -599,7 +621,7 @@ public class StackExtensionHelperTest {
     assertEquals("yarn.scheduler.capacity.root.queues", propertyInfo.getName());
     assertEquals("The queues at the this level (root is the root queue).", propertyInfo.getDescription());
     assertEquals("default", propertyInfo.getValue());
-    assertEquals(false, propertyInfo.isFinal());
+    assertEquals(0, propertyInfo.getAttributesMap().size());
     assertEquals(null, propertyInfo.getFilename());
     assertEquals(false, propertyInfo.isDeleted());
     assertEquals(true, propertyInfo.isRequireInput());
@@ -625,6 +647,40 @@ public class StackExtensionHelperTest {
     assertEquals(0, merged.getConfigDependencies().size());
     assertNotNull(merged.getConfigTypes());
     assertEquals(0, merged.getConfigTypes().size());
+  }
+
+  @Test
+  public void testMergeComponentInfo() throws Exception {
+    File stackRoot = new File(stackRootStr);
+    StackExtensionHelper helper = new StackExtensionHelper(injector, stackRoot);
+    ComponentInfo child = new ComponentInfo();
+    ComponentInfo parent = new ComponentInfo();
+    DependencyInfo a = new DependencyInfo();
+    a.setName("serviceName/A");
+    DependencyInfo b = new DependencyInfo();
+    b.setName("serviceName/B");
+    List<DependencyInfo> parentDependencies = new ArrayList<DependencyInfo>();
+    parentDependencies.add(a);
+    parentDependencies.add(b);
+    parent.setDependencies(parentDependencies);
+
+    DependencyInfo c = new DependencyInfo();
+    c.setName("serviceName/C");
+    List<DependencyInfo> childDependencies = new ArrayList<DependencyInfo>();
+    childDependencies.add(c);
+    child.setDependencies(childDependencies);
+
+    child.setCardinality("1");
+    parent.setCardinality("1+");
+
+    child.setCategory("CLIENT");
+    parent.setCategory("MASTER");
+
+    ComponentInfo result = helper.mergeComponents(parent, child);
+
+    assertEquals(result.getCardinality(),"1");
+    assertEquals(result.getCategory(), "CLIENT");
+    assertEquals(result.getDependencies().size(), 3);
   }
 }
 

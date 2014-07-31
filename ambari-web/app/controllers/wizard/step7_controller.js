@@ -482,10 +482,11 @@ App.WizardStep7Controller = Em.Controller.extend({
    */
   _updateIsEditableFlagForConfig: function (serviceConfigProperty, defaultGroupSelected) {
     if (App.get('isAdmin')) {
-      if (defaultGroupSelected && !this.get('isHostsConfigsPage')) {
+      if (defaultGroupSelected && !this.get('isHostsConfigsPage') && !Em.get(serviceConfigProperty, 'group')) {
         serviceConfigProperty.set('isEditable', serviceConfigProperty.get('isReconfigurable'));
-      }
-      else {
+      } else if(Em.get(serviceConfigProperty, 'group') && Em.get(serviceConfigProperty, 'group.name') == this.get('selectedConfigGroup.name')) {
+        serviceConfigProperty.set('isEditable', true);
+      } else {
         serviceConfigProperty.set('isEditable', false);
       }
     }
@@ -953,8 +954,14 @@ App.WizardStep7Controller = Em.Controller.extend({
         serviceRawGroups.filterProperty('isDefault', false).forEach(function (configGroup) {
           var readyGroup = App.ConfigGroup.create(configGroup);
           var wrappedProperties = [];
-          readyGroup.get('properties').forEach(function (property) {
-            wrappedProperties.pushObject(App.ServiceConfigProperty.create(property));
+          readyGroup.get('properties').forEach(function (propertyData) {
+            var parentSCP = service.configs.filterProperty('filename', propertyData.filename).findProperty('name', propertyData.name);
+            var overriddenSCP = App.ServiceConfigProperty.create(parentSCP);
+            overriddenSCP.set('isOriginalSCP', false);
+            overriddenSCP.set('parentSCP', parentSCP);
+            overriddenSCP.set('group', readyGroup);
+            overriddenSCP.setProperties(propertyData);
+            wrappedProperties.pushObject(App.ServiceConfigProperty.create(overriddenSCP));
           });
           wrappedProperties.setEach('group', readyGroup);
           readyGroup.set('properties', wrappedProperties);
@@ -1029,6 +1036,9 @@ App.WizardStep7Controller = Em.Controller.extend({
     }
     else {
       isEditable = selectedGroup.get('isDefault');
+    }
+    if (config.get('group')) {
+      isEditable = config.get('group.name') == this.get('selectedConfigGroup.name');
     }
     config.set('isEditable', isEditable);
     return config;

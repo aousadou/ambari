@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,39 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.ambari.server.security.authorization;
 
-import org.apache.ambari.server.orm.entities.GroupEntity;
+package org.apache.ambari.server.view.configuration;
+
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
 
 /**
- * Describes group of users of web-service.
+ * View custom permission configuration.
  */
-public class Member {
-  private final int groupId;
-  private final String groupName;
-  private final boolean ldapGroup;
+@XmlAccessorType(XmlAccessType.FIELD)
+public class PermissionConfig {
+  private String name;
+  private String description;
 
-  Member(GroupEntity groupEntity) {
-    this.groupId = groupEntity.getGroupId();
-    this.groupName = groupEntity.getGroupName();
-    this.ldapGroup = groupEntity.getLdapGroup();
+  public String getName() {
+    return name;
   }
 
-  public int getGroupId() {
-    return groupId;
-  }
-
-  public String getGroupName() {
-    return groupName;
-  }
-
-  public boolean isLdapGroup() {
-    return ldapGroup;
-  }
-
-  @Override
-  public String toString() {
-    return "Group [groupId=" + groupId + ", groupName=" + groupName
-        + ", ldapGroup=" + ldapGroup + "]";
+  public String getDescription() {
+    return description;
   }
 }

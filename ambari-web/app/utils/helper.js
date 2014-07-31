@@ -326,6 +326,7 @@ App.format = {
     'HBASE': 'HBase',
     'HBASE_REGIONSERVER': 'RegionServer',
     'HCAT': 'HCat',
+    'HCATALOG': 'HCatalog',
     'HDFS': 'HDFS',
     'HISTORYSERVER': 'History Server',
     'HIVE_SERVER': 'HiveServer2',
@@ -406,9 +407,10 @@ App.format = {
    * @memberof App.format
    * @method commandDetail
    * @param {string} command_detail
+   * @param {string} request_inputs
    * @return {string}
    */
-  commandDetail: function (command_detail) {
+  commandDetail: function (command_detail, request_inputs) {
     var detailArr = command_detail.split(' ');
     var self = this;
     var result = '';
@@ -417,9 +419,9 @@ App.format = {
       if (item.contains('/')) {
         item = item.split('/')[1];
       }
-      // ignore 'DECOMMISSION', command came from 'excluded/included'
       if (item == 'DECOMMISSION,') {
-        item = '';
+        // ignore text 'DECOMMISSION,'( command came from 'excluded/included'), here get the component name from request_inputs
+        item = (jQuery.parseJSON(request_inputs)) ? jQuery.parseJSON(request_inputs).slave_type : '';
       }
       if (self.components[item]) {
         result = result + ' ' + self.components[item];
@@ -737,5 +739,31 @@ DS.attr.transforms.array = {
   },
   to : function(deserialized) {
     return deserialized;
+  }
+};
+
+/**
+ *  Utility method to delete all existing records of a DS.Model type from the model's associated map and
+ *  store's persistence layer (recordCache)
+ * @param type DS.Model Class
+ */
+App.resetDsStoreTypeMap = function(type) {
+  var allRecords = App.get('store.recordCache');  //This fetches all records in the ember-data persistence layer
+  var typeMaps = App.get('store.typeMaps');
+  var guidForType = Em.guidFor(type);
+  var typeMap = typeMaps[guidForType];
+  if (typeMap) {
+    var idToClientIdMap = typeMap.idToCid;
+    for (var id in idToClientIdMap) {
+      if (idToClientIdMap.hasOwnProperty(id) && idToClientIdMap[id]) {
+        delete allRecords[idToClientIdMap[id]];  // deletes the cached copy of the record from the store
+      }
+    }
+    typeMaps[guidForType] = {
+      idToCid: {},
+      clientIds: [],
+      cidToHash: {},
+      recordArrays: []
+    };
   }
 };

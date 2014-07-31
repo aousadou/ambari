@@ -104,6 +104,8 @@ public abstract class AbstractControllerResourceProvider extends AbstractResourc
         return resourceProviderFactory.getHostComponentResourceProvider(propertyIds, keyPropertyIds, managementController);
       case Configuration:
         return new ConfigurationResourceProvider(propertyIds, keyPropertyIds, managementController);
+      case ServiceConfigVersion:
+        return new ServiceConfigVersionResourceProvider(propertyIds, keyPropertyIds, managementController);
       case Action:
         return new ActionResourceProvider(propertyIds, keyPropertyIds, managementController);
       case Request:
@@ -144,8 +146,14 @@ public abstract class AbstractControllerResourceProvider extends AbstractResourc
         return new HostComponentProcessResourceProvider(propertyIds, keyPropertyIds, managementController);
       case Blueprint:
         return new BlueprintResourceProvider(propertyIds, keyPropertyIds, managementController);
+      case Recommendation:
+        return new RecommendationResourceProvider(propertyIds, keyPropertyIds, managementController);
+      case Validation:
+        return new ValidationResourceProvider(propertyIds, keyPropertyIds, managementController);
       case AlertDefinition:
         return new AlertDefinitionResourceProvider(propertyIds, keyPropertyIds, managementController);
+      case Controller:
+        return new ControllerResourceProvider(propertyIds, keyPropertyIds, managementController);
       default:
         throw new IllegalArgumentException("Unknown type " + type);
     }

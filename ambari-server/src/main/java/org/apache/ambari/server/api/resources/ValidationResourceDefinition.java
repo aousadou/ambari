@@ -1,6 +1,3 @@
-<?xml version="1.0"?>
-<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
-<!--
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -18,18 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
--->
 
-<configuration supports_final="false">
-  <property>
-    <name>hue_pid_dir</name>
-    <value>/var/run/hue</value>
-    <description>Hue Pid Dir.</description>
-  </property>
-  <property>
-    <name>hue_log_dir</name>
-    <value>/var/log/hue</value>
-    <description>Hue Log Dir.</description>
-  </property>
+package org.apache.ambari.server.api.resources;
 
-</configuration>
+import org.apache.ambari.server.controller.spi.Resource;
+
+/**
+ * Validation resource definition.
+ */
+public class ValidationResourceDefinition extends BaseResourceDefinition {
+  /**
+   * Constructor.
+   */
+  public ValidationResourceDefinition() {
+    super(Resource.Type.Validation);
+  }
+
+  @Override
+  public String getPluralName() {
+    return "validations";
+  }
+
+  @Override
+  public String getSingularName() {
+    return "validation";
+  }
+}
