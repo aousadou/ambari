@@ -270,7 +270,6 @@ public class ResourceInstanceFactoryImpl implements ResourceInstanceFactory {
       case Controller:
         resourceDefinition = new ControllerResourceDefinition(
             ControllerType.getByName(mapIds.get(Resource.Type.Controller)));
-        break;
 
       default:
         throw new IllegalArgumentException("Unsupported resource type: " + type);

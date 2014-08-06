@@ -41,22 +41,23 @@ import static org.apache.ambari.server.agent.ExecutionCommand.KeyNames.SERVICE_R
 import static org.apache.ambari.server.agent.ExecutionCommand.KeyNames.STACK_NAME;
 import static org.apache.ambari.server.agent.ExecutionCommand.KeyNames.STACK_VERSION;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.gson.Gson;
-import com.google.inject.Inject;
-import com.google.inject.Injector;
-import com.google.inject.Singleton;
-import com.google.inject.persist.Transactional;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.ambari.server.AmbariException;
@@ -77,7 +78,6 @@ import org.apache.ambari.server.actionmanager.RequestFactory;
 import org.apache.ambari.server.actionmanager.Stage;
 import org.apache.ambari.server.actionmanager.StageFactory;
 import org.apache.ambari.server.agent.ExecutionCommand;
-
 import org.apache.ambari.server.api.services.AmbariMetaInfo;
 import org.apache.ambari.server.configuration.Configuration;
 import org.apache.ambari.server.controller.internal.RequestOperationLevel;
@@ -136,6 +136,14 @@ import org.apache.commons.lang.math.NumberUtils;
 import org.apache.http.client.utils.URIBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.gson.Gson;
+import com.google.inject.Inject;
+import com.google.inject.Injector;
+import com.google.inject.Singleton;
+import com.google.inject.persist.Transactional;
 
 @Singleton
 public class AmbariManagementControllerImpl implements AmbariManagementController {
@@ -228,45 +236,46 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     this.actionManager = actionManager;
     this.injector = injector;
     injector.injectMembers(this);
-    this.gson = injector.getInstance(Gson.class);
+    gson = injector.getInstance(Gson.class);
     LOG.info("Initializing the AmbariManagementControllerImpl");
-    this.masterHostname =  InetAddress.getLocalHost().getCanonicalHostName();
-    this.maintenanceStateHelper = injector.getInstance(MaintenanceStateHelper.class);
+    masterHostname =  InetAddress.getLocalHost().getCanonicalHostName();
+    maintenanceStateHelper = injector.getInstance(MaintenanceStateHelper.class);
 
     if(configs != null)
     {
       if (configs.getApiSSLAuthentication()) {
-        this.masterProtocol = "https";
-        this.masterPort = configs.getClientSSLApiPort();
+        masterProtocol = "https";
+        masterPort = configs.getClientSSLApiPort();
       } else {
-        this.masterProtocol = "http";
-        this.masterPort = configs.getClientApiPort();
+        masterProtocol = "http";
+        masterPort = configs.getClientApiPort();
       }
-      this.jdkResourceUrl = getAmbariServerURI(JDK_RESOURCE_LOCATION);
-      this.javaHome = configs.getJavaHome();
-      this.jdkName = configs.getJDKName();
-      this.jceName = configs.getJCEName();
-      this.ojdbcUrl = getAmbariServerURI(JDK_RESOURCE_LOCATION + "/" + configs.getOjdbcJarName());
-      this.mysqljdbcUrl = getAmbariServerURI(JDK_RESOURCE_LOCATION + "/" + configs.getMySQLJarName());
+      jdkResourceUrl = getAmbariServerURI(JDK_RESOURCE_LOCATION);
+      javaHome = configs.getJavaHome();
+      jdkName = configs.getJDKName();
+      jceName = configs.getJCEName();
+      ojdbcUrl = getAmbariServerURI(JDK_RESOURCE_LOCATION + "/" + configs.getOjdbcJarName());
+      mysqljdbcUrl = getAmbariServerURI(JDK_RESOURCE_LOCATION + "/" + configs.getMySQLJarName());
 
-      this.serverDB = configs.getServerDBName();
+      serverDB = configs.getServerDBName();
     } else {
-      this.masterProtocol = null;
-      this.masterPort = null;
+      masterProtocol = null;
+      masterPort = null;
 
-      this.jdkResourceUrl = null;
-      this.javaHome = null;
-      this.jdkName = null;
-      this.jceName = null;
-      this.ojdbcUrl = null;
-      this.mysqljdbcUrl = null;
-      this.serverDB = null;
+      jdkResourceUrl = null;
+      javaHome = null;
+      jdkName = null;
+      jceName = null;
+      ojdbcUrl = null;
+      mysqljdbcUrl = null;
+      serverDB = null;
     }
   }
 
   public String getAmbariServerURI(String path) {
-    if(masterProtocol==null || masterHostname==null || masterPort==null)
+    if(masterProtocol==null || masterHostname==null || masterPort==null) {
       return null;
+    }
 
     URIBuilder uriBuilder = new URIBuilder();
     uriBuilder.setScheme(masterProtocol);
@@ -631,19 +640,56 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
           request.getType()));
     }
 
-    Config config = configFactory.createNew (cluster, request.getType(),
-        request.getProperties(), propertiesAttributes);
+    handleGlobalsBackwardsCompability(request, propertiesAttributes);
 
-    if (!StringUtils.isEmpty(request.getVersionTag())) {
-      config.setTag(request.getVersionTag());
+    Config config = createConfig(cluster, request.getType(), request.getProperties(),
+        request.getVersionTag(), propertiesAttributes);
+
+    return new ConfigurationResponse(cluster.getClusterName(), config.getType(), config.getTag(), config.getVersion(),
+        config.getProperties(), config.getPropertiesAttributes());
+  }
+
+  private void handleGlobalsBackwardsCompability(ConfigurationRequest request,
+      Map<String, Map<String, String>> propertiesAttributes) throws AmbariException {
+    Cluster cluster = clusters.getCluster(request.getClusterName());
+    if(request.getType().equals(Configuration.GLOBAL_CONFIG_TAG)) {
+      Map<String, Map<String, String>> configTypes = new HashMap<String, Map<String, String>>();
+      configTypes.put(Configuration.GLOBAL_CONFIG_TAG, request.getProperties());
+      configHelper.moveDeprecatedGlobals(cluster.getCurrentStackVersion(), configTypes);
+
+      for(Map.Entry<String, Map<String, String>> configType : configTypes.entrySet()) {
+        String configTypeName = configType.getKey();
+        Map<String, String> properties = configType.getValue();
+
+        if(configTypeName.equals(Configuration.GLOBAL_CONFIG_TAG))
+          continue;
+
+        String tag;
+        if(cluster.getConfigsByType(configTypeName) == null) {
+          tag = "version1";
+        } else {
+          tag = "version" + System.currentTimeMillis();
+        }
+
+        createConfig(cluster, configTypeName, properties, tag, propertiesAttributes);
+      }
+    }
+  }
+
+  private Config createConfig(Cluster cluster, String type, Map<String, String> properties,
+      String versionTag, Map<String, Map<String, String>> propertiesAttributes) {
+    Config config = configFactory.createNew (cluster, type,
+        properties, propertiesAttributes);
+
+    if (!StringUtils.isEmpty(versionTag)) {
+      config.setTag(versionTag);
     }
 
     config.persist();
 
     cluster.addConfig(config);
 
-    return new ConfigurationResponse(cluster.getClusterName(), config.getType(), config.getTag(), config.getVersion(),
-        config.getProperties(), config.getPropertiesAttributes());
+    return config;
   }
 
   @Override
@@ -657,8 +703,9 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
       }
 
       User user = users.getAnyUser(request.getUsername());
-      if (null != user)
+      if (null != user) {
         throw new AmbariException("User already exists.");
+      }
 
       users.createUser(request.getUsername(), request.getPassword());
 
@@ -666,8 +713,9 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
         user = users.getAnyUser(request.getUsername());
         if (null != user) {
           for (String role : request.getRoles()) {
-            if (!user.getRoles().contains(role))
+            if (!user.getRoles().contains(role)) {
               users.addRoleToUser(user, role);
+            }
           }
         }
       }
@@ -1839,8 +1887,9 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
             // any targeted information
             String keyName = scHost.getServiceComponentName().toLowerCase();
             if (requestProperties.containsKey(keyName)) {
-              if (null == requestParameters)
+              if (null == requestParameters) {
                 requestParameters = new HashMap<String, String>();
+              }
               requestParameters.put(keyName, requestProperties.get(keyName));
             }
 
@@ -2321,8 +2370,9 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
   public synchronized void updateUsers(Set<UserRequest> requests) throws AmbariException {
     for (UserRequest request : requests) {
       User u = users.getAnyUser(request.getUsername());
-      if (null == u)
+      if (null == u) {
         continue;
+      }
 
       if (null != request.getOldPassword() && null != request.getPassword()) {
         users.modifyPassword(u.getUserName(), request.getOldPassword(),
@@ -2467,8 +2517,9 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
             + ", username=" + r.getUsername());
       }
       User u = users.getAnyUser(r.getUsername());
-      if (null != u)
+      if (null != u) {
         users.removeUser(u);
+      }
     }
   }
 
@@ -2612,7 +2663,9 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
             }
           }
         }
-        if (throwException) throw e;
+        if (throwException) {
+          throw e;
+        }
       }
     }
     return response;
@@ -2934,10 +2987,10 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     String stackName = request.getStackName();
 
     if (stackName != null) {
-      org.apache.ambari.server.state.Stack stack = this.ambariMetaInfo.getStack(stackName);
+      org.apache.ambari.server.state.Stack stack = ambariMetaInfo.getStack(stackName);
       response = Collections.singleton(stack.convertToResponse());
     } else {
-      Set<org.apache.ambari.server.state.Stack> supportedStackNames = this.ambariMetaInfo.getStackNames();
+      Set<org.apache.ambari.server.state.Stack> supportedStackNames = ambariMetaInfo.getStackNames();
       response = new HashSet<StackResponse>();
       for (org.apache.ambari.server.state.Stack stack: supportedStackNames) {
         response.add(stack.convertToResponse());
@@ -2996,7 +3049,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     Set<RepositoryResponse> response;
 
     if (repoId == null) {
-      List<RepositoryInfo> repositories = this.ambariMetaInfo.getRepositories(stackName, stackVersion, osType);
+      List<RepositoryInfo> repositories = ambariMetaInfo.getRepositories(stackName, stackVersion, osType);
       response = new HashSet<RepositoryResponse>();
 
       for (RepositoryInfo repository: repositories) {
@@ -3004,7 +3057,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
       }
 
     } else {
-      RepositoryInfo repository = this.ambariMetaInfo.getRepository(stackName, stackVersion, osType, repoId);
+      RepositoryInfo repository = ambariMetaInfo.getRepository(stackName, stackVersion, osType, repoId);
       response = Collections.singleton(repository.convertToResponse());
     }
 
@@ -3014,17 +3067,21 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
   @Override
   public void updateRespositories(Set<RepositoryRequest> requests) throws AmbariException {
     for (RepositoryRequest rr : requests) {
-      if (null == rr.getStackName() || rr.getStackName().isEmpty())
+      if (null == rr.getStackName() || rr.getStackName().isEmpty()) {
         throw new AmbariException("Stack name must be specified.");
+      }
 
-      if (null == rr.getStackVersion() || rr.getStackVersion().isEmpty())
+      if (null == rr.getStackVersion() || rr.getStackVersion().isEmpty()) {
         throw new AmbariException("Stack version must be specified.");
+      }
 
-      if (null == rr.getOsType() || rr.getOsType().isEmpty())
+      if (null == rr.getOsType() || rr.getOsType().isEmpty()) {
         throw new AmbariException("OS type must be specified.");
+      }
 
-      if (null == rr.getRepoId() || rr.getRepoId().isEmpty())
+      if (null == rr.getRepoId() || rr.getRepoId().isEmpty()) {
         throw new AmbariException("Repo ID must be specified.");
+      }
 
       if (null != rr.getBaseUrl()) {
         if (!rr.isVerifyBaseUrl()) {
@@ -3046,12 +3103,13 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
             String suffix = String.format(suffixes[i], repoName);
             String spec = rr.getBaseUrl();
 
-            if (spec.charAt(spec.length()-1) != '/' && suffix.charAt(0) != '/')
+            if (spec.charAt(spec.length()-1) != '/' && suffix.charAt(0) != '/') {
               spec = rr.getBaseUrl() + "/" + suffix;
-            else if (spec.charAt(spec.length()-1) == '/' && suffix.charAt(0) == '/')
+            } else if (spec.charAt(spec.length()-1) == '/' && suffix.charAt(0) == '/') {
               spec = rr.getBaseUrl() + suffix.substring(1);
-            else
+            } else {
               spec = rr.getBaseUrl() + suffix;
+            }
 
             try {
               IOUtils.readLines(usp.readFrom(spec));
@@ -3113,10 +3171,10 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     String stackVersion = request.getStackVersion();
 
     if (stackVersion != null) {
-      StackInfo stackInfo = this.ambariMetaInfo.getStackInfo(stackName, stackVersion);
+      StackInfo stackInfo = ambariMetaInfo.getStackInfo(stackName, stackVersion);
       response = Collections.singleton(stackInfo.convertToResponse());
     } else {
-      Set<StackInfo> stackInfos = this.ambariMetaInfo.getStackInfos(stackName);
+      Set<StackInfo> stackInfos = ambariMetaInfo.getStackInfos(stackName);
       response = new HashSet<StackVersionResponse>();
       for (StackInfo stackInfo: stackInfos) {
         response.add(stackInfo.convertToResponse());
@@ -3165,13 +3223,13 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     String serviceName = request.getServiceName();
 
     if (serviceName != null) {
-      ServiceInfo service = this.ambariMetaInfo.getService(stackName, stackVersion, serviceName);
-      response = Collections.singleton(service.convertToResponse());
+      ServiceInfo service = ambariMetaInfo.getService(stackName, stackVersion, serviceName);
+      response = Collections.singleton(new StackServiceResponse(service));
     } else {
-      Map<String, ServiceInfo> services = this.ambariMetaInfo.getServices(stackName, stackVersion);
+      Map<String, ServiceInfo> services = ambariMetaInfo.getServices(stackName, stackVersion);
       response = new HashSet<StackServiceResponse>();
       for (ServiceInfo service : services.values()) {
-        response.add(service.convertToResponse());
+        response.add(new StackServiceResponse(service));
       }
     }
     return response;
@@ -3204,24 +3262,21 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
   private Set<StackConfigurationResponse> getStackConfigurations(
       StackConfigurationRequest request) throws AmbariException {
 
-    Set<StackConfigurationResponse> response;
+    Set<StackConfigurationResponse> response = new HashSet<StackConfigurationResponse>();
 
     String stackName = request.getStackName();
     String stackVersion = request.getStackVersion();
     String serviceName = request.getServiceName();
     String propertyName = request.getPropertyName();
 
+    Set<PropertyInfo> properties;
     if (propertyName != null) {
-      PropertyInfo property = this.ambariMetaInfo.getProperty(stackName, stackVersion, serviceName, propertyName);
-      response = Collections.singleton(property.convertToResponse());
+      properties = ambariMetaInfo.getPropertiesByName(stackName, stackVersion, serviceName, propertyName);
     } else {
-
-      Set<PropertyInfo> properties = this.ambariMetaInfo.getProperties(stackName, stackVersion, serviceName);
-      response = new HashSet<StackConfigurationResponse>();
-
-      for (PropertyInfo property: properties) {
-        response.add(property.convertToResponse());
-      }
+      properties = ambariMetaInfo.getProperties(stackName, stackVersion, serviceName);
+    }
+    for (PropertyInfo property: properties) {
+      response.add(property.convertToResponse());
     }
 
     return response;
@@ -3268,15 +3323,16 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     String componentName = request.getComponentName();
 
     if (componentName != null) {
-      ComponentInfo component = this.ambariMetaInfo.getComponent(stackName, stackVersion, serviceName, componentName);
-      response = Collections.singleton(component.convertToResponse());
+      ComponentInfo component = ambariMetaInfo.getComponent(stackName, stackVersion, serviceName, componentName);
+      response = Collections.singleton(new StackServiceComponentResponse(
+          component));
 
     } else {
-      List<ComponentInfo> components = this.ambariMetaInfo.getComponentsByService(stackName, stackVersion, serviceName);
+      List<ComponentInfo> components = ambariMetaInfo.getComponentsByService(stackName, stackVersion, serviceName);
       response = new HashSet<StackServiceComponentResponse>();
 
       for (ComponentInfo component: components) {
-        response.add(component.convertToResponse());
+        response.add(new StackServiceComponentResponse(component));
       }
     }
     return response;
@@ -3319,13 +3375,14 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     String osType = request.getOsType();
 
     if (osType != null) {
-      OperatingSystemInfo operatingSystem = this.ambariMetaInfo.getOperatingSystem(stackName, stackVersion, osType);
+      OperatingSystemInfo operatingSystem = ambariMetaInfo.getOperatingSystem(stackName, stackVersion, osType);
       response = Collections.singleton(operatingSystem.convertToResponse());
     } else {
-      Set<OperatingSystemInfo> operatingSystems = this.ambariMetaInfo.getOperatingSystems(stackName, stackVersion);
+      Set<OperatingSystemInfo> operatingSystems = ambariMetaInfo.getOperatingSystems(stackName, stackVersion);
       response = new HashSet<OperatingSystemResponse>();
-      for (OperatingSystemInfo operatingSystem : operatingSystems)
+      for (OperatingSystemInfo operatingSystem : operatingSystems) {
         response.add(operatingSystem.convertToResponse());
+      }
     }
 
     return response;
@@ -3356,7 +3413,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
 
   private Set<RootServiceResponse> getRootServices (RootServiceRequest request)
       throws AmbariException{
-    return this.rootServiceResponseFactory.getRootServices(request);
+    return rootServiceResponseFactory.getRootServices(request);
   }
 
   @Override
@@ -3386,7 +3443,7 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
 
   private Set<RootServiceComponentResponse> getRootServiceComponents(
       RootServiceComponentRequest request) throws AmbariException{
-    return this.rootServiceResponseFactory.getRootServiceComponents(request);
+    return rootServiceResponseFactory.getRootServiceComponents(request);
   }
 
   @Override
@@ -3465,15 +3522,17 @@ public class AmbariManagementControllerImpl implements AmbariManagementControlle
     return mysqljdbcUrl;
   }
 
+  @Override
   public Map<String, String> getRcaParameters() {
 
     String hostName = StageUtils.getHostName();
 
     String url = configs.getRcaDatabaseUrl();
-    if (url.contains(Configuration.HOSTNAME_MACRO))
+    if (url.contains(Configuration.HOSTNAME_MACRO)) {
       url =
           url.replace(Configuration.HOSTNAME_MACRO,
               hostsMap.getHostMap(hostName));
+    }
 
     Map<String, String> rcaParameters = new HashMap<String, String>();
 

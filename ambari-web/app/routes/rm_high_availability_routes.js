@@ -42,17 +42,16 @@ module.exports = App.WizardRoute.extend({
           if (parseInt(currStep) === 4) {
             var self = this;
             App.showConfirmationPopup(function () {
-              self.hide();
-              rMHighAvailabilityWizardController.setCurrentStep('1');
+              router.get('updateController').set('isWorking', true);
               App.clusterStatus.setClusterStatus({
                 clusterName: App.router.getClusterName(),
                 clusterState: 'DEFAULT',
-                wizardControllerName: rMHighAvailabilityWizardController.get('name'),
                 localdb: App.db.data
-              });
-              router.get('updateController').set('isWorking', true);
-              router.transitionTo('main.admin.adminHighAvailability.index');
-              location.reload();
+              }, {alwaysCallback: function () {
+                self.hide();
+                router.transitionTo('main.admin.adminHighAvailability.index');
+                location.reload();
+              }});
             }, Em.I18n.t('admin.rm_highAvailability.closePopup'));
           } else {
             this.hide();
@@ -95,6 +94,7 @@ module.exports = App.WizardRoute.extend({
       return false;
     },
     next: function (router) {
+      router.get('rMHighAvailabilityWizardController').setDBProperty('rmHosts', undefined);
       router.transitionTo('step2');
     }
   }),
@@ -136,7 +136,7 @@ module.exports = App.WizardRoute.extend({
       controller.setCurrentStep('3');
       controller.dataLoading().done(function () {
         controller.loadAllPriorSteps();
-        controller.connectOutlet('rMHighAvailabilityWizardStep3',  controller.get('content'));
+        controller.connectOutlet('rMHighAvailabilityWizardStep3', controller.get('content'));
       })
     },
     unroutePath: function () {
@@ -160,7 +160,7 @@ module.exports = App.WizardRoute.extend({
       controller.setLowerStepsDisable(4);
       controller.dataLoading().done(function () {
         controller.loadAllPriorSteps();
-        controller.connectOutlet('rMHighAvailabilityWizardStep4',  controller.get('content'));
+        controller.connectOutlet('rMHighAvailabilityWizardStep4', controller.get('content'));
       })
     },
     unroutePath: function () {
@@ -169,15 +169,15 @@ module.exports = App.WizardRoute.extend({
     next: function (router) {
       var controller = router.get('rMHighAvailabilityWizardController');
       controller.finish();
-      controller.get('popup').hide();
       App.clusterStatus.setClusterStatus({
         clusterName: controller.get('content.cluster.name'),
         clusterState: 'DEFAULT',
-        wizardControllerName: 'rMHighAvailabilityWizardController',
         localdb: App.db.data
-      });
-      router.transitionTo('main.admin.adminHighAvailability.index');
-      location.reload();
+      }, {alwaysCallback: function () {
+        controller.get('popup').hide();
+        router.transitionTo('main.admin.adminHighAvailability.index');
+        location.reload();
+      }});
     }
   }),
 

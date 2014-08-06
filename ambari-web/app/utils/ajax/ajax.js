@@ -214,6 +214,11 @@ var urls = {
     }
   },
 
+  'common.host.with_host_component': {
+    'real': '/clusters/{clusterName}/hosts?host_components/HostRoles/component_name={componentName}&minimal_response=true',
+    'mock': ''
+  },
+
   'common.delete.host': {
     'real': '/clusters/{clusterName}/hosts/{hostName}',
     'type': 'DELETE'
@@ -352,7 +357,7 @@ var urls = {
     'mock': '/data/clusters/tags_and_groups.json'
   },
   'config.ambari.database.info': {
-    'real': '/services/AMBARI/components/AMBARI_SERVER?fields=hostComponents/RootServiceHostComponents/properties/server.jdbc.database,hostComponents/RootServiceHostComponents/properties/server.jdbc.url',
+    'real': '/services/AMBARI/components/AMBARI_SERVER?fields=hostComponents/RootServiceHostComponents/properties/server.jdbc.database_name,hostComponents/RootServiceHostComponents/properties/server.jdbc.url',
     'mock': ''
   },
   'config_groups.all_fields': {
@@ -506,6 +511,14 @@ var urls = {
     'mock': '/data/services/metrics/flume/sinkConnectionFailedCount.json',
     'testInProduction': true
   },
+  'service.metrics.flume.source_accepted': {
+    'real': '/clusters/{clusterName}/services/FLUME/components/FLUME_HANDLER?fields=host_components/metrics/flume/flume/SOURCE/*/EventAcceptedCount[{fromSeconds},{toSeconds},{stepSeconds}]',
+    'mock': '/data/services/metrics/flume/sourceEventAccepted.json',
+    'testInProduction': true
+  },
+  'service.metrics.flume.channel_size_for_all': {
+    'real': '/clusters/{clusterName}/services/FLUME/components/FLUME_HANDLER?fields=metrics/flume/flume/CHANNEL/ChannelSize/_sum[{fromSeconds},{toSeconds},{stepSeconds}]'
+  },
   'service.metrics.flume.gc': {
     'real': '/clusters/{clusterName}/services/FLUME/components/FLUME_HANDLER?fields=host_components/metrics/jvm/gcTimeMillis[{fromSeconds},{toSeconds},{stepSeconds}]',
     'mock': '/data/services/metrics/flume/jvmGcTime.json',
@@ -526,10 +539,11 @@ var urls = {
     'mock': '',
     'testInProduction': true
   },
-  'service.metrics.flume.source_accepted': {
-    'real': '/clusters/{clusterName}/services/FLUME/components/FLUME_HANDLER?fields=host_components/metrics/flume/flume/SOURCE/*/EventAcceptedCount[{fromSeconds},{toSeconds},{stepSeconds}]',
-    'mock': '/data/services/metrics/flume/sourceEventAccepted.json',
-    'testInProduction': true
+  'service.metrics.flume.incoming_event_put_successCount': {
+    'real': '/clusters/{clusterName}/services/FLUME/components/FLUME_HANDLER?fields=metrics/flume/flume/CHANNEL/EventPutSuccessCount/rate[{fromSeconds},{toSeconds},{stepSeconds}]'
+  },
+  'service.metrics.flume.outgoing_event_take_success_count': {
+    'real': '/clusters/{clusterName}/services/FLUME/components/FLUME_HANDLER?fields=metrics/flume/flume/CHANNEL/EventTakeSuccessCount/rate[{fromSeconds},{toSeconds},{stepSeconds}]'
   },
   'service.metrics.hbase.cluster_requests': {
     'real': '/clusters/{clusterName}/services/HBASE/components/HBASE_MASTER?fields=metrics/hbase/master/cluster_requests[{fromSeconds},{toSeconds},{stepSeconds}]',
@@ -1749,6 +1763,24 @@ var urls = {
     format: function(data) {
       return {
         url: data.url
+      }
+    }
+  },
+  'service.serviceConfigVersions.get': {
+    real: '/clusters/{clusterName}/configurations/serviceconfigversions?service_name={serviceName}&fields=serviceconfigversion,user,appliedtime,createtime,service_name&minimal_response=true',
+    mock: ''
+  },
+  'service.serviceConfigVersion.get': {
+    real: '/clusters/{clusterName}/configurations/serviceconfigversions?service_name={serviceName}&serviceconfigversion={serviceConfigVersion}',
+    mock: ''
+  },
+  'service.serviceConfigVersion.revert': {
+    'real': '/clusters/{clusterName}',
+    'mock': '',
+    'type': 'PUT',
+    'format': function (data) {
+      return {
+        data: JSON.stringify(data.data)
       }
     }
   }

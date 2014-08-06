@@ -71,7 +71,7 @@ App.supports = {
   ldapGroupMapping: false,
   localRepositories: true,
   highAvailability: true,
-  resourceManagerHighAvailability: false,
+  resourceManagerHighAvailability: true,
   deleteHost: true,
   autoRollbackHA: false,
   appTimelineServer: true,
@@ -80,7 +80,8 @@ App.supports = {
   views: false,
   flume: true,
   databaseConnection: true,
-  configHistory: false
+  configHistory: false,
+  serverRecommendValidate: false
 };
 
 if (App.enableExperimental) {

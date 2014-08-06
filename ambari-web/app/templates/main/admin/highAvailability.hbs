@@ -39,9 +39,9 @@
       <div class="spinner"></div>
     {{/if}}
   {{/if}}
-  {{#if App.supports.resourceManagerHighAvailability}}
-    {{#if App.isRMHaEnabled}}
+  {{#if view.supportRMHA}}
     <div class="rm-ha">
+    {{#if App.isRMHaEnabled}}
         <p class="text-success">
           {{t admin.rm_highAvailability.enabled}}
         </p>

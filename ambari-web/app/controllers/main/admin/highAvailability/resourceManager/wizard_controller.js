@@ -115,8 +115,8 @@ App.RMHighAvailabilityWizardController = App.WizardController.extend({
         this.loadRequestIds();
         this.loadConfigs();
       case '3':
-        this.loadRmHosts();
       case '2':
+        this.loadRmHosts();
         this.loadServicesFromServer();
         this.loadMasterComponentHosts();
         this.loadConfirmedHosts();
@@ -139,8 +139,7 @@ App.RMHighAvailabilityWizardController = App.WizardController.extend({
    * Clear all temporary data
    */
   finish: function () {
-    this.setCurrentStep(1);
-    App.db.data.RMHighAvailabilityWizard = {};
+    this.resetDbNamespace();
     App.router.get('updateController').updateAll();
   }
 });

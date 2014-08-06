@@ -22,6 +22,7 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
 
   /**
    * Sorted ArrayProxy
+   * @type {App.HiveJob[]}
    */
   sortedContent: [],
 
@@ -30,56 +31,130 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     nextID: ''
   },
 
+  /**
+   * ID of the last job
+   * @type {string}
+   */
   lastJobID: '',
 
   hasNewJobs: false,
 
+  /**
+   * Are jobs already loaded
+   * @type {bool}
+   */
   loaded: false,
 
+  /**
+   * Are jobs loading
+   * @type {bool}
+   */
   loading: false,
 
+  /**
+   * Should pagination be reset
+   * Used when jobs list is updated
+   * @type {bool}
+   */
   resetPagination: false,
 
-  loadJobsTimeout: null,
-
-  loadTimeout: null,
-
-  jobsUpdateInterval: 6000,
-
-  jobsUpdate: null,
-
+  /**
+   * Column which is used to sort jobs now
+   * @type {Em.Object}
+   */
   sortingColumn: null,
 
+  /**
+   * Property-name used to sort jobs
+   * @type {string}
+   */
   sortProperty: 'id',
 
+  /**
+   * Is sorting doing in asc order
+   * @type {bool}
+   */
   sortAscending: true,
 
+  /**
+   * Is sorting complete
+   * @type {bool}
+   */
   sortingDone: true,
 
+  /**
+   * Diagnostic message shown on jobs table when no data present
+   * @type {string}
+   */
   jobsMessage: Em.I18n.t('jobs.loadingTasks'),
 
   totalOfJobs: 0,
 
+  /**
+   * Buttons for custom-date popup
+   * @type {Em.Object[]}
+   */
   customDatePopupButtons: [
     Ember.Object.create({title: Em.I18n.t('ok'), clicked: 'submitCustomDate'}),
     Ember.Object.create({title: Em.I18n.t('cancel'), dismiss: 'modal', clicked: 'dismissCustomDate'})
   ],
 
   actions: {
+
+    /**
+     * Click-handler for "New jobs available on server"-link
+     * @method updateJobsByClick
+     */
+    updateJobsByClick: function () {
+      this.set('navIDs.backIDs', []);
+      this.set('navIDs.nextID', '');
+      this.set('filterObject.nextFromId', '');
+      this.set('filterObject.backFromId', '');
+      this.set('filterObject.fromTs', '');
+      this.set('hasNewJobs', false);
+      this.set('resetPagination', true);
+      this.loadJobs();
+    },
+
+    /**
+     * Custom-date submit handler
+     * @method submitCustomDate
+     */
     submitCustomDate: function () {
       if(this.get('filterObject').submitCustomDate())
         Bootstrap.ModalManager.close('customDate');
     },
 
+    /**
+     * Custom-date dismiss handler
+     * @method dismissCustomDate
+     */
     dismissCustomDate: function() {
       this.set('filterObject.startTime', 'Any');
     }
+
   },
 
+  /**
+   * Observer for content and sorting indicators
+   * @method contentAndSortObserver
+   */
   contentAndSortObserver: function () {
     Ember.run.once(this, 'contentAndSortUpdater');
-  }.observes('content.length', 'content.@each.id', 'content.@each.startTime', 'content.@each.endTime', 'sortProperties', 'sortAscending'),
+  }.observes(
+      'content.length',
+      'content.@each.id',
+      'content.@each.startTime',
+      'content.@each.endTime',
+      'sortProperties',
+      'sortAscending'
+    ),
 
+  /**
+   * Update <code>sortedContent</code>
+   * Called once from <code>contentAndSortObserver</code>
+   * @method contentAndSortUpdater
+   */
   contentAndSortUpdater: function () {
     this.set('sortingDone', false);
     var content = this.get('content');
@@ -121,28 +196,86 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     this.set('sortingDone', true);
   },
 
+  /**
+   * Filters-processor
+   * @type {Em.Object}
+   */
   filterObject: Ember.Object.create({
+
+    /**
+     * @type {string}
+     */
     id: "",
+
+    /**
+     * Does user filter jobs by ID
+     * @type {bool}
+     */
     isIdFilterApplied: false,
+
+    /**
+     * Number of jobs shown on the page
+     * @type {string}
+     */
     jobsLimit: '10',
+
+    /**
+     * Username used to filter
+     * @type {string}
+     */
     user: "",
+
+    /**
+     * Custom start date
+     * @type {string}
+     */
     windowStart: "",
+
+    /**
+     * Custom end date
+     * @type {string}
+     */
     windowEnd: "",
+
+    /**
+     * @type {string}
+     */
     nextFromId: "",
+
+    /**
+     * @type {string}
+     */
     backFromId: "",
+
+    /**
+     * @type {string}
+     */
     fromTs: "",
+
+    /**
+     * Is user using any filter now
+     * @type {bool}
+     */
     isAnyFilterApplied: false,
 
+    /**
+     * Set <code>isIdFilterApplied</code> according to <code>id</code> value
+     * @type {bool}
+     */
     onApplyIdFilter: function () {
       this.set('isIdFilterApplied', this.get('id') != "");
     }.observes('id'),
 
     /**
      * Direct binding to startTime filter field
+     * @type {string}
      */
     startTime: "",
 
-    // Fields values from Select Custom Dates form
+    /**
+     * Fields values from Select Custom Dates form
+     * @type {Em.Object}
+     */
     customDateFormFields: Ember.Object.create({
       startDate: null,
       hoursForStart: null,
@@ -154,11 +287,19 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
       middayPeriodForEnd: null
     }),
 
+    /**
+     * Error-flags for custom start/end dates
+     * @type {Em.Object}
+     */
     errors: Ember.Object.create({
       isStartDateError: false,
       isEndDateError: false
     }),
 
+    /**
+     * Error-messages for custom start/end dates
+     * @type {Em.Object}
+     */
     errorMessages: Ember.Object.create({
       startDate: '',
       endDate: ''
@@ -175,6 +316,11 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
       columnsCount: 6
     }),
 
+    /**
+     * Submit custom dates handler
+     * @returns {boolean}
+     * @method submitCustomDate
+     */
     submitCustomDate: function() {
       this.validate();
       if (this.get('errors.isStartDateError') || this.get('errors.isEndDateError')) {
@@ -187,6 +333,11 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
       return true;
     },
 
+    /**
+     * Create custom start date according to provided in popup data
+     * @returns {Date|null}
+     * @method createCustomStartDate
+     */
     createCustomStartDate: function () {
       var startDate = this.get('customDateFormFields.startDate'),
         hoursForStart = this.get('customDateFormFields.hoursForStart'),
@@ -198,6 +349,11 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
       return null;
     },
 
+    /**
+     * Create custom end date according to provided in popup data
+     * @returns {Date|null}
+     * @method createCustomStartDate
+     */
     createCustomEndDate: function () {
       var endDate = this.get('customDateFormFields.endDate'),
         hoursForEnd = this.get('customDateFormFields.hoursForEnd'),
@@ -209,6 +365,10 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
       return null;
     },
 
+    /**
+     * Clear <code>errorMessages</code> and <code>errors</code>
+     * @method clearErrors
+     */
     clearErrors: function () {
       var errorMessages = this.get('errorMessages');
       Em.keys(errorMessages).forEach(function (key) {
@@ -220,7 +380,10 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
       }, this);
     },
 
-    // Validation for every field in customDateFormFields
+    /**
+     * Validation for every field in customDateFormFields
+     * @method validate
+     */
     validate: function () {
       var formFields = this.get('customDateFormFields'),
         errors = this.get('errors'),
@@ -236,7 +399,7 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
       // Check that endDate is after startDate
       var startDate = this.createCustomStartDate(),
         endDate = this.createCustomEndDate();
-      if (startDate && endDate && (startDate > endDate)) {
+      if (startDate && endDate && (startDate.getTime() > endDate.getTime())) {
         errors.set('isEndDateError', true);
         errorMessages.set('endDate', Em.I18n.t('jobs.customDateFilter.error.date.order'));
       }
@@ -245,6 +408,7 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     /**
      * Create link for server request
      * @return {String}
+     * @method createJobsFiltersLink
      */
     createJobsFiltersLink: function () {
       var link = "?fields=events,primaryfilters,otherinfo&secondaryFilter=tez:true",
@@ -280,6 +444,7 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
 
       return link;
     }
+
   }),
 
   sortingColumnObserver: function () {
@@ -289,34 +454,21 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     }
   }.observes('sortingColumn.name', 'sortingColumn.status'),
 
-  updateJobsByClick: function () {
-    this.set('navIDs.backIDs', []);
-    this.set('navIDs.nextID', '');
-    this.get('filterObject').set('nextFromId', '');
-    this.get('filterObject').set('backFromId', '');
-    this.get('filterObject').set('fromTs', '');
-    this.set('hasNewJobs', false);
-    this.set('resetPagination', true);
-    this.loadJobs();
-  },
-
-  updateJobs: function (controllerName, funcName) {
-    clearInterval(this.get('jobsUpdate'));
-    var interval = setInterval(function () {
-      App.router.get(controllerName)[funcName]();
-    }, this.get('jobsUpdateInterval'));
-    this.set('jobsUpdate', interval);
-  },
-
   setTotalOfJobs: function () {
     if (this.get('totalOfJobs') < this.get('content.length')) {
       this.set('totalOfJobs', this.get('content.length'));
     }
   }.observes('content.length'),
 
+  /**
+   * Observer for <code>startTime</code>
+   * Calculates value for <code>filterObject.windowStart</code> and <code>filterObject.windowEnd</code> or
+   * shows Custom Date popup
+   * @method startTimeObserver
+   */
   startTimeObserver: function () {
-    var time = "";
-    var curTime = new Date().getTime();
+    var time = "",
+      curTime = new Date().getTime();
     switch (this.get('filterObject.startTime')) {
       case 'Past 1 hour':
         time = curTime - 3600000;
@@ -347,8 +499,12 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
       this.set("filterObject.windowStart", time);
       this.set("filterObject.windowEnd", "");
     }
-  }.observes('filterObject.startTime'),
+  },
 
+  /**
+   * Show popup with fields for custom start/end dates
+   * @method showCustomDatePopup
+   */
   showCustomDatePopup: function () {
     Bootstrap.ModalManager.open(
       'customDate',
@@ -359,6 +515,12 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     );
   },
 
+  /**
+   * Success-callback for "jobs-lastID" request
+   * Updates <code>hasNewJobs</code>-flag
+   * @param {object} data
+   * @method lastIDSuccessCallback
+   */
   lastIDSuccessCallback: function (data) {
     if (!data.entities[0]) {
       return;
@@ -366,22 +528,33 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     var lastReceivedID = data.entities[0].entity;
     if (this.get('lastJobID') == '') {
       this.set('lastJobID', lastReceivedID);
-      if (this.get('loaded') && App.HiveJob.find().get('length') < 1) {
+      if (this.get('loaded') && App.HiveJob.store.all('hiveJob').get('length') < 1) {
         this.set('hasNewJobs', true);
       }
     }
-    else if (this.get('lastJobID') !== lastReceivedID) {
-      this.set('lastJobID', lastReceivedID);
-      if (!App.HiveJob.find().findProperty('id', lastReceivedID)) {
-        this.set('hasNewJobs', true);
+    else {
+      if (this.get('lastJobID') !== lastReceivedID) {
+        this.set('lastJobID', lastReceivedID);
+        if (!App.HiveJob.store.getById('hiveJob', lastReceivedID)) {
+          this.set('hasNewJobs', true);
+        }
       }
     }
   },
 
-  lastIDErrorCallback: function (data, jqXHR, textStatus) {
+  /**
+   * Error-callback for "jobs-lastID" request
+   * @method lastIDErrorCallback
+   */
+  lastIDErrorCallback: function (data, jqXHR) {
     console.debug(jqXHR);
   },
 
+  /**
+   * Check, why jobs weren't loaded and set <code>jobsMessage</code>
+   * @param {object|null} jqXHR
+   * @method checkDataLoadingError
+   */
   checkDataLoadingError: function (jqXHR) {
     var atsComponent = App.HiveJob.store.getById('component', 'APP_TIMELINE_SERVER');
     if (atsComponent && atsComponent.get('workStatus') != "STARTED") {
@@ -402,11 +575,10 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     }
   },
 
-  init: function () {
-    this.set('interval', 6000);
-    this.loop('loadJobs');
-  },
-
+  /**
+   * Do request to load jobs and check last job id
+   * @method loadJobs
+   */
   loadJobs: function () {
     var yarnService = App.HiveJob.store.getById('service', 'YARN'),
       atsComponent = App.HiveJob.store.getById('component', 'APP_TIMELINE_SERVER'),
@@ -415,16 +587,16 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     if (!Em.isNone(yarnService) && atsInValidState) {
       this.set('loading', true);
       var historyServerHostName = atsComponent.get('hostName');
-      /*App.ajax.send({
-       name: 'jobs.lastID',
-       sender: self,
-       data: {
-       historyServerHostName: '',//historyServerHostName,
-       ahsWebPort: ''//yarnService.get('ahsWebPort')
-       },
-       success: 'lastIDSuccessCallback',
-       error : 'lastIDErrorCallback'
-       });*/
+      App.ajax.send({
+        name: 'jobs_lastID',
+        sender: this,
+        data: {
+          historyServerHostName: historyServerHostName,
+          ahsWebPort: yarnService.get('ahsWebPort')
+        },
+        success: 'lastIDSuccessCallback',
+        error : 'lastIDErrorCallback'
+      });
       App.ajax.send({
         name: 'load_jobs',
         sender: this,
@@ -439,6 +611,12 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     }
   },
 
+  /**
+   * Success callback for jobs-request
+   * Call mapper to save jobs to the models
+   * @param {object} data
+   * @method loadJobsSuccessCallback
+   */
   loadJobsSuccessCallback: function (data) {
     App.hiveJobsMapper.map(data);
     this.set('loading', false);
@@ -449,11 +627,20 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     this.set('loaded', true);
   },
 
+  /**
+   * Error callback for jobs-request
+   * @param {object} jqXHR
+   * @method loadJobsErrorCallback
+   */
   loadJobsErrorCallback: function (jqXHR) {
     App.hiveJobsMapper.map({entities: []});
     this.checkDataLoadingError(jqXHR);
   },
 
+  /**
+   * Update <code>filterObject</code> fields
+   * @method initializePagination
+   */
   initializePagination: function () {
     var back_link_IDs = this.get('navIDs.backIDs.[]');
     if (!back_link_IDs.contains(this.get('lastJobID'))) {
@@ -463,6 +650,10 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     this.get('filterObject').set('fromTs', new Date().getTime());
   },
 
+  /**
+   * Go to next page
+   * @method navigateNext
+   */
   navigateNext: function () {
     this.set("filterObject.backFromId", '');
     var back_link_IDs = this.get('navIDs.backIDs.[]');
@@ -476,6 +667,10 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     this.loadJobs();
   },
 
+  /**
+   * Go to previous page
+   * @method navigateBack
+   */
   navigateBack: function () {
     this.set("filterObject.nextFromId", '');
     var back_link_IDs = this.get('navIDs.backIDs.[]');
@@ -486,14 +681,18 @@ App.JobsController = Ember.ArrayController.extend(App.RunPeriodically, {
     this.loadJobs();
   },
 
+  /**
+   * Load jobs when <code>filterObject</code> fields were changed
+   * @method refreshLoadedJobs
+   */
   refreshLoadedJobs: function () {
     this.loadJobs();
   }.observes(
-      'filterObject.id',
-      'filterObject.jobsLimit',
-      'filterObject.user',
-      'filterObject.windowStart',
-      'filterObject.windowEnd'
-    )
+    'filterObject.id',
+    'filterObject.jobsLimit',
+    'filterObject.user',
+    'filterObject.windowStart',
+    'filterObject.windowEnd'
+  )
 
 });

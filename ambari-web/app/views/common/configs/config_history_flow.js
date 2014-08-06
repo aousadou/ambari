@@ -25,8 +25,10 @@ App.ConfigHistoryFlowView = Em.View.extend({
    * index of the first element(service version box) in viewport
    */
   startIndex: 0,
-  showLeftArrow: true,
+  showLeftArrow: false,
   showRightArrow: false,
+  VERSIONS_IN_FLOW: 5,
+  VERSIONS_IN_DROPDOWN: 6,
   /**
    * flag identify whether to show all versions or short list of them
    */
@@ -44,55 +46,65 @@ App.ConfigHistoryFlowView = Em.View.extend({
    */
   showMoreLink: function () {
     //100 is number of symbols that fit into label
-    return (this.get('currentServiceVersion.notes.length') > 100);
-  }.property('currentServiceVersion.notes.length'),
+    return (this.get('displayedServiceVersion.notes.length') > 100);
+  }.property('displayedServiceVersion.notes.length'),
   /**
    * formatted notes ready to display
    */
   shortNotes: function () {
     //100 is number of symbols that fit into label
     if (this.get('showMoreLink')) {
-      return this.get('currentServiceVersion.notes').slice(0, 100) + '...';
+      return this.get('displayedServiceVersion.notes').slice(0, 100) + '...';
     }
-    return this.get('currentServiceVersion.notes');
-  }.property('currentServiceVersion'),
+    return this.get('displayedServiceVersion.notes');
+  }.property('displayedServiceVersion'),
   /**
    * service versions which in viewport and visible to user
    */
   visibleServiceVersion: function () {
-    return this.get('serviceVersions').slice(this.get('startIndex'), (this.get('startIndex') + 5));
+    return this.get('serviceVersions').slice(this.get('startIndex'), (this.get('startIndex') + this.VERSIONS_IN_FLOW));
   }.property('startIndex'),
+
+  /**
+   * enable actions to manipulate version only after it's loaded
+   */
+  versionActionsDisabled: function () {
+    return !this.get('controller.versionLoaded');
+  }.property('controller.versionLoaded'),
 
   /**
    * list of service versions
    * by default 6 is number of items in short list
    */
   dropDownList: function () {
-    var serviceVersions = this.get('serviceVersions').without(this.get('currentServiceVersion')).slice(0).reverse();
+    var serviceVersions = this.get('serviceVersions').without(this.get('displayedServiceVersion')).slice(0).reverse();
     if (this.get('showFullList')) {
       return serviceVersions;
     }
-    return serviceVersions.slice(0, 6);
-  }.property('serviceVersions', 'showFullList'),
+    return serviceVersions.slice(0, this.VERSIONS_IN_DROPDOWN);
+  }.property('serviceVersions', 'showFullList', 'displayedServiceVersion'),
 
   openFullList: function (event) {
     event.stopPropagation();
     this.set('showFullList', true);
   },
   hideFullList: function (event) {
-    this.set('showFullList', false);
+    this.set('showFullList', !(this.get('serviceVersions.length') > this.VERSIONS_IN_DROPDOWN));
   },
 
   willInsertElement: function () {
     var serviceVersions = this.get('serviceVersions');
     var startIndex = 0;
-    var numberOfDisplayed = 5;
 
-    this.get('serviceVersions').findProperty('appliedTime', Math.max.apply(this, this.get('serviceVersions').mapProperty('appliedTime'))).set('isCurrent', true);
-    this.get('serviceVersions').findProperty('isCurrent').set('isDisplayed', true);
+    serviceVersions.setEach('isCurrent', false);
+    serviceVersions.setEach('isDisplayed', false);
+    serviceVersions.findProperty('appliedTime', Math.max.apply(this, serviceVersions.mapProperty('appliedTime'))).set('isCurrent', true);
+    serviceVersions.findProperty('isCurrent').set('isDisplayed', true);
 
-    if (serviceVersions.length > numberOfDisplayed) {
-      startIndex = serviceVersions.length - numberOfDisplayed;
+    if (serviceVersions.length > 0) {
+      if (serviceVersions.length > this.VERSIONS_IN_FLOW) {
+        startIndex = serviceVersions.length - this.VERSIONS_IN_FLOW;
+      }
       this.set('startIndex', startIndex);
       this.adjustFlowView();
     }
@@ -111,6 +123,10 @@ App.ConfigHistoryFlowView = Em.View.extend({
       var infoBar = $('#config_history_flow>.version-info-bar');
       var scrollTop = $(window).scrollTop();
 
+      if (infoBar.length === 0) {
+        $(window).unbind('scroll');
+        return;
+      }
       //290 - default "top" property in px
       defaultTop = defaultTop || (infoBar.get(0).getBoundingClientRect() && infoBar.get(0).getBoundingClientRect().top) || 290;
 
@@ -134,7 +150,7 @@ App.ConfigHistoryFlowView = Em.View.extend({
       serviceVersion.set('first', (index === startIndex));
     });
     this.set('showLeftArrow', (startIndex !== 0));
-    this.set('showRightArrow', ((startIndex + 5) !== this.get('serviceVersions.length')));
+    this.set('showRightArrow', (this.get('serviceVersions.length') > this.VERSIONS_IN_FLOW) && ((startIndex + this.VERSIONS_IN_FLOW) !== this.get('serviceVersions.length')));
   },
 
   /**
@@ -142,10 +158,19 @@ App.ConfigHistoryFlowView = Em.View.extend({
    */
   switchVersion: function (event) {
     var version = event.context.get('version');
-    this.get('serviceVersions').forEach(function (serviceVersion) {
-      serviceVersion.set('isDisplayed', serviceVersion.get('version') === version);
+    var versionIndex = 0;
+
+    this.get('serviceVersions').forEach(function (serviceVersion, index) {
+      if (serviceVersion.get('version') === version) {
+        serviceVersion.set('isDisplayed', true);
+        versionIndex = index;
+      } else {
+        serviceVersion.set('isDisplayed', false);
+      }
     });
-    //TODO implement load configs for chosen version
+    this.shiftFlowOnSwitch(versionIndex);
+
+    this.get('controller').loadSelectedVersion(version);
   },
 
   /**
@@ -158,21 +183,54 @@ App.ConfigHistoryFlowView = Em.View.extend({
   /**
    * revert config values to chosen version and apply reverted configs to server
    */
-  revert: function () {
-    //TODO implement put configs of chosen version to server
+  revert: function (event) {
+    var self = this;
+    App.showConfirmationPopup(function () {
+      self.sendRevertCall(event.context);
+    });
   },
 
   /**
-   * cancel configuration saving
+   * send PUT call to revert config to selected version
+   * @param serviceConfigVersion
    */
-  cancel: function () {
-
+  sendRevertCall: function (serviceConfigVersion) {
+    App.ajax.send({
+      name: 'service.serviceConfigVersion.revert',
+      sender: this,
+      data: {
+        data: {
+          "Clusters": {
+            "desired_serviceconfigversions": {
+              "serviceconfigversion": serviceConfigVersion.get('version'),
+              "service_name": serviceConfigVersion.get('serviceName')
+            }
+          }
+        }
+      },
+      success: 'sendRevertCallSuccess'
+    });
   },
+
+  sendRevertCallSuccess: function (data, opt, params) {
+    var version = params.data.Clusters.desired_serviceconfigversions.serviceconfigversion;
+
+    this.get('serviceVersions').forEach(function (serviceVersion) {
+      serviceVersion.set('isCurrent', serviceVersion.get('version') === version);
+    });
+    if (this.get('displayedServiceVersion.version') !== version) {
+      this.switchVersion({context: Em.Object.create({
+        version: version
+      })});
+    }
+  },
+
   /**
    * save configuration
    * @return {object}
    */
   save: function () {
+    var self = this;
     return App.ModalPopup.show({
       header: Em.I18n.t('dashboard.configHistory.info-bar.save.popup.title'),
       bodyClass: Em.View.extend({
@@ -188,6 +246,7 @@ App.ConfigHistoryFlowView = Em.View.extend({
       primary: Em.I18n.t('common.save'),
       secondary: Em.I18n.t('common.cancel'),
       onSave: function () {
+        self.get('controller').restartServicePopup();
         this.hide();
       },
       onDiscard: function () {
@@ -198,88 +257,9 @@ App.ConfigHistoryFlowView = Em.View.extend({
       }
     });
   },
-  serviceVersions: [
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '1',
-      modifiedDate: 'Apr 4, 2014',
-      author: 'admin',
-      notes: 'notes',
-      appliedTime: 1
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '2',
-      modifiedDate: 'Apr 4, 2014',
-      author: 'admin',
-      notes: 'notes',
-      appliedTime: 2
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '3',
-      modifiedDate: 'Apr 4, 2014',
-      author: 'user',
-      notes: 'notes',
-      appliedTime: 3
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '4',
-      modifiedDate: 'Apr 4, 2014',
-      author: 'user',
-      notes: 'notes',
-      appliedTime: 4
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '5',
-      modifiedDate: 'Apr 4, 2014',
-      author: 'admin',
-      notes: 'notes',
-      appliedTime: 5
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '22',
-      modifiedDate: 'Apr 9, 2014',
-      author: 'admin',
-      notes: 'notes',
-      appliedTime: 6
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '33',
-      modifiedDate: 'Apr 9, 2014',
-      author: 'admin',
-      notes: 'notes',
-      appliedTime: 7
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '44',
-      modifiedDate: 'Apr 9, 2014',
-      author: 'admin',
-      notes: 'notes',
-      appliedTime: 8
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '55',
-      modifiedDate: 'Apr 9, 2014',
-      author: 'admin',
-      notes: 'notes',
-      appliedTime: 9
-    }),
-    Em.Object.create({
-      serviceName: 'HDFS',
-      version: '666',
-      modifiedDate: 'Apr 9, 2014',
-      author: 'admin',
-      notes: 'notes',
-      appliedTime: 10
-    })
-  ],
+  serviceVersions: function () {
+    return App.ServiceConfigVersion.find().filterProperty('serviceName', this.get('serviceName'));
+  }.property('serviceName'),
   /**
    * move back to the previous service version
    */
@@ -293,5 +273,18 @@ App.ConfigHistoryFlowView = Em.View.extend({
   shiftForward: function () {
     this.incrementProperty('startIndex');
     this.adjustFlowView();
+  },
+  /**
+   * shift flow view to position where selected version is visible
+   * @param versionIndex
+   */
+  shiftFlowOnSwitch: function (versionIndex) {
+    var serviceVersions = this.get('serviceVersions');
+
+    if ((this.get('startIndex') + this.VERSIONS_IN_FLOW) < versionIndex || versionIndex < this.get('startIndex')) {
+      versionIndex = (serviceVersions.length < (versionIndex + this.VERSIONS_IN_FLOW)) ? serviceVersions.length - this.VERSIONS_IN_FLOW : versionIndex;
+      this.set('startIndex', versionIndex);
+      this.adjustFlowView();
+    }
   }
 });

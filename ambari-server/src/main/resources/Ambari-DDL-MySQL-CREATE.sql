@@ -26,8 +26,8 @@ delimiter ;
 
 # USE @schema;
 
-CREATE TABLE clusters (cluster_id BIGINT NOT NULL, cluster_info VARCHAR(255) NOT NULL, cluster_name VARCHAR(100) NOT NULL UNIQUE, provisioning_state VARCHAR(255) NOT NULL DEFAULT 'INIT', desired_cluster_state VARCHAR(255) NOT NULL, desired_stack_version VARCHAR(255) NOT NULL, PRIMARY KEY (cluster_id));
-CREATE TABLE clusterconfig (config_id BIGINT NOT NULL, version_tag VARCHAR(255) NOT NULL, type_name VARCHAR(255) NOT NULL, cluster_id BIGINT NOT NULL, config_data LONGTEXT NOT NULL, config_attributes LONGTEXT, create_timestamp BIGINT NOT NULL, PRIMARY KEY (config_id));
+CREATE TABLE clusters (cluster_id BIGINT NOT NULL, resource_id BIGINT NOT NULL, cluster_info VARCHAR(255) NOT NULL, cluster_name VARCHAR(100) NOT NULL UNIQUE, provisioning_state VARCHAR(255) NOT NULL DEFAULT 'INIT', desired_cluster_state VARCHAR(255) NOT NULL, desired_stack_version VARCHAR(255) NOT NULL, PRIMARY KEY (cluster_id));
+CREATE TABLE clusterconfig (config_id BIGINT NOT NULL, version_tag VARCHAR(255) NOT NULL, version BIGINT NOT NULL, type_name VARCHAR(255) NOT NULL, cluster_id BIGINT NOT NULL, config_data LONGTEXT NOT NULL, config_attributes LONGTEXT, create_timestamp BIGINT NOT NULL, PRIMARY KEY (config_id));
 CREATE TABLE serviceconfig (service_config_id BIGINT NOT NULL, cluster_id BIGINT NOT NULL, service_name VARCHAR(255) NOT NULL, version BIGINT NOT NULL, create_timestamp BIGINT NOT NULL, PRIMARY KEY (service_config_id));
 CREATE TABLE serviceconfigmapping (service_config_id BIGINT NOT NULL, config_id BIGINT NOT NULL, PRIMARY KEY(service_config_id, config_id));
 CREATE TABLE serviceconfigapplication (apply_id BIGINT NOT NULL, service_config_id BIGINT NOT NULL, apply_timestamp BIGINT NOT NULL, user_name VARCHAR(255) NOT NULL DEFAULT '_db',  PRIMARY KEY(apply_id));
@@ -109,6 +109,12 @@ ALTER TABLE user_roles ADD CONSTRAINT FK_user_roles_user_id FOREIGN KEY (user_id
 ALTER TABLE user_roles ADD CONSTRAINT FK_user_roles_role_name FOREIGN KEY (role_name) REFERENCES roles (role_name);
 ALTER TABLE hostconfigmapping ADD CONSTRAINT FK_hostconfmapping_cluster_id FOREIGN KEY (cluster_id) REFERENCES clusters (cluster_id);
 ALTER TABLE hostconfigmapping ADD CONSTRAINT FK_hostconfmapping_host_name FOREIGN KEY (host_name) REFERENCES hosts (host_name);
+ALTER TABLE clusterconfig ADD CONSTRAINT UQ_config_type_tag UNIQUE (cluster_id, type_name, version_tag);
+ALTER TABLE clusterconfig ADD CONSTRAINT UQ_config_type_version UNIQUE (cluster_id, type_name, version);
+ALTER TABLE serviceconfig ADD CONSTRAINT UQ_scv_service_version UNIQUE (cluster_id, service_name, version);
+ALTER TABLE serviceconfigmapping ADD CONSTRAINT FK_scvm_scv FOREIGN KEY (service_config_id) REFERENCES serviceconfig(service_config_id);
+ALTER TABLE serviceconfigmapping ADD CONSTRAINT FK_scvm_config FOREIGN KEY (config_id) REFERENCES clusterconfig(config_id);
+ALTER TABLE serviceconfigapplication ADD CONSTRAINT FK_scva_scv FOREIGN KEY (service_config_id) REFERENCES serviceconfig(service_config_id);
 ALTER TABLE configgroup ADD CONSTRAINT FK_configgroup_cluster_id FOREIGN KEY (cluster_id) REFERENCES clusters (cluster_id);
 ALTER TABLE confgroupclusterconfigmapping ADD CONSTRAINT FK_confg FOREIGN KEY (version_tag, config_type, cluster_id) REFERENCES clusterconfig (version_tag, type_name, cluster_id);
 ALTER TABLE confgroupclusterconfigmapping ADD CONSTRAINT FK_cgccm_gid FOREIGN KEY (config_group_id) REFERENCES configgroup (group_id);
@@ -140,13 +146,106 @@ ALTER TABLE viewinstance ADD CONSTRAINT FK_viewinstance_resource_id FOREIGN KEY 
 ALTER TABLE adminprivilege ADD CONSTRAINT FK_privilege_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
 ALTER TABLE users ADD CONSTRAINT FK_users_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
 ALTER TABLE groups ADD CONSTRAINT FK_groups_principal_id FOREIGN KEY (principal_id) REFERENCES adminprincipal(principal_id);
-ALTER TABLE clusterconfig ADD CONSTRAINT UQ_config_type_tag UNIQUE (cluster_id, type_name, version_tag);
-ALTER TABLE clusterconfig ADD CONSTRAINT UQ_config_type_version UNIQUE (cluster_id, type_name, version);
-ALTER TABLE serviceconfig ADD CONSTRAINT UQ_scv_service_version UNIQUE (cluster_id, service_name, version);
-ALTER TABLE serviceconfigmapping ADD CONSTRAINT FK_scvm_scv FOREIGN KEY (service_config_id) REFERENCES serviceconfig(service_config_id);
-ALTER TABLE serviceconfigmapping ADD CONSTRAINT FK_scvm_config FOREIGN KEY (config_id) REFERENCES clusterconfig(config_id);
-ALTER TABLE serviceconfigapplication ADD CONSTRAINT FK_scva_scv FOREIGN KEY (service_config_id) REFERENCES serviceconfig(service_config_id);
+ALTER TABLE clusters ADD CONSTRAINT FK_clusters_resource_id FOREIGN KEY (resource_id) REFERENCES adminresource(resource_id);
 
+-- Alerting Framework
+CREATE TABLE alert_definition (
+  definition_id BIGINT NOT NULL, 
+  cluster_id BIGINT NOT NULL, 
+  definition_name VARCHAR(255) NOT NULL,
+  service_name VARCHAR(255) NOT NULL,
+  component_name VARCHAR(255),
+  scope VARCHAR(255),
+  enabled SMALLINT DEFAULT 1 NOT NULL,
+  schedule_interval INTEGER NOT NULL,
+  source_type VARCHAR(255) NOT NULL,
+  alert_source TEXT NOT NULL,
+  hash VARCHAR(64) NOT NULL,
+  PRIMARY KEY (definition_id),
+  FOREIGN KEY (cluster_id) REFERENCES clusters(cluster_id),
+  CONSTRAINT uni_alert_def_name UNIQUE(cluster_id,definition_name)
+);
+
+CREATE TABLE alert_history (
+  alert_id BIGINT NOT NULL,
+  cluster_id BIGINT NOT NULL,
+  alert_definition_id BIGINT NOT NULL,
+  service_name VARCHAR(255) NOT NULL,
+  component_name VARCHAR(255),
+  host_name VARCHAR(255),
+  alert_instance VARCHAR(255),
+  alert_timestamp BIGINT NOT NULL,
+  alert_label VARCHAR(1024),
+  alert_state VARCHAR(255) NOT NULL,
+  alert_text TEXT,
+  PRIMARY KEY (alert_id),
+  FOREIGN KEY (alert_definition_id) REFERENCES alert_definition(definition_id),
+  FOREIGN KEY (cluster_id) REFERENCES clusters(cluster_id)
+);
+
+CREATE TABLE alert_current (
+  alert_id BIGINT NOT NULL,
+  definition_id BIGINT NOT NULL,
+  history_id BIGINT NOT NULL UNIQUE,
+  maintenance_state VARCHAR(255),
+  original_timestamp BIGINT NOT NULL,
+  latest_timestamp BIGINT NOT NULL,
+  PRIMARY KEY (alert_id),
+  FOREIGN KEY (definition_id) REFERENCES alert_definition(definition_id),
+  FOREIGN KEY (history_id) REFERENCES alert_history(alert_id)
+);
+
+CREATE TABLE alert_group (
+  group_id BIGINT NOT NULL,
+  cluster_id BIGINT NOT NULL,
+  group_name VARCHAR(255) NOT NULL,
+  is_default SMALLINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (group_id),
+  CONSTRAINT uni_alert_group_name UNIQUE(cluster_id,group_name)
+);
+
+CREATE TABLE alert_target (
+  target_id BIGINT NOT NULL,
+  target_name VARCHAR(255) NOT NULL UNIQUE,
+  notification_type VARCHAR(64) NOT NULL,
+  properties TEXT,
+  description VARCHAR(1024),
+  PRIMARY KEY (target_id)
+);
+
+CREATE TABLE alert_group_target (
+  group_id BIGINT NOT NULL,
+  target_id BIGINT NOT NULL,
+  PRIMARY KEY (group_id, target_id),
+  FOREIGN KEY (group_id) REFERENCES alert_group(group_id),
+  FOREIGN KEY (target_id) REFERENCES alert_target(target_id)
+);
+
+CREATE TABLE alert_grouping (
+  definition_id BIGINT NOT NULL,
+  group_id BIGINT NOT NULL,
+  PRIMARY KEY (group_id, definition_id),
+  FOREIGN KEY (definition_id) REFERENCES alert_definition(definition_id),
+  FOREIGN KEY (group_id) REFERENCES alert_group(group_id)
+);
+
+CREATE TABLE alert_notice (
+  notification_id BIGINT NOT NULL,
+  target_id BIGINT NOT NULL,
+  history_id BIGINT NOT NULL,
+  notify_state VARCHAR(255) NOT NULL,
+  PRIMARY KEY (notification_id),
+  FOREIGN KEY (target_id) REFERENCES alert_target(target_id),  
+  FOREIGN KEY (history_id) REFERENCES alert_history(alert_id)
+);
+
+CREATE INDEX idx_alert_history_def_id on alert_history(alert_definition_id);
+CREATE INDEX idx_alert_history_service on alert_history(service_name);
+CREATE INDEX idx_alert_history_host on alert_history(host_name);
+CREATE INDEX idx_alert_history_time on alert_history(alert_timestamp);
+CREATE INDEX idx_alert_history_state on alert_history(alert_state);
+CREATE INDEX idx_alert_group_name on alert_group(group_name);
+CREATE INDEX idx_alert_notice_state on alert_notice(notify_state);
 
 INSERT INTO ambari_sequences(sequence_name, value) values ('cluster_id_seq', 1);
 INSERT INTO ambari_sequences(sequence_name, value) values ('host_role_command_id_seq', 1);
@@ -168,6 +267,12 @@ INSERT INTO ambari_sequences(sequence_name, value) values ('privilege_id_seq', 1
 INSERT INTO ambari_sequences(sequence_name, value) values ('config_id_seq', 1);
 INSERT INTO ambari_sequences(sequence_name, value) values ('service_config_id_seq', 1);
 INSERT INTO ambari_sequences(sequence_name, value) values ('service_config_application_id_seq', 1);
+INSERT INTO ambari_sequences(sequence_name, value) values ('alert_definition_id_seq', 0);
+INSERT INTO ambari_sequences(sequence_name, value) values ('alert_group_id_seq', 0);
+INSERT INTO ambari_sequences(sequence_name, value) values ('alert_target_id_seq', 0);
+INSERT INTO ambari_sequences(sequence_name, value) values ('alert_history_id_seq', 0);
+INSERT INTO ambari_sequences(sequence_name, value) values ('alert_notice_id_seq', 0);
+INSERT INTO ambari_sequences(sequence_name, value) values ('alert_current_id_seq', 0);
 
 insert into adminresourcetype (resource_type_id, resource_type_name)
   select 1, 'AMBARI'
@@ -457,8 +562,3 @@ CREATE TABLE clusterEvent (
   error TEXT, data TEXT ,
   host TEXT, rack TEXT
 );
-
-
-
-
-

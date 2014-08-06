@@ -20,6 +20,7 @@ var App = require('app');
 var numberUtils = require('utils/number_utils');
 
 App.WizardStep5Controller = Em.Controller.extend({
+
   name: "wizardStep5Controller",
 
   /**
@@ -214,7 +215,11 @@ App.WizardStep5Controller = Em.Controller.extend({
     console.log("WizardStep5Controller: Loading step5: Assign Masters");
     this.clearStep();
     this.renderHostInfo();
-    this.loadComponentRecommendations(this.loadStepCallback);
+    if (App.supports.serverRecommendValidate ) {
+      this.loadComponentsRecommendationsFromServer(this.loadStepCallback);
+    } else {
+      this.loadComponentsRecommendationsLocally(this.loadStepCallback);
+    }
   },
 
   /**
@@ -300,13 +305,13 @@ App.WizardStep5Controller = Em.Controller.extend({
    * Get recommendations info from API
    * @return {undefined}
    */
-  loadComponentRecommendations: function(callback) {
+  loadComponentsRecommendationsFromServer: function(callback) {
     var self = this;
 
     if (App.router.get('installerController.recommendations') !== undefined) {
       // Don't do AJAX call if recommendations has been already received
       // But if user returns to previous step (selecting services), stored recommendations will be cleared in routers' next handler and AJAX call will be made again
-      callback(self.createComponentInstalltationObjects(), self);
+      callback(self.createComponentInstallationObjects(), self);
     } else {
       var selectedServices = App.StackService.find().filterProperty('isSelected').mapProperty('serviceName');
       var installedServices = App.StackService.find().filterProperty('isInstalled').mapProperty('serviceName');
@@ -329,7 +334,7 @@ App.WizardStep5Controller = Em.Controller.extend({
           timeout: App.timeout
         }).
         then(function () {
-          callback(self.createComponentInstalltationObjects(), self);
+          callback(self.createComponentInstallationObjects(), self);
         },
         function () {
           App.showReloadPopup();
@@ -344,7 +349,7 @@ App.WizardStep5Controller = Em.Controller.extend({
    * expects installerController.recommendations will be filled with recommendations API call result
    * @return {Object[]}
    */
-  createComponentInstalltationObjects: function() {
+  createComponentInstallationObjects: function() {
     var self = this;
 
     var masterComponents = [];
@@ -386,12 +391,12 @@ App.WizardStep5Controller = Em.Controller.extend({
                   multipleComponentHasBeenAdded[component.name] = true;
 
                   savedComponents.forEach(function(saved) {
-                    resultComponents.push(self.createComponentInstalltationObject(fullComponent, host.fqdn, saved));
+                    resultComponents.push(self.createComponentInstallationObject(fullComponent, host.fqdn, saved));
                   });
                 }
               } else {
                 var savedComponent = masterHosts.findProperty('component', component.name);
-                resultComponents.push(self.createComponentInstalltationObject(fullComponent, host.fqdn, savedComponent));
+                resultComponents.push(self.createComponentInstallationObject(fullComponent, host.fqdn, savedComponent));
               }
             }
           }
@@ -408,7 +413,7 @@ App.WizardStep5Controller = Em.Controller.extend({
    * @param savedComponent - the same object which function returns but created before
    * @return {Object}
    */
-  createComponentInstalltationObject: function(fullComponent, hostName, savedComponent) {
+  createComponentInstallationObject: function(fullComponent, hostName, savedComponent) {
     var componentName = fullComponent.get('componentName');
 
     var componentObj = {};
@@ -435,6 +440,84 @@ App.WizardStep5Controller = Em.Controller.extend({
    */
   loadRecommendationsSuccessCallback: function (data) {
     App.router.set('installerController.recommendations', data.resources[0].recommendations);
+  },
+
+  /**
+   * Load services info to appropriate variable and return masterComponentHosts
+   * @return {Object[]}
+   */
+  loadComponentsRecommendationsLocally: function (callback) {
+    var selectedServices = App.StackService.find().filterProperty('isSelected').mapProperty('serviceName');
+    var installedServices = App.StackService.find().filterProperty('isInstalled').mapProperty('serviceName');
+    var services = installedServices.concat(selectedServices).uniq();
+    var selectedNotInstalledServices = this.get('content.services').filterProperty('isSelected').filterProperty('isInstalled', false).mapProperty('serviceName');
+
+    var masterComponents = [];
+    //get full list from mock data
+    if (this.get('isAddServiceWizard')) {
+      masterComponents = App.StackServiceComponent.find().filterProperty('isShownOnAddServiceAssignMasterPage');
+    } else {
+      masterComponents = App.StackServiceComponent.find().filterProperty('isShownOnInstallerAssignMasterPage');
+    }
+    var masterHosts = this.get('content.masterComponentHosts'); //saved to local storage info
+
+    var resultComponents = [];
+
+    for (var index = 0; index < services.length; index++) {
+      var componentInfo = masterComponents.filterProperty('serviceName', services[index]);
+      // If service is already installed and not being added as a new service then render on UI only those master components
+      // that have already installed hostComponents.
+      // NOTE: On upgrade there might be a prior installed service with non-installed newly introduced serviceComponent
+      var isNotSelectedService = !selectedNotInstalledServices.contains(services[index]);
+      if (isNotSelectedService) {
+        componentInfo = componentInfo.filter(function (_component) {
+          return App.HostComponent.find().someProperty('componentName',_component.get('componentName'));
+        });
+      }
+
+      componentInfo.forEach(function (_componentInfo) {
+        if (this.get('multipleComponents').contains(_componentInfo.get('componentName'))) {
+          var savedComponents = masterHosts.filterProperty('component', _componentInfo.get('componentName'));
+          if (savedComponents.length) {
+            savedComponents.forEach(function (item) {
+              var multipleMasterHost = {};
+              multipleMasterHost.component_name = _componentInfo.get('componentName');
+              multipleMasterHost.display_name = _componentInfo.get('displayName');
+              multipleMasterHost.selectedHost = item.hostName;
+              multipleMasterHost.serviceId = services[index];
+              multipleMasterHost.isInstalled = item.isInstalled;
+              multipleMasterHost.isServiceCoHost = false;
+              resultComponents.push(multipleMasterHost);
+            })
+          } else {
+            var multipleMasterHosts = this.selectHostLocally(_componentInfo.get('componentName'));
+            multipleMasterHosts.forEach(function (_host) {
+              var multipleMasterHost = {};
+              multipleMasterHost.component_name = _componentInfo.get('componentName');
+              multipleMasterHost.display_name = _componentInfo.get('displayName');
+              multipleMasterHost.selectedHost = _host;
+              multipleMasterHost.serviceId = services[index];
+              multipleMasterHost.isInstalled = false;
+              multipleMasterHost.isServiceCoHost = false;
+              resultComponents.push(multipleMasterHost);
+            });
+
+          }
+        } else {
+          var savedComponent = masterHosts.findProperty('component', _componentInfo.get('componentName'));
+          var componentObj = {};
+          componentObj.component_name = _componentInfo.get('componentName');
+          componentObj.display_name = _componentInfo.get('displayName');
+          componentObj.selectedHost = savedComponent ? savedComponent.hostName : this.selectHostLocally(_componentInfo.get('componentName'));   // call the method that plays selectNode algorithm or fetches from server
+          componentObj.isInstalled = savedComponent ? savedComponent.isInstalled : false;
+          componentObj.serviceId = services[index];
+          componentObj.isServiceCoHost = App.StackServiceComponent.find().findProperty('componentName', _componentInfo.get('componentName')).get('isCoHostedComponent') && !this.get('isReassignWizard');
+          resultComponents.push(componentObj);
+        }
+      }, this);
+    }
+
+    callback(resultComponents, this);
   },
 
   /**
@@ -472,6 +555,7 @@ App.WizardStep5Controller = Em.Controller.extend({
       componentObj.set('isHostNameValid', true);
       result.push(componentObj);
     }, this);
+    result = this.sortComponentsByServiceName(result);
     this.set("selectedServicesMasters", result);
     if (this.get('isReassignWizard')) {
       var components = result.filterProperty('component_name', this.get('content.reassign.component_name'));
@@ -482,6 +566,14 @@ App.WizardStep5Controller = Em.Controller.extend({
     }
   },
 
+  sortComponentsByServiceName: function(components) {
+    var displayOrder = App.StackService.displayOrder;
+    return components.sort(function (a, b) {
+      var aValue = displayOrder.indexOf(a.serviceId) != -1 ? displayOrder.indexOf(a.serviceId) : components.length;
+      var bValue = displayOrder.indexOf(b.serviceId) != -1 ? displayOrder.indexOf(b.serviceId) : components.length;
+      return aValue - bValue;
+    });
+  },
   /**
    * Update dependent co-hosted components according to the change in the component host
    * @method updateCoHosts
@@ -499,6 +591,83 @@ App.WizardStep5Controller = Em.Controller.extend({
       }, this);
     }, this);
   }.observes('selectedServicesMasters.@each.selectedHost'),
+
+  /**
+   * select and return host for component by scheme
+   * Scheme is an object that has keys which compared to number of hosts,
+   * if key more that number of hosts, then return value of that key.
+   * Value is index of host in hosts array.
+   *
+   * @param {object} componentName
+   * @param {object} hosts
+   * @return {string}
+   * @method getHostForComponent
+   */
+  getHostForComponent: function (componentName, hosts) {
+    var component = App.StackServiceComponent.find().findProperty('componentName', componentName);
+    if (component) {
+      var selectionScheme = App.StackServiceComponent.find().findProperty('componentName', componentName).get('selectionSchemeForMasterComponent');
+    } else {
+      return hosts[0];
+    }
+
+    if (hosts.length === 1 || $.isEmptyObject(selectionScheme)) {
+      return hosts[0];
+    } else {
+      for (var i in selectionScheme) {
+        if (window.isFinite(i)) {
+          if (hosts.length < window.parseInt(i)) {
+            return hosts[selectionScheme[i]];
+          }
+        }
+      }
+      return hosts[selectionScheme['else']]
+    }
+  },
+
+  /**
+   * Get list of host names for master component with multiple instances
+   * @param {Object} component
+   * @param {Object} hosts
+   * @returns {string[]}
+   * @method getHostsForComponent
+   */
+  getHostsForComponent: function (component, hosts) {
+    var defaultNoOfMasterHosts = component.get('defaultNoOfMasterHosts');
+    var masterHosts = [];
+    if (hosts.length < defaultNoOfMasterHosts) {
+      defaultNoOfMasterHosts = hosts.length;
+    }
+    for (var index = 0; index < defaultNoOfMasterHosts; index++) {
+      masterHosts.push(hosts[index]);
+    }
+    return masterHosts;
+  },
+
+  /**
+   * Return hostName of masterNode for specified service
+   * @param componentName
+   * @return {string|string[]}
+   * @method selectHostLocally
+   */
+  selectHostLocally: function (componentName) {
+    var component = App.StackServiceComponent.find().findProperty('componentName', componentName);
+    var hostNames = this.get('hosts').mapProperty('host_name');
+    if (hostNames.length > 1 && App.StackServiceComponent.find().filterProperty('isNotPreferableOnAmbariServerHost').mapProperty('componentName').contains(componentName)) {
+      hostNames = this.get('hosts').mapProperty('host_name').filter(function (item) {
+        return item !== location.hostname;
+      }, this);
+    }
+    if (this.get('multipleComponents').contains(componentName)) {
+      if (component.get('defaultNoOfMasterHosts') > 1) {
+        return this.getHostsForComponent(component, hostNames);
+      } else {
+        return [this.getHostForComponent(componentName, hostNames)];
+      }
+    } else {
+      return this.getHostForComponent(componentName, hostNames);
+    }
+  },
 
   /**
    * On change callback for inputs

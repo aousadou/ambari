@@ -665,14 +665,11 @@ public interface AmbariManagementController {
       throws AmbariException;
 
   /**
-<<<<<<< HEAD
    * Get Role Command Order
    */
   public RoleCommandOrder getRoleCommandOrder(Cluster cluster);
 
   /**
-=======
->>>>>>> a96596eb4c0e9551156585a67181b64df75e335a
    * Performs a test if LDAP server is reachable.
    *
    * @return true if connection to LDAP was established

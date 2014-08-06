@@ -71,7 +71,7 @@ public class ViewPrivilegeResourceProviderTest {
 
   @BeforeClass
   public static void initClass() {
-    AmbariPrivilegeResourceProvider.init(privilegeDAO, userDAO, groupDAO, principalDAO, permissionDAO, resourceDAO);
+    PrivilegeResourceProvider.init(privilegeDAO, userDAO, groupDAO, principalDAO, permissionDAO, resourceDAO);
   }
 
   @Before

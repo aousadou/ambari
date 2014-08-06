@@ -46,6 +46,9 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   compareServiceVersion: null,
   // contain Service Config Property, when user proceed from Select Config Group dialog
   overrideToAdd: null,
+  //latest version of service config versions
+  currentVersion: null,
+  versionLoaded: false,
   serviceConfigs: function () {
     return App.config.get('preDefinedServiceConfigs');
   }.property('App.config.preDefinedServiceConfigs'),
@@ -116,6 +119,16 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
   ],
 
   /**
+   * List of heapsize properties not to be parsed
+   */
+  heapsizeException: ['hadoop_heapsize', 'yarn_heapsize', 'nodemanager_heapsize', 'resourcemanager_heapsize', 'apptimelineserver_heapsize', 'jobhistory_heapsize'],
+
+  /**
+   * Regular expression for heapsize properties detection
+   */
+  heapsizeRegExp: /_heapsize|_newsize|_maxnewsize$/,
+
+/**
    * Dropdown menu items in filter combobox
    */
   filterColumns: function () {
@@ -132,11 +145,12 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
    * clear and set properties to default value
    */
   clearStep: function () {
-    this.set("isApplyingChanges", false)
+    this.set("isApplyingChanges", false);
     this.set('isInit', true);
     this.set('hash', null);
     this.set('forceTransition', false);
     this.set('dataIsLoaded', false);
+    this.set('versionLoaded', false);
     this.set('filter', '');
     this.get('filterColumns').setEach('selected', false);
     this.get('stepConfigs').clear();
@@ -211,20 +225,102 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
     App.config.loadAdvancedConfig(serviceName, function (properties) {
       advancedConfigs.pushObjects(properties);
       self.set('advancedConfigs', advancedConfigs);
-      self.loadServiceTags();
+      if (App.get('supports.configHistory')) {
+        self.loadServiceConfigVersions();
+      } else {
+        self.loadServiceTagsAndGroups();
+      }
     });
   },
 
   /**
-   * load config tags of service
+   * get service config versions of current service
    */
-  loadServiceTags: function () {
+  loadServiceConfigVersions: function () {
+    var self = this;
+
+    App.ajax.send({
+      name: 'service.serviceConfigVersions.get',
+      data: {
+        serviceName: this.get('content.serviceName')
+      },
+      sender: this,
+      success: 'loadServiceConfigVersionsSuccess',
+      error: 'loadServiceConfigVersionsError'
+    }).complete(function () {
+        self.loadSelectedVersion();
+      });
+  },
+
+  /**
+   * load service config versions to model
+   * set currentVersion
+   * @param data
+   * @param opt
+   * @param params
+   */
+  loadServiceConfigVersionsSuccess: function (data, opt, params) {
+    var currentVersion = Math.max.apply(this, data.items.mapProperty('serviceconfigversion'));
+
+    this.set('currentVersion', currentVersion);
+    App.serviceConfigVersionsMapper.map(data);
+  },
+
+  /**
+   * get selected service config version
+   * In case selected version is undefined then take currentVersion
+   * @param version
+   */
+  loadSelectedVersion: function (version) {
+    var self = this;
+    this.set('versionLoaded', false);
+
+    App.ajax.send({
+      name: 'service.serviceConfigVersion.get',
+      sender: this,
+      data: {
+        serviceName: this.get('content.serviceName'),
+        serviceConfigVersion: version || this.get('currentVersion')
+      },
+      success: 'loadSelectedVersionSuccess'
+    }).complete(function () {
+        self.loadServiceTagsAndGroups();
+      });
+  },
+
+  /**
+   * set cluster to site tag map
+   * @param data
+   * @param opt
+   * @param params
+   */
+  loadSelectedVersionSuccess: function (data, opt, params) {
+    var serviceConfigsDef = this.get('serviceConfigs').findProperty('serviceName', this.get('content.serviceName'));
+    var siteToTagMap = {};
+    var configTypesRendered = Object.keys(serviceConfigsDef.get('configTypesRendered'));
+
+    configTypesRendered.forEach(function (siteName) {
+      if (data.items[0].configurations.someProperty('type', siteName)) {
+        siteToTagMap[siteName] = data.items[0].configurations.findProperty('type', siteName).tag;
+      } else {
+        siteToTagMap[siteName] = 'version1';
+      }
+    }, this);
+
+    App.router.get('configurationController').saveToDB(data.items[0].configurations);
+    this.loadedClusterSiteToTagMap = siteToTagMap;
+    this.loadServiceTagsAndGroups();
+  },
+
+  /**
+   * load config groups of service
+   */
+  loadServiceTagsAndGroups: function () {
     App.ajax.send({
       name: 'config.tags_and_groups',
       sender: this,
       data: {
         serviceName: this.get('content.serviceName'),
-        serviceConfigsDef: this.get('serviceConfigs').findProperty('serviceName', this.get('content.serviceName')),
         urlParams: "&config_groups/ConfigGroup/tag=" + this.get('content.serviceName')
       },
       success: 'loadServiceConfigsSuccess'
@@ -233,26 +329,24 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
 
   loadServiceConfigsSuccess: function (data, opt, params) {
     if (data) {
-      this.setConfigGroups.apply(this, Array.prototype.slice.call(arguments, 0));
+      this.setConfigGroups(data, opt, params);
     } else {
-      App.ajax.send({
-        name: 'config.tags',
-        sender: this,
-        data: App.permit(params, ['clusterName', 'serviceConfigsDef', 'serviceName']),
-        success: 'setConfigGroups'
-      });
+      if (!App.get('supports.configHistory')) {
+        App.ajax.send({
+          name: 'config.tags',
+          sender: this,
+          data: App.permit(params, ['clusterName', 'serviceConfigsDef', 'serviceName']),
+          success: 'setConfigGroups'
+        });
+      }  else {
+        this.setConfigGroups(data, opt, params);
+      }
     }
   },
 
-  setConfigGroups: function (data, opt, params) {
-    var serviceConfigsDef = params.serviceConfigsDef;
-    var serviceName = this.get('content.serviceName');
-    var displayName = this.get('content.displayName');
-    console.debug("loadServiceConfigs(): data=", data);
-    // Create default configuration group
-    var selectedConfigGroup;
+  setConfigTags: function (data, opt, params) {
+    var serviceConfigsDef = this.get('serviceConfigs').findProperty('serviceName', this.get('content.serviceName'));
     var siteToTagMap = {};
-    var hostsLength = App.router.get('mainHostController.hostsCountMap.TOTAL');
     var configTypesRendered = Object.keys(serviceConfigsDef.get('configTypesRendered'));
     configTypesRendered.forEach(function (siteName) {
       if (data.Clusters.desired_configs[siteName]) {
@@ -262,10 +356,21 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
       }
     }, this);
     this.loadedClusterSiteToTagMap = siteToTagMap;
+  },
+
+  setConfigGroups: function (data, opt, params) {
+    if (!App.get('supports.configHistory')) {
+      this.setConfigTags(data, opt, params);
+    }
+    var serviceName = this.get('content.serviceName');
+    var displayName = this.get('content.displayName');
+    var selectedConfigGroup;
+    var hostsLength = App.router.get('mainHostController.hostsCountMap.TOTAL');
+
     //parse loaded config groups
     if (App.supports.hostOverrides) {
       var configGroups = [];
-      if (data.config_groups && data.config_groups.length) {
+      if (data && data.config_groups && data.config_groups.length) {
         data.config_groups.forEach(function (item) {
           item = item.ConfigGroup;
           if (item.tag === this.get('content.serviceName')) {
@@ -401,7 +506,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
             serviceConfig.isComparison = true;
           }
         });
-        self.set('compareServiceVersion', null)
+        self.set('compareServiceVersion', null);
         dfd.resolve();
       }).fail(function () {
           dfd.resolve();
@@ -462,6 +567,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
       this.set('selectedService', this.get('stepConfigs').objectAt(0));
       this.checkForSecureConfig(this.get('selectedService'));
       this.set('dataIsLoaded', true);
+      this.set('versionLoaded', true);
       this.set('hash', this.getHash());
       this.set('isInit', false);
     }
@@ -475,6 +581,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
     this.get('stepConfigs').pushObject(serviceConfig);
     this.set('selectedService', this.get('stepConfigs').objectAt(0));
     this.checkForSecureConfig(this.get('selectedService'));
+    this.set('versionLoaded', true);
     this.set('dataIsLoaded', true);
     this.set('hash', this.getHash());
     this.set('isInit', false);
@@ -924,7 +1031,20 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
       if (this.get('content.serviceName') === 'YARN' && !App.supports.capacitySchedulerUi) {
         configs = App.config.textareaIntoFileConfigs(configs, 'capacity-scheduler.xml');
       }
-      this.saveSiteConfigs(configs.filterProperty('group', null));
+      var modifiedConfigs = configs
+        // get only modified and created configs
+        .filter(function(config) { return config.get('isNotDefaultValue') || config.get('isNotSaved'); })
+        // get file names
+        .mapProperty('filename').uniq()
+        // get configs by filename
+        .map(function(fileName) {
+          return configs.filterProperty('filename', fileName);
+        })
+        // concatenate results
+        .reduce(function(current, prev) { return current.concat(prev); });
+
+      // save modified original configs that have no group
+      this.saveSiteConfigs(modifiedConfigs.filter(function(config) { return !config.get('group'); }));
 
       /**
        * First we put cluster configurations, which automatically creates /configurations
@@ -1660,6 +1780,13 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
       success: 'doPUTClusterConfigurationSiteSuccessCallback',
       error: 'doPUTClusterConfigurationSiteErrorCallback'
     });
+    var heapsizeException = this.get('heapsizeException');
+    var heapsizeRegExp = this.get('heapsizeRegExp');
+    this.get('stepConfigs')[0].get('configs').forEach(function (item) {
+      if (heapsizeRegExp.test(item.get('name')) && !heapsizeException.contains(item.get('name')) && /\d+m$/.test(item.get('value'))) {
+        item.set('value', item.get('value').slice(0, item.get('value.length') - 1));
+      }
+    });
   },
 
   doPUTClusterConfigurationSiteSuccessCallback: function () {
@@ -1736,11 +1863,12 @@ App.MainServiceInfoConfigsController = Em.Controller.extend({
    * @return {Object}
    */
   createSiteObj: function (siteName, tagName, siteObj) {
-    var heapsizeException = ['hadoop_heapsize', 'yarn_heapsize', 'nodemanager_heapsize', 'resourcemanager_heapsize', 'apptimelineserver_heapsize', 'jobhistory_heapsize'];
+    var heapsizeException = this.get('heapsizeException');
+    var heapsizeRegExp = this.get('heapsizeRegExp');
     var siteProperties = {};
     siteObj.forEach(function (_siteObj) {
       if (_siteObj.isRequiredByAgent == false) return;
-      if (/_heapsize|_newsize|_maxnewsize$/.test(_siteObj.name) && !heapsizeException.contains(_siteObj.name)) {
+      if (heapsizeRegExp.test(_siteObj.name) && !heapsizeException.contains(_siteObj.name)) {
         Em.set(_siteObj, "value",  _siteObj.value + "m");
       }
       siteProperties[_siteObj.name] = App.config.escapeXMLCharacters(_siteObj.value);

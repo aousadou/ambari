@@ -18,7 +18,7 @@
 'use strict';
 
 angular.module('ambariAdminConsole')
-.controller('GroupsListCtrl',['$scope', 'Group', function($scope, Group) {
+.controller('GroupsListCtrl',['$scope', 'Group', '$modal', function($scope, Group, $modal) {
 	$scope.groups = [];
 
 	Group.all().then(function(groups) {
@@ -33,4 +33,16 @@ angular.module('ambariAdminConsole')
 			$scope.groups.splice( $scope.groups.indexOf(group), 1);
 		});
 	};
+
+	$scope.syncLDAP = function() {
+    var modaInstance = $modal.open({
+      templateUrl: 'views/ldapModal.html',
+      controller: 'LDAPModalCtrl',
+      resolve:{
+        resourceType: function() {
+          return 'groups';
+        }
+      }
+    });
+  };
 }]);

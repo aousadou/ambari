@@ -48,6 +48,7 @@ public class LdapServerProperties {
   private String userBase;
   private String userObjectClass;
   private String usernameAttribute;
+  private String userSearchBase = "";
 
   private String groupSearchFilter;
   private static final String userSearchFilter = "({attribute}={0})";
@@ -121,6 +122,14 @@ public class LdapServerProperties {
 
   public void setBaseDN(String baseDN) {
     this.baseDN = baseDN;
+  }
+
+  public String getUserSearchBase() {
+    return userSearchBase;
+  }
+
+  public void setUserSearchBase(String userSearchBase) {
+    this.userSearchBase = userSearchBase;
   }
 
   public String getUserSearchFilter() {

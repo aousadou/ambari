@@ -118,7 +118,7 @@ App.ReassignMasterController = App.WizardController.extend({
         tagName: tag
       }
     ];
-    App.router.get('configurationController').getConfigsByTags(tags).data(function (data) {
+    App.router.get('configurationController').getConfigsByTags(tags).done(function (data) {
       var configs = data.findProperty('tag', tag).properties;
       var result = configs && (configs['security_enabled'] === 'true' || configs['security_enabled'] === true);
       self.saveSecurityEnabled(result);
@@ -306,6 +306,7 @@ App.ReassignMasterController = App.WizardController.extend({
     this.setCurrentStep('1');
     this.clearAllSteps();
     this.clearStorageData();
+    this.resetDbNamespace();
     App.router.get('updateController').updateAll();
   }
 
