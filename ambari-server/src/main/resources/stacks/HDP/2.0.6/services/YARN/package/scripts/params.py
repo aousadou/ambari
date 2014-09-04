@@ -123,6 +123,7 @@ hostname = config["hostname"]
 hadoop_conf_dir = "/etc/hadoop/conf"
 hdfs_user_keytab = config['configurations']['hadoop-env']['hdfs_user_keytab']
 hdfs_user = config['configurations']['hadoop-env']['hdfs_user']
+hdfs_principal_name = config['configurations']['hadoop-env']['hdfs_principal_name']
 kinit_path_local = functions.get_kinit_path(["/usr/bin", "/usr/kerberos/bin", "/usr/sbin"])
 import functools
 #create partial functions with common arguments for every HdfsDirectory call
@@ -144,4 +145,5 @@ mapred_tt_group = default("/configurations/mapred-site/mapreduce.tasktracker.gro
 
 mapred_local_dir = "/tmp/hadoop-mapred/mapred/local"
 hdfs_log_dir_prefix = config['configurations']['hadoop-env']['hdfs_log_dir_prefix']
+min_user_id = config['configurations']['yarn-env']['min_user_id']
 

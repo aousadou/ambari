@@ -41,7 +41,7 @@ import random
 import pwd
 from ambari_server.resourceFilesKeeper import ResourceFilesKeeper, KeeperException
 import json
-from ambari_commons import OSCheck, OSConst
+from ambari_commons import OSCheck, OSConst, Firewall
 from ambari_server import utils
 
 # debug settings
@@ -250,7 +250,7 @@ PG_STATUS_RUNNING = utils.get_postgre_running_status(OS_TYPE)
 PG_DEFAULT_PASSWORD = "bigdata"
 SERVICE_CMD = "/usr/bin/env service"
 PG_SERVICE_NAME = "postgresql"
-PG_HBA_DIR = utils.get_postgre_hba_dir(OS_TYPE)
+PG_HBA_DIR = utils.get_postgre_hba_dir(OS_FAMILY)
 
 PG_ST_CMD = "%s %s status" % (SERVICE_CMD, PG_SERVICE_NAME)
 if os.path.isfile("/usr/bin/postgresql-setup"):
@@ -426,100 +426,6 @@ ASF_LICENSE_HEADER = '''
 # See the License for the specific language governing permissions and
 # limitations under the License.
 '''
-
-
-class FirewallChecks(object):
-  def __init__(self):
-
-    self.FIREWALL_SERVICE_NAME = "iptables"
-    self.SERVICE_CMD = SERVICE_CMD
-    self.SERVICE_SUBCMD = "status"
-
-  def get_command(self):
-    return "%s %s %s" % (self.SERVICE_CMD, self.FIREWALL_SERVICE_NAME, self.SERVICE_SUBCMD)
-
-  def check_result(self, retcode, out, err):
-      return retcode == 0
-
-  def check_iptables(self):
-    retcode, out, err = run_os_command(self.get_command())
-    if err and len(err) > 0:
-      print err
-    if self.check_result(retcode, out, err):
-      print_warning_msg("%s is running. Confirm the necessary Ambari ports are accessible. " %
-                        self.FIREWALL_SERVICE_NAME +
-                        "Refer to the Ambari documentation for more details on ports.")
-      ok = get_YN_input("OK to continue [y/n] (y)? ", True)
-      if not ok:
-        raise FatalException(1, None)
-
-  def get_running_result(self):
-    # To support test code.  Expected ouput from run_os_command.
-    return (0, "", "")
-
-  def get_stopped_result(self):
-    # To support test code.  Expected output from run_os_command.
-    return (3, "", "")
-
-
-class UbuntuFirewallChecks(FirewallChecks):
-  def __init__(self):
-    super(UbuntuFirewallChecks, self).__init__()
-
-    self.FIREWALL_SERVICE_NAME = "ufw"
-    self.SERVICE_CMD = utils.locate_file('service', '/usr/sbin')
-
-  def check_result(self, retcode, out, err):
-    # On ubuntu, the status command returns 0 whether running or not
-    return out and len(out) > 0 and out.strip() != "ufw stop/waiting"
-
-  def get_running_result(self):
-    # To support test code.  Expected ouput from run_os_command.
-    return (0, "ufw start/running", "")
-
-  def get_stopped_result(self):
-    # To support test code.  Expected output from run_os_command.
-    return (0, "ufw stop/waiting", "")
-
-
-class Fedora18FirewallChecks(FirewallChecks):
-  def __init__(self):
-    self.FIREWALL_SERVICE_NAME = "firewalld.service"
-
-  def get_command(self):
-    return "systemctl is-active firewalld.service"
-
-
-class OpenSuseFirewallChecks(FirewallChecks):
-  def __init__(self):
-    self.FIREWALL_SERVICE_NAME = "SuSEfirewall2"
-
-  def get_command(self):
-    return "/sbin/SuSEfirewall2 status"
-
-
-def get_firewall_object():
-  if OS_TYPE == OSConst.OS_UBUNTU:
-    return UbuntuFirewallChecks()
-  elif OS_TYPE == OSConst.OS_FEDORA and int(OS_VERSION) >= 18:
-    return Fedora18FirewallChecks()
-  elif OS_TYPE == OSConst.OS_OPENSUSE:
-    return OpenSuseFirewallChecks()
-  else:
-    return FirewallChecks()
-
-
-def get_firewall_object_types():
-  # To support test code, so tests can loop through the types
-  return (FirewallChecks,
-          UbuntuFirewallChecks,
-          Fedora18FirewallChecks,
-          OpenSuseFirewallChecks)
-
-
-def check_iptables():
-  return get_firewall_object().check_iptables()
-
 
 def get_conf_dir():
   try:
@@ -2230,8 +2136,21 @@ def setup(args):
     err = 'Failed to create user. Exiting.'
     raise FatalException(retcode, err)
 
-  print 'Checking iptables...'
-  check_iptables()
+  print 'Checking firewall...'
+  firewall_obj = Firewall().getFirewallObject()
+  firewall_on = firewall_obj.check_iptables()
+  if firewall_obj.stderrdata and len(firewall_obj.stderrdata) > 0:
+    print firewall_obj.stderrdata
+  if firewall_on:
+    print_warning_msg("%s is running. Confirm the necessary Ambari ports are accessible. " %
+                      firewall_obj.FIREWALL_SERVICE_NAME +
+                      "Refer to the Ambari documentation for more details on ports.")
+    ok = get_YN_input("OK to continue [y/n] (y)? ", True)
+    if not ok:
+      raise FatalException(1, None)
+
+
+
 
   # proceed jdbc properties if they were set
   if args.jdbc_driver is not None and args.jdbc_db is not None:
@@ -2713,7 +2632,14 @@ def change_objects_owner(args):
 
   command = CHANGE_OWNER_COMMAND[:]
   command[-1] = command[-1].format(database_name, 'ambari', new_owner)
-  return run_os_command(command)
+  retcode, stdout, stderr = run_os_command(command)
+  if not retcode == 0:
+    if VERBOSE:
+      if stdout:
+        print_error_msg(stdout.strip())
+      if stderr:
+        print_error_msg(stderr.strip())
+    raise FatalException(20, 'Unable to change owner of database objects')
 
 
 def compare_versions(version1, version2):
@@ -2818,9 +2744,7 @@ def upgrade(args):
   parse_properties_file(args)
   #TODO check database version
   if args.persistence_type == 'local':
-    retcode, stdout, stderr = change_objects_owner(args)
-    if not retcode == 0:
-      raise FatalException(20, 'Unable to change owner of database objects')
+    change_objects_owner(args)
 
   retcode = run_schema_upgrade()
   if not retcode == 0:
@@ -2991,7 +2915,11 @@ def setup_ldap():
   ldap_property_list_reqd = ["authentication.ldap.primaryUrl",
                         "authentication.ldap.secondaryUrl",
                         "authentication.ldap.useSSL",
+                        "authentication.ldap.userObjectClass",
                         "authentication.ldap.usernameAttribute",
+                        "authentication.ldap.groupObjectClass",
+                        "authentication.ldap.groupNamingAttr",
+                        "authentication.ldap.groupMembershipAttr",
                         "authentication.ldap.baseDn",
                         "authentication.ldap.bindAnonymously"]
 
@@ -3011,9 +2939,13 @@ def setup_ldap():
   LDAP_PRIMARY_URL_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[0])
   LDAP_SECONDARY_URL_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[1])
   LDAP_USE_SSL_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[2], "false")
-  LDAP_USER_ATT_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[3], "uid")
-  LDAP_BASE_DN_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[4])
-  LDAP_BIND_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[5], "false")
+  LDAP_USER_CLASS_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[3], "person")
+  LDAP_USER_ATT_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[4], "uid")
+  LDAP_GROUP_CLASS_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[5], "groupOfUniqueNames")
+  LDAP_GROUP_ATT_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[6], "cn")
+  LDAP_GROUP_MEMBER_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[7], "uniqueMember")
+  LDAP_BASE_DN_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[8])
+  LDAP_BIND_DEFAULT = get_value_from_properties(properties, ldap_property_list_reqd[9], "false")
   LDAP_MGR_DN_DEFAULT = get_value_from_properties(properties, ldap_property_list_opt[0])
   SSL_TRUSTSTORE_TYPE_DEFAULT = get_value_from_properties(properties, SSL_TRUSTSTORE_TYPE_PROPERTY, "jks")
   SSL_TRUSTSTORE_PATH_DEFAULT = get_value_from_properties(properties, SSL_TRUSTSTORE_PATH_PROPERTY)
@@ -3024,16 +2956,20 @@ def setup_ldap():
     ldap_property_list_reqd[0]:(LDAP_PRIMARY_URL_DEFAULT, "Primary URL* {{host:port}} {0}: ".format(get_prompt_default(LDAP_PRIMARY_URL_DEFAULT)), False),\
     ldap_property_list_reqd[1]:(LDAP_SECONDARY_URL_DEFAULT, "Secondary URL {{host:port}} {0}: ".format(get_prompt_default(LDAP_SECONDARY_URL_DEFAULT)), True),\
     ldap_property_list_reqd[2]:(LDAP_USE_SSL_DEFAULT, "Use SSL* [true/false] {0}: ".format(get_prompt_default(LDAP_USE_SSL_DEFAULT)), False),\
-    ldap_property_list_reqd[3]:(LDAP_USER_ATT_DEFAULT, "User name attribute* {0}: ".format(get_prompt_default(LDAP_USER_ATT_DEFAULT)), False),\
-    ldap_property_list_reqd[4]:(LDAP_BASE_DN_DEFAULT, "Base DN* {0}: ".format(get_prompt_default(LDAP_BASE_DN_DEFAULT)), False),\
-    ldap_property_list_reqd[5]:(LDAP_BIND_DEFAULT, "Bind anonymously* [true/false] {0}: ".format(get_prompt_default(LDAP_BIND_DEFAULT)), False)\
+    ldap_property_list_reqd[3]:(LDAP_USER_CLASS_DEFAULT, "User object class* {0}: ".format(get_prompt_default(LDAP_USER_CLASS_DEFAULT)), False),\
+    ldap_property_list_reqd[4]:(LDAP_USER_ATT_DEFAULT, "User name attribute* {0}: ".format(get_prompt_default(LDAP_USER_ATT_DEFAULT)), False),\
+    ldap_property_list_reqd[5]:(LDAP_GROUP_CLASS_DEFAULT, "Group object class* {0}: ".format(get_prompt_default(LDAP_GROUP_CLASS_DEFAULT)), False),\
+    ldap_property_list_reqd[6]:(LDAP_GROUP_ATT_DEFAULT, "Group name attribute* {0}: ".format(get_prompt_default(LDAP_GROUP_ATT_DEFAULT)), False),\
+    ldap_property_list_reqd[7]:(LDAP_GROUP_MEMBER_DEFAULT, "Group member attribute* {0}: ".format(get_prompt_default(LDAP_GROUP_MEMBER_DEFAULT)), False),\
+    ldap_property_list_reqd[8]:(LDAP_BASE_DN_DEFAULT, "Base DN* {0}: ".format(get_prompt_default(LDAP_BASE_DN_DEFAULT)), False),\
+    ldap_property_list_reqd[9]:(LDAP_BIND_DEFAULT, "Bind anonymously* [true/false] {0}: ".format(get_prompt_default(LDAP_BIND_DEFAULT)), False),\
   }
 
   ldap_property_value_map = {}
   for idx, key in enumerate(ldap_property_list_reqd):
     if idx in [0, 1]:
       pattern = REGEX_HOSTNAME_PORT
-    elif idx in [2, 5]:
+    elif idx in [2, 9]:
       pattern = REGEX_TRUE_FALSE
     else:
       pattern = REGEX_ANYTHING

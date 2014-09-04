@@ -22,7 +22,6 @@ App.ClusterController = Em.Controller.extend({
   name: 'clusterController',
   isLoaded: false,
   ambariProperties: null,
-  ambariViews: [],
   clusterDataLoadedPercent: 'width:0', // 0 to 1
 
   isGangliaUrlLoaded: false,
@@ -109,8 +108,10 @@ App.ClusterController = Em.Controller.extend({
   },
 
   loadClusterNameSuccessCallback: function (data) {
-    App.set('clusterName', data.items[0].Clusters.cluster_name);
-    App.set('currentStackVersion', data.items[0].Clusters.version);
+    if (data.items && data.items.length > 0) {
+      App.set('clusterName', data.items[0].Clusters.cluster_name);
+      App.set('currentStackVersion', data.items[0].Clusters.version);
+    }
   },
 
   loadClusterNameErrorCallback: function (request, ajaxOptions, error) {
@@ -249,7 +250,6 @@ App.ClusterController = Em.Controller.extend({
   loadClusterData: function () {
     var self = this;
     this.loadAmbariProperties();
-    this.loadAmbariViews();
     if (!App.get('clusterName')) {
       return;
     }
@@ -259,7 +259,6 @@ App.ClusterController = Em.Controller.extend({
       return;
     }
     var clusterUrl = this.getUrl('/data/clusters/cluster.json', '?fields=Clusters');
-    var usersUrl = App.get('testMode') ? '/data/users/users.json' : App.get('apiPrefix') + '/users/?fields=*';
     var racksUrl = "/data/racks/racks.json";
 
 
@@ -292,13 +291,7 @@ App.ClusterController = Em.Controller.extend({
       });
     }
 
-    App.HttpClient.get(usersUrl, App.usersMapper, {
-      complete: function (jqXHR, textStatus) {
-        self.updateLoadStatus('users');
-      }
-    }, function (jqXHR, textStatus) {
-      self.updateLoadStatus('users');
-    });
+    this.loadUsersInfo();
 
     /**
      * Order of loading:
@@ -318,7 +311,7 @@ App.ClusterController = Em.Controller.extend({
         service.StackServices.is_selected = true;
         service.StackServices.is_installed = false;
       },this);
-      App.stackServiceMapper.map(data);
+      App.stackServiceMapper.mapStackServices(data);
       App.config.setPreDefinedServiceConfigs();
       var updater = App.router.get('updateController');
       self.updateLoadStatus('stackComponents');
@@ -345,6 +338,7 @@ App.ClusterController = Em.Controller.extend({
         });
       });
     });
+    App.router.get('mainAdminSecurityController').getUpdatedSecurityStatus();
   },
 
   requestHosts: function (realUrl, callback) {
@@ -353,46 +347,6 @@ App.ClusterController = Em.Controller.extend({
     App.HttpClient.get(url, App.hostsMapper, {
       complete: callback
     }, callback)
-  },
-
-  loadAmbariViews: function () {
-    App.ajax.send({
-      name: 'views.info',
-      sender: this,
-      success: 'loadAmbariViewsSuccess'
-    });
-  },
-
-  loadAmbariViewsSuccess: function (data) {
-    if (data.items.length) {
-      App.ajax.send({
-        name: 'views.instances',
-        sender: this,
-        success: 'loadViewInstancesSuccess'
-      });
-    }
-  },
-
-  loadViewInstancesSuccess: function (data) {
-    this.set('ambariViews', []);
-    var self = this;
-    data.items.forEach(function (view) {
-      view.versions.forEach(function (version) {
-        version.instances.forEach(function (instance) {
-          var current_instance = Em.Object.create({
-            iconPath: instance.ViewInstanceInfo.icon_path || "/img/ambari-view-default.png",
-            label: instance.ViewInstanceInfo.label || version.ViewVersionInfo.label || instance.ViewInstanceInfo.view_name,
-            visible: instance.ViewInstanceInfo.visible || false,
-            version: instance.ViewInstanceInfo.version,
-            description: instance.ViewInstanceInfo.description || Em.I18n.t('views.main.instance.noDescription'),
-            viewName: instance.ViewInstanceInfo.view_name,
-            instanceName: instance.ViewInstanceInfo.instance_name,
-            href: instance.ViewInstanceInfo.context_path
-          });
-          self.get('ambariViews').pushObject(current_instance);
-        }, this);
-      }, this);
-    }, this);
   },
 
   /**
@@ -430,6 +384,45 @@ App.ClusterController = Em.Controller.extend({
 
   loadAmbariPropertiesError: function () {
     console.warn('can\'t get ambari properties');
+  },
+
+  /**
+   * Load info about users.
+   **/
+  loadUsersInfo: function() {
+    return App.ajax.send({
+      name: 'users.all',
+      sender: this,
+      success: 'loadUsersSuccess',
+      error: 'loadUsersError'
+    });
+  },
+
+  loadUsersSuccess: function(data) {
+    App.ajax.send({
+      name: 'users.privileges',
+      sender: this,
+      data: {
+        users: data
+      },
+      success: 'loadUsersPrivilegesSuccess'
+    });
+  },
+
+  loadUsersError: function() {
+    this.updateLoadStatus('users');
+  },
+  /**
+   * Load privileges, check relations between user and privilege,
+   * map users using <code>App.usersMappper</code>.
+   **/
+  loadUsersPrivilegesSuccess: function(data, opt, params) {
+    params.users.items.forEach(function(user) {
+      user.privileges = {};
+      user.privileges.items = data.items.filterProperty('PrivilegeInfo.principal_name', user.Users.user_name);
+    });
+    App.usersMapper.map(params.users);
+    this.updateLoadStatus('users');
   },
 
   updateClusterData: function () {

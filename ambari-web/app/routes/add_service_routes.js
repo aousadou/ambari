@@ -114,8 +114,8 @@ module.exports = App.WizardRoute.extend({
       addServiceController.saveClients(wizardStep4Controller);
       addServiceController.setDBProperty('masterComponentHosts', undefined);
 
-      var installerController = router.get('installerController');
-      installerController.clearRecommendations(); // Force reload recommendation between steps 1 and 2
+      var wizardStep5Controller = router.get('wizardStep5Controller');
+      wizardStep5Controller.clearRecommendations(); // Force reload recommendation between steps 1 and 2
       router.transitionTo('step2');
     }
   }),
@@ -137,8 +137,10 @@ module.exports = App.WizardRoute.extend({
     next: function (router) {
       var addServiceController = router.get('addServiceController');
       var wizardStep5Controller = router.get('wizardStep5Controller');
+      var wizardStep6Controller = router.get('wizardStep6Controller');
       addServiceController.saveMasterComponentHosts(wizardStep5Controller);
       addServiceController.setDBProperty('slaveComponentHosts', undefined);
+      wizardStep6Controller.set('isClientsSet', false);
       router.transitionTo('step3');
     }
   }),
@@ -168,13 +170,15 @@ module.exports = App.WizardRoute.extend({
       var addServiceController = router.get('addServiceController');
       var wizardStep6Controller = router.get('wizardStep6Controller');
 
-      if (wizardStep6Controller.validate()) {
-        addServiceController.saveSlaveComponentHosts(wizardStep6Controller);
-        addServiceController.get('content').set('serviceConfigProperties', null);
-        addServiceController.setDBProperty('serviceConfigProperties', null);
-        addServiceController.setDBProperty('groupsToDelete', []);
-        router.transitionTo('step4');
-      }
+      wizardStep6Controller.callValidation(function() {
+        wizardStep6Controller.showValidationIssuesAcceptBox(function() {
+          addServiceController.saveSlaveComponentHosts(wizardStep6Controller);
+          addServiceController.get('content').set('serviceConfigProperties', null);
+          addServiceController.setDBProperty('serviceConfigProperties', null);
+          addServiceController.setDBProperty('groupsToDelete', []);
+          router.transitionTo('step4');
+        });
+      });
     }
   }),
 

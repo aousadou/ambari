@@ -346,11 +346,18 @@ public class ActionDBAccessorImpl implements ActionDBAccessor {
     long now = System.currentTimeMillis();
 
     List<Long> requestsToCheck = new ArrayList<Long>();
+    List<Long> abortedCommandUpdates = new ArrayList<Long>();
 
     List<HostRoleCommandEntity> commandEntities = hostRoleCommandDAO.findByPKs(taskReports.keySet());
     for (HostRoleCommandEntity commandEntity : commandEntities) {
       CommandReport report = taskReports.get(commandEntity.getTaskId());
-      commandEntity.setStatus(HostRoleStatus.valueOf(report.getStatus()));
+      if (commandEntity.getStatus() != HostRoleStatus.ABORTED) {
+        // We don't want to overwrite statuses for ABORTED tasks with
+        // statuses that have been received from the agent after aborting task
+        commandEntity.setStatus(HostRoleStatus.valueOf(report.getStatus()));
+      } else {
+        abortedCommandUpdates.add(commandEntity.getTaskId());
+      }
       commandEntity.setStdOut(report.getStdOut().getBytes());
       commandEntity.setStdError(report.getStdErr().getBytes());
       commandEntity.setStructuredOut(report.getStructuredOut() == null ? null :
@@ -371,6 +378,8 @@ public class ActionDBAccessorImpl implements ActionDBAccessor {
     }
 
     hostRoleCommandDAO.mergeAll(commandEntities);
+    // Invalidate cache because of updates to ABORTED commands
+    hostRoleCommandCache.invalidateAll(abortedCommandUpdates);
 
     for (Long requestId : requestsToCheck) {
       endRequestIfCompleted(requestId);

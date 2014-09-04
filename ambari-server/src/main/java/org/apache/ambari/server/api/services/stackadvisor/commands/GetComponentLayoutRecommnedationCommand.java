@@ -20,6 +20,7 @@ package org.apache.ambari.server.api.services.stackadvisor.commands;
 
 import java.io.File;
 
+import org.apache.ambari.server.api.services.AmbariMetaInfo;
 import org.apache.ambari.server.api.services.stackadvisor.StackAdvisorException;
 import org.apache.ambari.server.api.services.stackadvisor.StackAdvisorRequest;
 import org.apache.ambari.server.api.services.stackadvisor.StackAdvisorRunner;
@@ -33,8 +34,8 @@ public class GetComponentLayoutRecommnedationCommand extends
     StackAdvisorCommand<RecommendationResponse> {
 
   public GetComponentLayoutRecommnedationCommand(File recommendationsDir,
-      String stackAdvisorScript, int requestId, StackAdvisorRunner saRunner) {
-    super(recommendationsDir, stackAdvisorScript, requestId, saRunner);
+      String stackAdvisorScript, int requestId, StackAdvisorRunner saRunner, AmbariMetaInfo metaInfo) {
+    super(recommendationsDir, stackAdvisorScript, requestId, saRunner, metaInfo);
   }
 
   @Override
@@ -44,15 +45,15 @@ public class GetComponentLayoutRecommnedationCommand extends
 
   @Override
   protected void validate(StackAdvisorRequest request) throws StackAdvisorException {
-    if (request.getHosts().isEmpty() || request.getServices().isEmpty()) {
+    if (request.getHosts() == null || request.getHosts().isEmpty() || request.getServices() == null
+        || request.getServices().isEmpty()) {
       throw new StackAdvisorException("Hosts and services must not be empty");
     }
   }
 
   @Override
-  protected StackAdvisorData adjust(StackAdvisorData data, StackAdvisorRequest request) {
-    // do nothing
-    return data;
+  protected RecommendationResponse updateResponse(StackAdvisorRequest request, RecommendationResponse response) {
+    return response;
   }
 
   @Override

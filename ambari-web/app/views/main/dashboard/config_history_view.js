@@ -33,22 +33,21 @@ App.MainConfigHistoryView = App.TableView.extend({
 
   pageContent: function () {
     var content = this.get('filteredContent');
-    if (content.length > this.get('endIndex') - this.get('startIndex') + 1) {
-      content = content.slice(0, this.get('endIndex') - this.get('startIndex') + 1);
+    if (content.length > ((this.get('endIndex') - this.get('startIndex')) + 1)) {
+      content = content.slice(0, (this.get('endIndex') - this.get('startIndex')) + 1);
     }
     return content.sort(function (a, b) {
       return a.get('index') - b.get('index');
     });
-  }.property('filteredCount'),
+  }.property('filteredContent'),
 
   filteredCount: function () {
     return this.get('controller.filteredCount');
   }.property('controller.filteredCount'),
 
   totalCount: function () {
-    //TODO change to totalCount when property provided by API
-    return this.get('controller.filteredCount');
-  }.property('controller.filteredCount'),
+    return this.get('controller.totalCount');
+  }.property('controller.totalCount'),
   /**
    * return filtered number of all content number information displayed on the page footer bar
    * @returns {String}
@@ -77,7 +76,7 @@ App.MainConfigHistoryView = App.TableView.extend({
     this.addObserver('startIndex', this, 'updatePagination');
     this.addObserver('displayLength', this, 'updatePagination');
     this.set('controller.isPolling', true);
-    this.refresh();
+    this.get('controller').doPolling();
   },
 
   /**
@@ -94,19 +93,25 @@ App.MainConfigHistoryView = App.TableView.extend({
     displayName: Em.I18n.t('dashboard.configHistory.table.version.title'),
     classNames: ['first']
   }),
-  modifiedSort: sort.fieldView.extend({
+  configGroupSort: sort.fieldView.extend({
     column: 2,
-    name: 'appliedTime',
-    displayName: Em.I18n.t('dashboard.configHistory.table.modified.title')
+    name: 'configGroup',
+    displayName: Em.I18n.t('dashboard.configHistory.table.configGroup.title')
+  }),
+  modifiedSort: sort.fieldView.extend({
+    column: 3,
+    name: 'createTime',
+    status: 'sorting_desc',
+    displayName: Em.I18n.t('dashboard.configHistory.table.created.title')
   }),
   authorSort: sort.fieldView.extend({
-    column: 3,
+    column: 4,
     name: 'author',
     displayName: Em.I18n.t('common.author')
   }),
   notesSort: sort.fieldView.extend({
-    column: 4,
-    name: 'notes',
+    column: 5,
+    name: 'briefNotes',
     displayName: Em.I18n.t('common.notes')
   }),
 
@@ -122,8 +127,24 @@ App.MainConfigHistoryView = App.TableView.extend({
     emptyValue: Em.I18n.t('common.all')
   }),
 
-  modifiedFilterView: filters.createSelectView({
+  configGroupFilterView: filters.createSelectView({
     column: 2,
+    fieldType: 'filter-input-width',
+    content: function () {
+      var groupName = App.ServiceConfigVersion.find().mapProperty('groupName').uniq();
+      if (groupName.indexOf(null) > -1 ){
+        groupName.splice(groupName.indexOf(null), 1);
+      }
+      return ['All'].concat(groupName);
+    }.property('App.router.mainConfigHistoryController.content'),
+    onChangeValue: function () {
+      this.get('parentView').updateFilter(this.get('column'), this.get('actualValue'), 'select');
+    },
+    emptyValue: Em.I18n.t('common.all')
+  }),
+
+  modifiedFilterView: filters.createSelectView({
+    column: 3,
     fieldType: 'filter-input-width',
     content: ['Any', 'Past 1 hour',  'Past 1 Day', 'Past 2 Days', 'Past 7 Days', 'Past 14 Days', 'Past 30 Days', 'Custom'],
     valueBinding: "controller.modifiedFilter.optionValue",
@@ -135,7 +156,7 @@ App.MainConfigHistoryView = App.TableView.extend({
   }),
 
   authorFilterView: filters.createTextView({
-    column: 3,
+    column: 4,
     fieldType: 'filter-input-width',
     onChangeValue: function () {
       this.get('parentView').updateFilter(this.get('column'), this.get('value'), 'string');
@@ -143,7 +164,7 @@ App.MainConfigHistoryView = App.TableView.extend({
   }),
 
   notesFilterView: filters.createTextView({
-    column: 4,
+    column: 5,
     fieldType: 'filter-input-width',
     onChangeValue: function () {
       this.get('parentView').updateFilter(this.get('column'), this.get('value'), 'string');
@@ -152,7 +173,6 @@ App.MainConfigHistoryView = App.TableView.extend({
 
   updateFilter: function (iColumn, value, type) {
     var self = this;
-
     this.set('controller.resetStartIndex', false);
     this.saveFilterConditions(iColumn, value, type, false);
     if (!this.get('filteringComplete')) {
@@ -167,14 +187,20 @@ App.MainConfigHistoryView = App.TableView.extend({
     }
   },
 
+  ConfigVersionView: Em.View.extend({
+    tagName: 'tr',
+    didInsertElement: function(){
+      App.tooltip(this.$("[rel='Tooltip']"));
+    }
+  }),
+
   /**
    * sort content
    */
   refresh: function () {
     var self = this;
-
     this.set('filteringComplete', false);
-    this.get('controller').loadHistoryToModel().done(function(){
+    this.get('controller').load().done(function () {
       self.set('filteringComplete', true);
       self.propertyDidChange('pageContent');
       self.set('controller.resetStartIndex', false);

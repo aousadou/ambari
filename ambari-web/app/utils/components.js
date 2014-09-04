@@ -88,5 +88,52 @@ module.exports = {
   ajaxErrorCallback: function (request, ajaxOptions, error, opt, params) {
     console.log('error on change component host status');
     App.ajax.defaultErrorHandler(request, opt.url, opt.method);
+  },
+
+  downloadClientConfigs: function (data) {
+    var isForHost = typeof data.hostName !== 'undefined';
+    var url = App.get('apiPrefix') + '/clusters/' + App.router.getClusterName() + '/' +
+      (isForHost ? 'hosts/' + data.hostName + '/host_components/' : 'services/' + data.serviceName + '/components/') +
+      data.componentName + '?format=client_config_tar';
+    try {
+      var self = this;
+      $.fileDownload(url).fail(function (error) {
+        var errorMessage = '';
+        var isNoConfigs = false;
+        if (error && $(error).text()) {
+          var errorObj = JSON.parse($(error).text());
+          if (errorObj && errorObj.message && errorObj.status) {
+            isNoConfigs = errorObj.message.indexOf(Em.I18n.t('services.service.actions.downloadClientConfigs.fail.noConfigFile')) !== -1;
+            errorMessage += isNoConfigs ? Em.I18n.t('services.service.actions.downloadClientConfigs.fail.noConfigFile') :
+              Em.I18n.t('services.service.actions.downloadClientConfigs.fail.popup.body.errorMessage').format(data.displayName, errorObj.status, errorObj.message);
+          } else {
+            errorMessage += Em.I18n.t('services.service.actions.downloadClientConfigs.fail.popup.body.noErrorMessage').format(data.displayName);
+          }
+          errorMessage += isNoConfigs ? '' : Em.I18n.t('services.service.actions.downloadClientConfigs.fail.popup.body.question');
+        } else {
+          errorMessage += Em.I18n.t('services.service.actions.downloadClientConfigs.fail.popup.body.noErrorMessage').format(data.displayName) +
+            Em.I18n.t('services.service.actions.downloadClientConfigs.fail.popup.body.question');
+        }
+        App.ModalPopup.show({
+          header: Em.I18n.t('services.service.actions.downloadClientConfigs.fail.popup.header').format(data.displayName),
+          bodyClass: Ember.View.extend({
+            template: Em.Handlebars.compile(errorMessage)
+          }),
+          secondary: isNoConfigs ? false : Em.I18n.t('common.cancel'),
+          onPrimary: function () {
+            this.hide();
+            if (!isNoConfigs) {
+              self.downloadClientConfigs({
+                context: Em.Object.create(data)
+              })
+            }
+          }
+        });
+      });
+    } catch (err) {
+      var newWindow = window.open(url);
+      newWindow.focus();
+    }
   }
+
 };

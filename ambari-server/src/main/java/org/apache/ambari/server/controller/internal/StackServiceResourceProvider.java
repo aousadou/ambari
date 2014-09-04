@@ -19,25 +19,15 @@
 
 package org.apache.ambari.server.controller.internal;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
 import org.apache.ambari.server.AmbariException;
 import org.apache.ambari.server.controller.AmbariManagementController;
 import org.apache.ambari.server.controller.StackServiceRequest;
 import org.apache.ambari.server.controller.StackServiceResponse;
-import org.apache.ambari.server.controller.spi.NoSuchParentResourceException;
-import org.apache.ambari.server.controller.spi.NoSuchResourceException;
-import org.apache.ambari.server.controller.spi.Predicate;
-import org.apache.ambari.server.controller.spi.Request;
-import org.apache.ambari.server.controller.spi.Resource;
+import org.apache.ambari.server.controller.spi.*;
 import org.apache.ambari.server.controller.spi.Resource.Type;
-import org.apache.ambari.server.controller.spi.SystemException;
-import org.apache.ambari.server.controller.spi.UnsupportedPropertyException;
 import org.apache.ambari.server.controller.utilities.PropertyHelper;
+
+import java.util.*;
 
 public class StackServiceResourceProvider extends ReadOnlyResourceProvider {
 
@@ -50,6 +40,9 @@ public class StackServiceResourceProvider extends ReadOnlyResourceProvider {
   public static final String STACK_VERSION_PROPERTY_ID = PropertyHelper.getPropertyId(
       "StackServices", "stack_version");
 
+  private static final String SERVICE_DISPLAY_NAME_PROPERTY_ID = PropertyHelper.getPropertyId(
+      "StackServices", "display_name");
+
   private static final String USER_NAME_PROPERTY_ID = PropertyHelper.getPropertyId(
       "StackServices", "user_name");
 
@@ -61,6 +54,9 @@ public class StackServiceResourceProvider extends ReadOnlyResourceProvider {
 
   private static final String CONFIG_TYPES = PropertyHelper.getPropertyId(
       "StackServices", "config_types");
+  
+  private static final String REQUIRED_SERVICES_ID = PropertyHelper.getPropertyId(
+      "StackServices", "required_services");
 
   private static final String SERVICE_CHECK_SUPPORTED_PROPERTY_ID = PropertyHelper.getPropertyId(
       "StackServices", "service_check_supported");
@@ -116,6 +112,9 @@ public class StackServiceResourceProvider extends ReadOnlyResourceProvider {
       setResourceProperty(resource, SERVICE_NAME_PROPERTY_ID,
           response.getServiceName(), requestedIds);
 
+      setResourceProperty(resource, SERVICE_DISPLAY_NAME_PROPERTY_ID,
+              response.getServiceDisplayName(), requestedIds);
+
       setResourceProperty(resource, USER_NAME_PROPERTY_ID,
           response.getUserName(), requestedIds);
 
@@ -127,6 +126,9 @@ public class StackServiceResourceProvider extends ReadOnlyResourceProvider {
 
       setResourceProperty(resource, CONFIG_TYPES,
           response.getConfigTypes(), requestedIds);
+      
+      setResourceProperty(resource, REQUIRED_SERVICES_ID,
+          response.getRequiredServices(), requestedIds);
 
       setResourceProperty(resource, SERVICE_CHECK_SUPPORTED_PROPERTY_ID,
           response.isServiceCheckSupported(), requestedIds);

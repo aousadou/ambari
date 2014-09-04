@@ -312,16 +312,18 @@ public class UpgradeCatalog150 extends AbstractUpgradeCatalog {
       LOG.error(msg);
       throw new AmbariException(msg);
     } else if (!dbAccessor.tableHasData(tableName)) {
-      String query;
+      String query = null;
       if (dbType.equals(Configuration.POSTGRES_DB_NAME)) {
         query = getPostgresRequestUpgradeQuery();
       } else if (dbType.equals(Configuration.ORACLE_DB_NAME)) {
         query = getOracleRequestUpgradeQuery();
-      } else {
+      } else if (Configuration.MYSQL_DB_NAME.equals(dbType)) {
         query = getMysqlRequestUpgradeQuery();
       }
 
-      dbAccessor.executeQuery(query);
+      if (query != null) {
+        dbAccessor.executeQuery(query);
+      }
     } else {
       LOG.info("Table {} already filled", tableName);
     }
@@ -329,7 +331,8 @@ public class UpgradeCatalog150 extends AbstractUpgradeCatalog {
     // Drop old constraints
     // ========================================================================
     if (Configuration.POSTGRES_DB_NAME.equals(dbType)
-      || Configuration.MYSQL_DB_NAME.equals(dbType)) {
+      || Configuration.MYSQL_DB_NAME.equals(dbType)
+      || Configuration.DERBY_DB_NAME.equals(dbType)) {
 
       //recreate old constraints to sync with oracle
       dbAccessor.dropConstraint("clusterconfigmapping", "FK_clusterconfigmapping_cluster_id");
@@ -450,10 +453,7 @@ public class UpgradeCatalog150 extends AbstractUpgradeCatalog {
 
     //add new sequences for config groups
     //TODO evalate possibility to automatically wrap object names in DBAcessor
-    String valueColumnName = "\"value\"";
-    if (Configuration.ORACLE_DB_NAME.equals(dbType) || Configuration.MYSQL_DB_NAME.equals(dbType)) {
-      valueColumnName = "value";
-    }
+    String valueColumnName = "sequence_value";
 
     dbAccessor.executeQuery("INSERT INTO ambari_sequences(sequence_name, " + valueColumnName + ") " +
       "VALUES('configgroup_id_seq', 1)", true);
@@ -710,6 +710,7 @@ public class UpgradeCatalog150 extends AbstractUpgradeCatalog {
                   configEntity.setType(configType);
                   configEntity.setTag(defaultVersionTag);
                   configEntity.setData(configData);
+                  configEntity.setVersion(1L);
                   configEntity.setTimestamp(System.currentTimeMillis());
                   configEntity.setClusterEntity(clusterEntity);
                   LOG.debug("Creating new " + configType + " config...");
@@ -806,7 +807,7 @@ public class UpgradeCatalog150 extends AbstractUpgradeCatalog {
   }
 
   private String getPostgresSequenceUpgradeQuery() {
-    return "INSERT INTO ambari_sequences(sequence_name, \"value\") " +
+    return "INSERT INTO ambari_sequences(sequence_name, sequence_value) " +
       "SELECT 'cluster_id_seq', nextval('clusters_cluster_id_seq') " +
       "UNION ALL " +
       "SELECT 'user_id_seq', nextval('users_user_id_seq') " +

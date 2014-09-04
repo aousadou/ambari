@@ -29,7 +29,7 @@ var stringUtils = require('utils/string_utils');
  *
  */
 
-App.WizardStep7Controller = Em.Controller.extend({
+App.WizardStep7Controller = Em.Controller.extend(App.ServerValidatorMixin, {
 
   name: 'wizardStep7Controller',
 
@@ -43,11 +43,28 @@ App.WizardStep7Controller = Em.Controller.extend({
 
   slaveHostToGroup: null,
 
+  isRecommendedLoaded: false,
   /**
    * used in services_config.js view to mark a config with security icon
    */
   secureConfigs: require('data/secure_mapping'),
 
+  /**
+   * config categories with secure properties
+   * use only for add service wizard when security is enabled;
+   */
+  secureServices: function () {
+    return (App.get('isHadoop2Stack')) ?
+        $.extend(true, [], require('data/HDP2/secure_configs')) :
+        $.extend(true, [], require('data/secure_configs'));
+  }.property('App.isHadoop2Stack'),
+
+  /**
+   * uses for add service - find out is security is enabled
+   */
+  securityEnabled: function () {
+    return App.router.get('mainAdminSecurityController.securityEnabled');
+  }.property('App.router.mainAdminSecurityController.securityEnabled'),
   /**
    * If miscConfigChange Modal is shown
    * @type {bool}
@@ -185,11 +202,18 @@ App.WizardStep7Controller = Em.Controller.extend({
   propertyFilters: [
     {
       attributeName: 'isOverridden',
+      attributeValue: true,
       caption: 'common.combobox.dropdown.overridden'
     },
     {
       attributeName: 'isFinal',
+      attributeValue: true,
       caption: 'common.combobox.dropdown.final'
+    },
+    {
+      attributeName: 'isValid',
+      attributeValue: false,
+      caption: 'common.combobox.dropdown.issues'
     }
   ],
 
@@ -200,6 +224,7 @@ App.WizardStep7Controller = Em.Controller.extend({
     return this.get('propertyFilters').map(function(filter) {
       return Ember.Object.create({
         attributeName: filter.attributeName,
+        attributeValue: filter.attributeValue,
         name: this.t(filter.caption),
         selected: false
       })
@@ -216,6 +241,8 @@ App.WizardStep7Controller = Em.Controller.extend({
    * @method clearStep
    */
   clearStep: function () {
+    this.set('isSubmitDisabled', true);
+    this.set('isRecommendedLoaded', false);
     this.get('stepConfigs').clear();
     this.set('filter', '');
     this.get('filterColumns').setEach('selected', false);
@@ -367,6 +394,7 @@ App.WizardStep7Controller = Em.Controller.extend({
     service.set('configs', serviceConfig.get('configs'));
   },
 
+  //TODO after moving validation/recommendation to BE _getRecommendedDefaultsForComponent must be deleted
   /**
    * Get object with recommended default values for config properties
    * Format:
@@ -398,6 +426,7 @@ App.WizardStep7Controller = Em.Controller.extend({
     return recommendedDefaults;
   },
 
+  //TODO after moving validation/recommendation to BE getInfoForDefaults must be deleted
   /**
    * Get info about hosts and host components to configDefaultsProviders
    * Work specifically in Add Service wizard
@@ -580,9 +609,11 @@ App.WizardStep7Controller = Em.Controller.extend({
     var s = App.StackService.find(component.get('serviceName')),
       defaultGroupSelected = component.get('selectedConfigGroup.isDefault');
 
-    if (s && s.get('configsValidator')) {
-      var recommendedDefaults = this._getRecommendedDefaultsForComponent(component.get('serviceName'));
-      s.get('configsValidator').set('recommendedDefaults', recommendedDefaults);
+    if(!App.get('supports.serverRecommendValidate')) {
+      if (s && s.get('configsValidator')) {
+        var recommendedDefaults = this._getRecommendedDefaultsForComponent(component.get('serviceName'));
+        s.get('configsValidator').set('recommendedDefaults', recommendedDefaults);
+      }
     }
 
     configs.forEach(function (serviceConfigProperty) {
@@ -661,7 +692,7 @@ App.WizardStep7Controller = Em.Controller.extend({
       return;
     }
     this.clearStep();
-    App.config.setPreDefinedServiceConfigs();
+
     var self = this;
     //STEP 1: Load advanced configs
     var advancedConfigs = this.get('content.advancedServiceConfig');
@@ -673,6 +704,7 @@ App.WizardStep7Controller = Em.Controller.extend({
       advancedConfigs,
       this.get('selectedServiceNames').concat(this.get('installedServiceNames'))
     );
+    App.config.setPreDefinedServiceConfigs();
     //STEP 4: Add advanced configs
     App.config.addAdvancedConfigs(configs, advancedConfigs);
     //STEP 5: Add custom configs
@@ -699,13 +731,17 @@ App.WizardStep7Controller = Em.Controller.extend({
       this.resolveServiceDependencyConfigs('STORM', configs);
     }
     //STEP 6: Distribute configs by service and wrap each one in App.ServiceConfigProperty (configs -> serviceConfigs)
-    this.setStepConfigs(configs, storedConfigs);
-    this.checkHostOverrideInstaller();
-    this.activateSpecialConfigs();
-    this.selectProperService();
-    if (this.get('content.skipConfigStep')) {
-      App.router.send('next');
-    }
+    var self = this;
+    this.loadServerSideConfigsRecommendations().always(function() {
+      self.set('isRecommendedLoaded', true);
+      self.setStepConfigs(configs, storedConfigs);
+      self.checkHostOverrideInstaller();
+      self.activateSpecialConfigs();
+      self.selectProperService();
+      if (self.get('content.skipConfigStep')) {
+        App.router.send('next');
+      }
+    });
   },
   /**
    * If <code>App.supports.hostOverridesInstaller</code> is enabled should load config groups
@@ -735,14 +771,18 @@ App.WizardStep7Controller = Em.Controller.extend({
       masterComponentHosts: this.get('wizardController.content.masterComponentHosts'),
       slaveComponentHosts: this.get('wizardController.content.slaveComponentHosts')
     };
-    var serviceConfigs = App.config.renderConfigs(configs, storedConfigs, this.get('allSelectedServiceNames'), this.get('installedServiceNames'), localDB);
+    var serviceConfigs = App.config.renderConfigs(configs, storedConfigs, this.get('allSelectedServiceNames'), this.get('installedServiceNames'), localDB, this.get('recommendationsConfigs'));
     if (this.get('wizardController.name') === 'addServiceController') {
       serviceConfigs.setEach('showConfig', true);
       serviceConfigs.setEach('selected', false);
       this.get('selectedServiceNames').forEach(function (serviceName) {
         if (!serviceConfigs.findProperty('serviceName', serviceName)) return;
-        serviceConfigs.findProperty('serviceName', serviceName).set('selected', true);
-      });
+        var selectedService = serviceConfigs.findProperty('serviceName', serviceName).set('selected', true);
+        // add secure configs when security is enabled
+        if(this.get('securityEnabled')) {
+          this.addSecureConfigs(selectedService, serviceName) ;
+        }
+      }, this);
 
       // Remove SNameNode if HA is enabled
       if (App.get('isHaEnabled')) {
@@ -759,6 +799,26 @@ App.WizardStep7Controller = Em.Controller.extend({
   },
 
   /**
+   *
+   * @param selectedService
+   * @param serviceName
+   */
+   addSecureConfigs: function(selectedService, serviceName) {
+     var secureService = this.get('secureServices').findProperty('serviceName', serviceName);
+     if (!secureService) {
+       return;
+     }
+     secureService.configCategories.forEach(function (category) {
+       selectedService.get('configCategories').push(category);
+     });
+     secureService.configs.forEach(function (conf) {
+       conf.isVisible = !conf.displayType.contains('masterHost') && !conf.displayType.contains('slaveHost');
+       var config = App.ServiceConfigProperty.create(conf);
+       selectedService.get('configs').push(config);
+     }, this);
+   },
+
+  /**
    * Select first addable service for <code>addServiceWizard</code>
    * Select first service at all in other cases
    * @method selectProperService
@@ -766,8 +826,7 @@ App.WizardStep7Controller = Em.Controller.extend({
   selectProperService: function () {
     if (this.get('wizardController.name') === 'addServiceController') {
       this.set('selectedService', this.get('stepConfigs').filterProperty('selected', true).get('firstObject'));
-    }
-    else {
+    } else {
       this.set('selectedService', this.get('stepConfigs').filterProperty('showConfig', true).objectAt(0));
     }
   },
@@ -820,6 +879,8 @@ App.WizardStep7Controller = Em.Controller.extend({
    * set configs actual values from server
    * @param serviceConfigTags
    * @param configs
+   * @param configsByTags
+   * @param installedServiceNames
    * @method setInstalledServiceConfigs
    */
   setInstalledServiceConfigs: function (serviceConfigTags, configs, configsByTags, installedServiceNames) {
@@ -835,7 +896,8 @@ App.WizardStep7Controller = Em.Controller.extend({
       }
     });
     configs.forEach(function (_config) {
-      if (!Em.isNone(configsMap[_config.name]) && installedServiceNames && installedServiceNames.contains(_config.serviceName)) {
+      var nonServiceTab = require('data/service_configs');
+      if (!Em.isNone(configsMap[_config.name]) && ((installedServiceNames && installedServiceNames.contains(_config.serviceName)  || nonServiceTab.someProperty('serviceName',_config.serviceName))) ) {
         // prevent overriding already edited properties
         if (_config.defaultValue != configsMap[_config.name])
           _config.value = configsMap[_config.name];
@@ -847,6 +909,7 @@ App.WizardStep7Controller = Em.Controller.extend({
     });
     self.setServiceDatabaseConfigs(configs);
     //add user properties
+
     for (var name in configsMap) {
       configs.push(configMixin.addUserProperty({
         id: 'site property',
@@ -866,6 +929,7 @@ App.WizardStep7Controller = Em.Controller.extend({
       }, false, []));
     }
   },
+
   /**
    * Check if Oozie or Hive use existing database then need
    * to restore missed properties
@@ -1099,7 +1163,7 @@ App.WizardStep7Controller = Em.Controller.extend({
    */
   activateSpecialConfigs: function () {
     var miscConfigs = this.get('stepConfigs').findProperty('serviceName', 'MISC').configs;
-    miscConfigs = App.config.miscConfigVisibleProperty(miscConfigs, this.get('selectedServiceNames'));
+    App.config.miscConfigVisibleProperty(miscConfigs, this.get('selectedServiceNames'));
   },
 
   /**
@@ -1261,12 +1325,15 @@ App.WizardStep7Controller = Em.Controller.extend({
    * @method submit
    */
   submit: function () {
+    if (this.get('isSubmitDisabled')) {
+      return;
+    }
     var _this = this;
-    if (!this.get('isSubmitDisabled')) {
-      this.checkDatabaseConnectionTest().done(function () {
+    this.serverSideValidation().done(function () {
+      _this.checkDatabaseConnectionTest().done(function () {
         _this.resolveHiveMysqlDatabase();
       });
-    }
+    });
   }
 
 });

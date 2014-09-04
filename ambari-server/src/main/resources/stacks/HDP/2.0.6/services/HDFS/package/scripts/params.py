@@ -24,10 +24,7 @@ import os
 config = Script.get_config()
 tmp_dir = Script.get_tmp_dir()
 
-if System.get_instance().os_type == "oraclelinux":
-  ulimit_cmd = ''
-else:
-  ulimit_cmd = "ulimit -c unlimited; "
+ulimit_cmd = "ulimit -c unlimited; "
 
 #security params
 _authentication = config['configurations']['core-site']['hadoop.security.authentication']
@@ -97,11 +94,11 @@ hive_user = config['configurations']['hive-env']['hive_user']
 smoke_user =  config['configurations']['hadoop-env']['smokeuser']
 mapred_user = config['configurations']['mapred-env']['mapred_user']
 hdfs_user = status_params.hdfs_user
+hdfs_principal_name = config['configurations']['hadoop-env']['hdfs_principal_name']
 
 user_group = config['configurations']['hadoop-env']['user_group']
 proxyuser_group =  config['configurations']['hadoop-env']['proxyuser_group']
 nagios_group = config['configurations']['nagios-env']['nagios_group']
-smoke_user_group = "users"
 
 #hadoop params
 hadoop_conf_dir = "/etc/hadoop/conf"
@@ -109,6 +106,7 @@ hadoop_pid_dir_prefix = status_params.hadoop_pid_dir_prefix
 hadoop_bin = "/usr/lib/hadoop/sbin"
 
 hdfs_log_dir_prefix = config['configurations']['hadoop-env']['hdfs_log_dir_prefix']
+hadoop_root_logger = config['configurations']['hadoop-env']['hadoop_root_logger']
 
 dfs_domain_socket_path = config['configurations']['hdfs-site']['dfs.domain.socket.path']
 dfs_domain_socket_dir = os.path.dirname(dfs_domain_socket_path)
@@ -184,3 +182,33 @@ if not "com.hadoop.compression.lzo" in io_compression_codecs:
   exclude_packages = ["lzo", "hadoop-lzo", "hadoop-lzo-native", "liblzo2-2"]
 else:
   exclude_packages = []
+name_node_params = default("/commandParams/namenode", None)
+
+#hadoop params
+hadoop_conf_empty_dir = "/etc/hadoop/conf.empty"
+
+hadoop_env_sh_template = config['configurations']['hadoop-env']['content']
+
+#hadoop-env.sh
+java_home = config['hostLevelParams']['java_home']
+
+if str(config['hostLevelParams']['stack_version']).startswith('2.0') and System.get_instance().os_family != "suse":
+  # deprecated rhel jsvc_path
+  jsvc_path = "/usr/libexec/bigtop-utils"
+else:
+  jsvc_path = "/usr/lib/bigtop-utils"
+
+hadoop_heapsize = config['configurations']['hadoop-env']['hadoop_heapsize']
+namenode_heapsize = config['configurations']['hadoop-env']['namenode_heapsize']
+namenode_opt_newsize =  config['configurations']['hadoop-env']['namenode_opt_newsize']
+namenode_opt_maxnewsize =  config['configurations']['hadoop-env']['namenode_opt_maxnewsize']
+
+jtnode_opt_newsize = "200m"
+jtnode_opt_maxnewsize = "200m"
+jtnode_heapsize =  "1024m"
+ttnode_heapsize = "1024m"
+
+dtnode_heapsize = config['configurations']['hadoop-env']['dtnode_heapsize']
+mapred_pid_dir_prefix = default("/configurations/mapred-env/mapred_pid_dir_prefix","/var/run/hadoop-mapreduce")
+mapreduce_libs_path = "/usr/lib/hadoop-mapreduce/*"
+mapred_log_dir_prefix = default("/configurations/mapred-env/mapred_log_dir_prefix","/var/log/hadoop-mapreduce")

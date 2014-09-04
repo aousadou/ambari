@@ -19,6 +19,7 @@
 package org.apache.ambari.server.controller.internal;
 
 import org.apache.ambari.server.AmbariException;
+import org.apache.ambari.server.DuplicateResourceException;
 import org.apache.ambari.server.controller.spi.NoSuchParentResourceException;
 import org.apache.ambari.server.controller.spi.NoSuchResourceException;
 import org.apache.ambari.server.controller.spi.Predicate;
@@ -33,6 +34,7 @@ import org.apache.ambari.server.orm.entities.ViewEntity;
 import org.apache.ambari.server.orm.entities.ViewInstanceDataEntity;
 import org.apache.ambari.server.orm.entities.ViewInstanceEntity;
 import org.apache.ambari.server.orm.entities.ViewInstancePropertyEntity;
+import org.apache.ambari.server.orm.entities.ViewParameterEntity;
 import org.apache.ambari.server.view.ViewRegistry;
 
 import java.util.Collection;
@@ -62,6 +64,7 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
   public static final String PROPERTIES_PROPERTY_ID    = "ViewInstanceInfo/properties";
   public static final String DATA_PROPERTY_ID          = "ViewInstanceInfo/instance_data";
   public static final String CONTEXT_PATH_PROPERTY_ID  = "ViewInstanceInfo/context_path";
+  public static final String STATIC_PROPERTY_ID        = "ViewInstanceInfo/static";
 
   /**
    * Property prefix values.
@@ -95,6 +98,7 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
     propertyIds.add(PROPERTIES_PROPERTY_ID);
     propertyIds.add(DATA_PROPERTY_ID);
     propertyIds.add(CONTEXT_PATH_PROPERTY_ID);
+    propertyIds.add(STATIC_PROPERTY_ID);
   }
 
   // ----- Constructors ------------------------------------------------------
@@ -145,8 +149,10 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
           for (ViewInstanceEntity viewInstanceDefinition : viewRegistry.getInstanceDefinitions(viewDefinition)) {
             if (instanceName == null || instanceName.equals(viewInstanceDefinition.getName())) {
               if (viewVersion == null || viewVersion.equals(viewDefinition.getVersion())) {
-                Resource resource = toResource(viewInstanceDefinition, requestedIds);
-                resources.add(resource);
+                if (includeInstance(viewInstanceDefinition, true)) {
+                  Resource resource = toResource(viewInstanceDefinition, requestedIds);
+                  resources.add(resource);
+                }
               }
             }
           }
@@ -197,7 +203,7 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
   // ----- helper methods ----------------------------------------------------
 
   // Convert an instance entity to a resource
-  private Resource toResource(ViewInstanceEntity viewInstanceEntity, Set<String> requestedIds) {
+  protected Resource toResource(ViewInstanceEntity viewInstanceEntity, Set<String> requestedIds) {
     Resource   resource   = new ResourceImpl(Resource.Type.ViewInstance);
     ViewEntity viewEntity = viewInstanceEntity.getViewEntity();
 
@@ -211,17 +217,26 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
     setResourceProperty(resource, LABEL_PROPERTY_ID, viewInstanceEntity.getLabel(), requestedIds);
     setResourceProperty(resource, DESCRIPTION_PROPERTY_ID, viewInstanceEntity.getDescription(), requestedIds);
     setResourceProperty(resource, VISIBLE_PROPERTY_ID, viewInstanceEntity.isVisible(), requestedIds);
+    setResourceProperty(resource, STATIC_PROPERTY_ID, viewInstanceEntity.isXmlDriven(), requestedIds);
     Map<String, String> properties = new HashMap<String, String>();
 
     for (ViewInstancePropertyEntity viewInstancePropertyEntity : viewInstanceEntity.getProperties()) {
       properties.put(viewInstancePropertyEntity.getName(), viewInstancePropertyEntity.getValue());
     }
+    for (ViewParameterEntity viewParameterEntity : viewEntity.getParameters()) {
+      if (!properties.containsKey(viewParameterEntity.getName())) {
+        properties.put(viewParameterEntity.getName(), null);
+      }
+    }
     setResourceProperty(resource, PROPERTIES_PROPERTY_ID,
         properties, requestedIds);
     Map<String, String> applicationData = new HashMap<String, String>();
 
+    String currentUserName = viewInstanceEntity.getCurrentUserName();
     for (ViewInstanceDataEntity viewInstanceDataEntity : viewInstanceEntity.getData()) {
-      applicationData.put(viewInstanceDataEntity.getName(), viewInstanceDataEntity.getValue());
+      if (currentUserName.equals(viewInstanceDataEntity.getUser())) {
+        applicationData.put(viewInstanceDataEntity.getName(), viewInstanceDataEntity.getValue());
+      }
     }
     setResourceProperty(resource, DATA_PROPERTY_ID,
         applicationData, requestedIds);
@@ -286,7 +301,6 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
     }
 
     Collection<ViewInstancePropertyEntity> instanceProperties = new HashSet<ViewInstancePropertyEntity>();
-    Collection<ViewInstanceDataEntity>     instanceData       = new HashSet<ViewInstanceDataEntity>();
 
     for (Map.Entry<String, Object> entry : properties.entrySet()) {
 
@@ -303,22 +317,11 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
 
         instanceProperties.add(viewInstancePropertyEntity);
       } else if (propertyName.startsWith(DATA_PREFIX)) {
-        ViewInstanceDataEntity viewInstanceDataEntity = new ViewInstanceDataEntity();
-
-        viewInstanceDataEntity.setViewName(viewName);
-        viewInstanceDataEntity.setViewInstanceName(name);
-        viewInstanceDataEntity.setName(entry.getKey().substring(DATA_PREFIX.length()));
-        viewInstanceDataEntity.setValue((String) entry.getValue());
-        viewInstanceDataEntity.setViewInstanceEntity(viewInstanceEntity);
-
-        instanceData.add(viewInstanceDataEntity);
+        viewInstanceEntity.putInstanceData(entry.getKey().substring(DATA_PREFIX.length()), (String) entry.getValue());
       }
     }
     if (!instanceProperties.isEmpty()) {
       viewInstanceEntity.setProperties(instanceProperties);
-    }
-    if (!instanceData.isEmpty()) {
-      viewInstanceEntity.setData(instanceData);
     }
 
     return viewInstanceEntity;
@@ -329,7 +332,17 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
     return new Command<Void>() {
       @Override
       public Void invoke() throws AmbariException {
-        ViewRegistry.getInstance().installViewInstance(toEntity(properties));
+        try {
+          ViewRegistry       viewRegistry   = ViewRegistry.getInstance();
+          ViewInstanceEntity instanceEntity = toEntity(properties);
+
+          if (viewRegistry.instanceExists(instanceEntity)) {
+            throw new DuplicateResourceException("The instance " + instanceEntity.getName() + " already exists.");
+          }
+          viewRegistry.installViewInstance(instanceEntity);
+        } catch (org.apache.ambari.view.SystemException e) {
+          throw new AmbariException("Caught exception trying to create view instance.", e);
+        }
         return null;
       }
     };
@@ -340,7 +353,13 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
     return new Command<Void>() {
       @Override
       public Void invoke() throws AmbariException {
-        ViewRegistry.getInstance().updateViewInstance(toEntity(properties));
+
+        ViewInstanceEntity instance = toEntity(properties);
+        ViewEntity         view     = instance.getViewEntity();
+
+        if (includeInstance(view.getCommonName(), view.getVersion(), instance.getInstanceName(), false)) {
+          ViewRegistry.getInstance().updateViewInstance(instance);
+        }
         return null;
       }
     };
@@ -360,7 +379,9 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
           for (ViewInstanceEntity viewInstanceEntity : viewRegistry.getInstanceDefinitions(viewEntity)){
             Resource resource = toResource(viewInstanceEntity, requestedIds);
             if (predicate == null || predicate.evaluate(resource)) {
-              viewInstanceEntities.add(viewInstanceEntity);
+              if (includeInstance(viewInstanceEntity, false)) {
+                viewInstanceEntities.add(viewInstanceEntity);
+              }
             }
           }
         }
@@ -376,5 +397,40 @@ public class ViewInstanceResourceProvider extends AbstractResourceProvider {
   private static String getIconPath(String contextPath, String iconPath){
     return iconPath == null || iconPath.length() == 0 ? null :
         contextPath + (iconPath.startsWith("/") ? "" : "/") + iconPath;
+  }
+
+  /**
+   * Determine whether or not the view instance resource identified
+   * by the given instance name should be included based on the permissions
+   * granted to the current user.
+   *
+   * @param viewName      the view name
+   * @param version       the view version
+   * @param instanceName  the name of the view instance resource
+   * @param readOnly      indicate whether or not this is for a read only operation
+   *
+   * @return true if the view instance should be included based on the permissions of the current user
+   */
+  private boolean includeInstance(String viewName, String version, String instanceName, boolean readOnly) {
+
+    ViewRegistry viewRegistry = ViewRegistry.getInstance();
+
+    return viewRegistry.checkPermission(viewName, version, instanceName, readOnly);
+  }
+
+  /**
+   * Determine whether or not the given view instance resource should be included
+   * based on the permissions granted to the current user.
+   *
+   * @param instanceEntity  the view instance entity
+   * @param readOnly        indicate whether or not this is for a read only operation
+   *
+   * @return true if the view instance should be included based on the permissions of the current user
+   */
+  private boolean includeInstance(ViewInstanceEntity instanceEntity, boolean readOnly) {
+
+    ViewRegistry viewRegistry = ViewRegistry.getInstance();
+
+    return viewRegistry.checkPermission(instanceEntity, readOnly);
   }
 }

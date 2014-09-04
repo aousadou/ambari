@@ -36,6 +36,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -96,7 +97,7 @@ public class ConfigHelperTest {
       new ClusterRequest(cluster.getClusterId(), clusterName,
         cluster.getDesiredStackVersion().getStackVersion(), null);
 
-    clusterRequest1.setDesiredConfig(cr);
+    clusterRequest1.setDesiredConfig(Collections.singletonList(cr));
     managementController.updateClusters(new HashSet<ClusterRequest>()
     {{ add(clusterRequest1); }}, null);
 
@@ -118,7 +119,7 @@ public class ConfigHelperTest {
       new ClusterRequest(cluster.getClusterId(), clusterName,
         cluster.getDesiredStackVersion().getStackVersion(), null);
 
-    clusterRequest2.setDesiredConfig(cr);
+    clusterRequest2.setDesiredConfig(Collections.singletonList(cr));
     managementController.updateClusters(new HashSet<ClusterRequest>()
     {{ add(clusterRequest2); }}, null);
   }
@@ -377,5 +378,120 @@ public class ConfigHelperTest {
     Assert.assertEquals(2, attributes.size());
     Assert.assertEquals("7", attributes.get("f"));
     Assert.assertEquals("8", attributes.get("q"));
+  }
+
+  @Test
+  public void testMergeAttributes() throws Exception {
+    Map<String, Map<String, String>> persistedAttributes = new HashMap<String, Map<String, String>>();
+    Map<String, String> persistedFinalAttrs = new HashMap<String, String>();
+    persistedFinalAttrs.put("a", "true");
+    persistedFinalAttrs.put("c", "true");
+    persistedFinalAttrs.put("d", "true");
+    persistedAttributes.put("final", persistedFinalAttrs);
+    Map<String, Map<String, String>> confGroupAttributes = new HashMap<String, Map<String, String>>();
+    Map<String, String> confGroupFinalAttrs = new HashMap<String, String>();
+    confGroupFinalAttrs.put("b", "true");
+    confGroupAttributes.put("final", confGroupFinalAttrs);
+    Map<String, String> confGroupProperties = new HashMap<String, String>();
+    confGroupProperties.put("a", "any");
+    confGroupProperties.put("b", "any");
+    confGroupProperties.put("c", "any");
+
+    Config overrideConfig = new ConfigImpl(cluster, "type", confGroupProperties, confGroupAttributes, injector);
+
+    Map<String, Map<String, String>> result
+        = configHelper.overrideAttributes(overrideConfig, persistedAttributes);
+
+    Assert.assertNotNull(result);
+    Assert.assertEquals(1, result.size());
+    Map<String, String> finalResultAttributes = result.get("final");
+    Assert.assertNotNull(finalResultAttributes);
+    Assert.assertEquals(2, finalResultAttributes.size());
+    Assert.assertEquals("true", finalResultAttributes.get("b"));
+    Assert.assertEquals("true", finalResultAttributes.get("d"));
+  }
+
+  @Test
+  public void testMergeAttributes_noAttributeOverrides() throws Exception {
+    Map<String, Map<String, String>> persistedAttributes = new HashMap<String, Map<String, String>>();
+    Map<String, String> persistedFinalAttrs = new HashMap<String, String>();
+    persistedFinalAttrs.put("a", "true");
+    persistedFinalAttrs.put("c", "true");
+    persistedFinalAttrs.put("d", "true");
+    persistedAttributes.put("final", persistedFinalAttrs);
+    Map<String, Map<String, String>> confGroupAttributes = new HashMap<String, Map<String, String>>();
+    Map<String, String> confGroupProperties = new HashMap<String, String>();
+    confGroupProperties.put("a", "any");
+    confGroupProperties.put("b", "any");
+    confGroupProperties.put("c", "any");
+
+    Config overrideConfig = new ConfigImpl(cluster, "type", confGroupProperties, confGroupAttributes, injector);
+
+    Map<String, Map<String, String>> result
+        = configHelper.overrideAttributes(overrideConfig, persistedAttributes);
+
+    Assert.assertNotNull(result);
+    Assert.assertEquals(1, result.size());
+    Map<String, String> finalResultAttributes = result.get("final");
+    Assert.assertNotNull(finalResultAttributes);
+    Assert.assertEquals(1, finalResultAttributes.size());
+    Assert.assertEquals("true", finalResultAttributes.get("d"));
+  }
+
+  @Test
+  public void testMergeAttributes_nullAttributes() throws Exception {
+    Map<String, Map<String, String>> persistedAttributes = new HashMap<String, Map<String, String>>();
+    Map<String, String> persistedFinalAttrs = new HashMap<String, String>();
+    persistedFinalAttrs.put("a", "true");
+    persistedFinalAttrs.put("c", "true");
+    persistedFinalAttrs.put("d", "true");
+    persistedAttributes.put("final", persistedFinalAttrs);
+    Map<String, String> confGroupProperties = new HashMap<String, String>();
+    confGroupProperties.put("a", "any");
+    confGroupProperties.put("b", "any");
+    confGroupProperties.put("c", "any");
+
+    Config overrideConfig = new ConfigImpl(cluster, "type", confGroupProperties, null, injector);
+
+    Map<String, Map<String, String>> result
+        = configHelper.overrideAttributes(overrideConfig, persistedAttributes);
+
+    Assert.assertNotNull(result);
+    Assert.assertEquals(1, result.size());
+    Map<String, String> finalResultAttributes = result.get("final");
+    Assert.assertNotNull(finalResultAttributes);
+    Assert.assertEquals(3, finalResultAttributes.size());
+    Assert.assertEquals("true", finalResultAttributes.get("a"));
+    Assert.assertEquals("true", finalResultAttributes.get("c"));
+    Assert.assertEquals("true", finalResultAttributes.get("d"));
+  }
+
+  @Test
+  public void testMergeAttributes_nullProperties() throws Exception {
+    Map<String, Map<String, String>> persistedAttributes = new HashMap<String, Map<String, String>>();
+    Map<String, String> persistedFinalAttrs = new HashMap<String, String>();
+    persistedFinalAttrs.put("a", "true");
+    persistedFinalAttrs.put("c", "true");
+    persistedFinalAttrs.put("d", "true");
+    persistedAttributes.put("final", persistedFinalAttrs);
+    Map<String, Map<String, String>> confGroupAttributes = new HashMap<String, Map<String, String>>();
+    Map<String, String> confGroupFinalAttrs = new HashMap<String, String>();
+    confGroupFinalAttrs.put("b", "true");
+    confGroupAttributes.put("final", confGroupFinalAttrs);
+
+    Config overrideConfig = new ConfigImpl(cluster, "type", null, confGroupAttributes, injector);
+
+    Map<String, Map<String, String>> result
+        = configHelper.overrideAttributes(overrideConfig, persistedAttributes);
+
+    Assert.assertNotNull(result);
+    Assert.assertEquals(1, result.size());
+    Map<String, String> finalResultAttributes = result.get("final");
+    Assert.assertNotNull(finalResultAttributes);
+    Assert.assertEquals(4, finalResultAttributes.size());
+    Assert.assertEquals("true", finalResultAttributes.get("a"));
+    Assert.assertEquals("true", finalResultAttributes.get("b"));
+    Assert.assertEquals("true", finalResultAttributes.get("c"));
+    Assert.assertEquals("true", finalResultAttributes.get("d"));
   }
 }

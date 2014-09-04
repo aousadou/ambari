@@ -16,14 +16,14 @@
  * limitations under the License.
  */
 package org.apache.ambari.server.actionmanager;
+ 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import com.google.inject.persist.UnitOfWork;
-
-import junit.framework.Assert;
 
 import org.apache.ambari.server.AmbariException;
 import org.apache.ambari.server.Role;
@@ -52,8 +52,9 @@ import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.persist.PersistService;
+import com.google.inject.persist.UnitOfWork;
 
-import static org.junit.Assert.*;
+import junit.framework.Assert;
 
 public class TestActionDBAccessorImpl {
   private static final Logger log = LoggerFactory.getLogger(TestActionDBAccessorImpl.class);
@@ -112,13 +113,44 @@ public class TestActionDBAccessorImpl {
     cr.setStdOut("");
     cr.setExitCode(215);
     reports.add(cr);
-    am.processTaskResponse(hostname, reports);
+    am.processTaskResponse(hostname, reports, stage.getOrderedHostRoleCommands());
     assertEquals(215,
         am.getAction(requestId, stageId).getExitCode(hostname, "HBASE_MASTER"));
     assertEquals(HostRoleStatus.COMPLETED, am.getAction(requestId, stageId)
         .getHostRoleStatus(hostname, "HBASE_MASTER"));
     Stage s = db.getAllStages(requestId).get(0);
     assertEquals(HostRoleStatus.COMPLETED,s.getHostRoleStatus(hostname, "HBASE_MASTER"));
+  }
+
+  @Test
+  public void testCancelCommandReport() throws AmbariException {
+    String hostname = "host1";
+    populateActionDB(db, hostname, requestId, stageId);
+    Stage stage = db.getAllStages(requestId).get(0);
+    Assert.assertEquals(stageId, stage.getStageId());
+    stage.setHostRoleStatus(hostname, "HBASE_MASTER", HostRoleStatus.ABORTED);
+    db.hostRoleScheduled(stage, hostname, "HBASE_MASTER");
+    List<CommandReport> reports = new ArrayList<CommandReport>();
+    CommandReport cr = new CommandReport();
+    cr.setTaskId(1);
+    cr.setActionId(StageUtils.getActionId(requestId, stageId));
+    cr.setRole("HBASE_MASTER");
+    cr.setStatus("COMPLETED");
+    cr.setStdErr("");
+    cr.setStdOut("");
+    cr.setExitCode(0);
+    reports.add(cr);
+    am.processTaskResponse(hostname, reports, stage.getOrderedHostRoleCommands());
+    assertEquals(0,
+            am.getAction(requestId, stageId).getExitCode(hostname, "HBASE_MASTER"));
+    assertEquals("HostRoleStatus should remain ABORTED " +
+            "(command report status should be ignored)",
+            HostRoleStatus.ABORTED, am.getAction(requestId, stageId)
+            .getHostRoleStatus(hostname, "HBASE_MASTER"));
+    Stage s = db.getAllStages(requestId).get(0);
+    assertEquals("HostRoleStatus should remain ABORTED " +
+            "(command report status should be ignored)",
+            HostRoleStatus.ABORTED,s.getHostRoleStatus(hostname, "HBASE_MASTER"));
   }
   
   @Test
@@ -129,8 +161,6 @@ public class TestActionDBAccessorImpl {
     stages.add(createStubStage(hostname, requestId, stageId + 1));
     Request request = new Request(stages, clusters);
     db.persistActions(request);
-
-    List<Stage> stages2 = db.getStagesInProgress();
     assertEquals(2, stages.size());
   }
   
@@ -319,7 +349,8 @@ public class TestActionDBAccessorImpl {
 
   @Test
   public void testAbortRequest() throws AmbariException {
-    Stage s = new Stage(requestId, "/a/b", "cluster1", 1L, "action db accessor test", "clusterHostInfo");
+    Stage s = new Stage(requestId, "/a/b", "cluster1", 1L, "action db accessor test",
+      "clusterHostInfo", "commandParamsStage", "hostParamsStage");
     s.setStageId(stageId);
 
     clusters.addHost("host2");
@@ -383,7 +414,8 @@ public class TestActionDBAccessorImpl {
   }
 
   private Stage createStubStage(String hostname, long requestId, long stageId) {
-    Stage s = new Stage(requestId, "/a/b", "cluster1", 1L, "action db accessor test", "clusterHostInfo");
+    Stage s = new Stage(requestId, "/a/b", "cluster1", 1L, "action db accessor test",
+      "clusterHostInfo", "commandParamsStage", "hostParamsStage");
     s.setStageId(stageId);
     s.addHostRoleExecutionCommand(hostname, Role.HBASE_MASTER,
         RoleCommand.START,
@@ -400,7 +432,8 @@ public class TestActionDBAccessorImpl {
 
   private void populateActionDBWithCustomAction(ActionDBAccessor db, String hostname,
                                 long requestId, long stageId) throws AmbariException {
-    Stage s = new Stage(requestId, "/a/b", "cluster1", 1L, "action db accessor test", "");
+    Stage s = new Stage(requestId, "/a/b", "cluster1", 1L, "action db accessor test",
+      "", "commandParamsStage", "hostParamsStage");
     s.setStageId(stageId);
     s.addHostRoleExecutionCommand(hostname, Role.valueOf(actionName),
         RoleCommand.ACTIONEXECUTE,

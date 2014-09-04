@@ -33,7 +33,8 @@ ALL_ACTIONS = [ RECOMMEND_COMPONENT_LAYOUT_ACTION, VALIDATE_COMPONENT_LAYOUT_ACT
 USAGE = "Usage: <action> <hosts_file> <services_file>\nPossible actions are: {0}\n".format( str(ALL_ACTIONS) )
 
 SCRIPT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
-STACK_ADVISOR_PATH_TEMPLATE = os.path.join(SCRIPT_DIRECTORY, '../stacks/{0}/stack_advisor.py')
+STACK_ADVISOR_PATH_TEMPLATE = os.path.join(SCRIPT_DIRECTORY, '../stacks/stack_advisor.py')
+STACK_ADVISOR_DEFAULT_IMPL_CLASS = 'DefaultStackAdvisor'
 STACK_ADVISOR_IMPL_PATH_TEMPLATE = os.path.join(SCRIPT_DIRECTORY, './../stacks/{0}/{1}/services/stack_advisor.py')
 STACK_ADVISOR_IMPL_CLASS_TEMPLATE = '{0}{1}StackAdvisor'
 
@@ -82,8 +83,8 @@ def main(argv=None):
   stackName = services["Versions"]["stack_name"]
   stackVersion = services["Versions"]["stack_version"]
   parentVersions = []
-  if "parent_stack_version" in services["Versions"]:
-    parentVersions = [ services["Versions"]["parent_stack_version"] ]
+  if "stack_hierarchy" in services["Versions"]:
+    parentVersions = services["Versions"]["stack_hierarchy"]["stack_versions"]
 
   stackAdvisor = instantiateStackAdvisor(stackName, stackVersion, parentVersions)
 
@@ -113,29 +114,32 @@ def instantiateStackAdvisor(stackName, stackVersion, parentVersions):
   """Instantiates StackAdvisor implementation for the specified Stack"""
   import imp
 
-  stackAdvisorPath = STACK_ADVISOR_PATH_TEMPLATE.format(stackName)
-  with open(stackAdvisorPath, 'rb') as fp:
-    stack_advisor = imp.load_module( 'stack_advisor', fp, stackAdvisorPath, ('.py', 'rb', imp.PY_SOURCE) )
+  with open(STACK_ADVISOR_PATH_TEMPLATE, 'rb') as fp:
+    default_stack_advisor = imp.load_module('stack_advisor', fp, STACK_ADVISOR_PATH_TEMPLATE, ('.py', 'rb', imp.PY_SOURCE))
+  className = STACK_ADVISOR_DEFAULT_IMPL_CLASS
+  stack_advisor = default_stack_advisor
 
   versions = [stackVersion]
   versions.extend(parentVersions)
 
-  for version in versions:
+  for version in reversed(versions):
     try:
       path = STACK_ADVISOR_IMPL_PATH_TEMPLATE.format(stackName, version)
-      className = STACK_ADVISOR_IMPL_CLASS_TEMPLATE.format(stackName, version.replace('.', ''))
 
       with open(path, 'rb') as fp:
-        stack_advisor_impl = imp.load_module( 'stack_advisor_impl', fp, path, ('.py', 'rb', imp.PY_SOURCE) )
-      clazz = getattr(stack_advisor_impl, className)
-
-      print "StackAdvisor for stack {0}, version {1} will be used".format(stackName, version)
-      return clazz();
-    except Exception, e:
+        stack_advisor = imp.load_module('stack_advisor_impl', fp, path, ('.py', 'rb', imp.PY_SOURCE))
+      className = STACK_ADVISOR_IMPL_CLASS_TEMPLATE.format(stackName, version.replace('.', ''))
+      print "StackAdvisor implementation for stack {0}, version {1} was loaded".format(stackName, version)
+    except Exception:
       print "StackAdvisor implementation for stack {0}, version {1} was not found".format(stackName, version)
 
-  print "StackAdvisor default implementation will be used!"
-  return stack_advisor.StackAdvisor()
+  try:
+    clazz = getattr(stack_advisor, className)
+    print "Returning " + className + " implementation"
+    return clazz()
+  except Exception, e:
+    print "Returning default implementation"
+    return default_stack_advisor.DefaultStackAdvisor()
 
 
 if __name__ == '__main__':

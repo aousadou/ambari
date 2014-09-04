@@ -35,6 +35,7 @@
     <resource_management.install.dir>/usr/lib/ambari-server/lib/resource_management</resource_management.install.dir>
     <ambari-web-dir>${basedir}/../ambari-web/public</ambari-web-dir>
     <ambari-admin-dir>${basedir}/../ambari-admin</ambari-admin-dir>
+    <contrib-views-dir>${basedir}/../contrib/views</contrib-views-dir>
   </properties>
   <build>
     <plugins>
@@ -135,12 +136,14 @@
             <exclude>src/main/resources/db/serial</exclude>
             <exclude>src/main/resources/db/index.txt</exclude>
             <exclude>src/main/resources/stacks/HDP/2.1.GlusterFS/services/YARN/package/templates/exclude_hosts_list.j2</exclude>
+            <exclude>src/main/resources/stacks/HDP/2.0.6/services/HDFS/package/scripts/balancer-emulator/balancer-err.log</exclude>
+            <exclude>src/main/resources/stacks/HDP/2.0.6/services/HDFS/package/scripts/balancer-emulator/balancer.log</exclude>
             <exclude>conf/unix/ca.config</exclude>
             <exclude>conf/unix/krb5JAASLogin.conf</exclude>
             <exclude>**/*.json</exclude>
             <exclude>**/*.sql</exclude>
             <exclude>**/repo_suse_rhel.j2</exclude>
-            <exclude>**/repo_debian.j2</exclude>
+            <exclude>**/repo_ubuntu.j2</exclude>
             <exclude>**/.pydev*</exclude>
 
             <!--gitignore content -->
@@ -209,6 +212,7 @@
           <copyright>2012, Apache Software Foundation</copyright>
           <group>Development</group>
           <description>Maven Recipe: RPM Package.</description>
+          <autoRequires>no</autoRequires>
           <requires>
             <require>postgresql-server &gt;= 8.1</require>
             <require>openssl</require>
@@ -226,6 +230,10 @@
             <scriptFile>src/main/package/rpm/preremove.sh</scriptFile>
             <fileEncoding>utf-8</fileEncoding>
           </preremoveScriptlet>
+          <posttransScriptlet>
+            <scriptFile>src/main/package/rpm/posttrans_server.sh</scriptFile>
+            <fileEncoding>utf-8</fileEncoding>
+          </posttransScriptlet>
           <defaultFilemode>644</defaultFilemode>
           <defaultDirmode>755</defaultDirmode>
           <defaultUsername>root</defaultUsername>
@@ -420,7 +428,10 @@
               <filemode>755</filemode>
               <sources>
                 <source>
-                  <location>${ambari-admin-dir}/target/ambari-admin-${project.version}.jar</location>
+                  <location>${ambari-admin-dir}/target</location>
+                  <includes>
+                    <include>*.jar</include>
+                  </includes>
                 </source>
               </sources>
             </mapping>
@@ -448,6 +459,17 @@
               <sources>
                 <source>
                   <location>target/classes/stacks/HDP</location>
+                </source>
+              </sources>
+            </mapping>
+            <mapping>
+              <directory>/var/lib/ambari-server/resources/stacks</directory>
+              <filemode>755</filemode>
+              <username>root</username>
+              <groupname>root</groupname>
+              <sources>
+                <source>
+                  <location>target/classes/stacks/stack_advisor.py</location>
                 </source>
               </sources>
             </mapping>
@@ -751,8 +773,9 @@
             </mapper>
           </data>
           <data>
-            <src>${ambari-admin-dir}/target/ambari-admin-${project.version}.jar</src>
-            <type>file</type>
+            <src>${ambari-admin-dir}/target</src>
+            <type>directory</type>
+            <includes>*.jar</includes>
             <mapper>
               <type>perm</type>
               <prefix>/var/lib/ambari-server/resources/views</prefix>
@@ -789,6 +812,17 @@
             <mapper>
               <type>perm</type>
               <prefix>/var/lib/ambari-server/resources/stacks/HDP</prefix>
+            </mapper>
+          </data>
+          <data>
+            <src>target/classes/stacks/stack_advisor.py</src>
+            <type>file</type>
+            <mapper>
+              <type>perm</type>
+              <prefix>/var/lib/ambari-server/resources/stacks</prefix>
+              <user>root</user>
+              <group>root</group>
+              <filemode>755</filemode>
             </mapper>
           </data>
           <data>
@@ -921,7 +955,7 @@
                 <argument>${custom.tests}</argument>
               </arguments>
               <environmentVariables>
-                  <PYTHONPATH>${project.basedir}/../ambari-common/src/main/python:${project.basedir}/../ambari-agent/src/main/python:${project.basedir}/../ambari-common/src/main/python/jinja2:${project.basedir}/../ambari-common/src/main/python/ambari_commons:${project.basedir}/../ambari-common/src/test/python:${project.basedir}/src/main/python:${project.basedir}/src/main/python/ambari-server-state:${project.basedir}/src/test/python:$PYTHONPATH</PYTHONPATH>
+                  <PYTHONPATH>${project.basedir}/../ambari-common/src/main/python:${project.basedir}/../ambari-agent/src/main/python:${project.basedir}/../ambari-common/src/main/python/ambari_jinja2:${project.basedir}/../ambari-common/src/main/python/ambari_commons:${project.basedir}/../ambari-common/src/test/python:${project.basedir}/src/main/python:${project.basedir}/src/main/python/ambari-server-state:${project.basedir}/src/test/python:$PYTHONPATH</PYTHONPATH>
               </environmentVariables>
               <skip>${skipTests}</skip>
             </configuration>
@@ -978,6 +1012,23 @@
             <goals>
               <goal>run</goal>
             </goals>
+          </execution>
+          <!-- Copies compiled views into known location for RPM builds -->
+          <execution>
+            <id>copy-view-jars</id>
+            <phase>package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <copy todir="${ambari-admin-dir}/target" flatten="true">
+                  <fileset dir="${contrib-views-dir}">
+                    <include name="*/target/*jar" />
+                  </fileset>
+                </copy>
+              </target>
+            </configuration>
           </execution>
         </executions>
       </plugin>

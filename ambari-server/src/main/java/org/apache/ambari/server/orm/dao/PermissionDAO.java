@@ -33,11 +33,13 @@ import java.util.List;
  */
 @Singleton
 public class PermissionDAO {
+
   /**
    * JPA entity manager
    */
   @Inject
   Provider<EntityManager> entityManagerProvider;
+
   @Inject
   DaoUtils daoUtils;
 
@@ -68,12 +70,52 @@ public class PermissionDAO {
    * @param name         the permission name
    * @param resourceType the resource type
    *
-   * @return  a matching permission entity or null
+   * @return a matching permission entity or null
    */
   public PermissionEntity findPermissionByNameAndType(String name, ResourceTypeEntity resourceType) {
+    if (name.equals(PermissionEntity.VIEW_USE_PERMISSION_NAME)) {
+      // VIEW.USE permission should be available for any type of views
+      return findViewUsePermission();
+    }
     TypedQuery<PermissionEntity> query = entityManagerProvider.get().createQuery("SELECT p FROM PermissionEntity p WHERE p.permissionName=:permissionname AND p.resourceType=:resourcetype", PermissionEntity.class);
     query.setParameter("permissionname", name);
     query.setParameter("resourcetype", resourceType);
     return daoUtils.selectSingle(query);
+  }
+
+  /**
+   * Find AMBARI.ADMIN permission.
+   *
+   * @return a matching permission entity or null
+   */
+  public PermissionEntity findAmbariAdminPermission() {
+    return findById(PermissionEntity.AMBARI_ADMIN_PERMISSION);
+  }
+
+  /**
+   * Find VIEW.USE permission.
+   *
+   * @return a matching permission entity or null
+   */
+  public PermissionEntity findViewUsePermission() {
+    return findById(PermissionEntity.VIEW_USE_PERMISSION);
+  }
+
+  /**
+   * Find CLUSTER.OPERATE permission.
+   *
+   * @return a matching permission entity or null
+   */
+  public PermissionEntity findClusterOperatePermission() {
+    return findById(PermissionEntity.CLUSTER_OPERATE_PERMISSION);
+  }
+
+  /**
+   * Find CLUSTER.READ permission.
+   *
+   * @return a matching permission entity or null
+   */
+  public PermissionEntity findClusterReadPermission() {
+    return findById(PermissionEntity.CLUSTER_READ_PERMISSION);
   }
 }

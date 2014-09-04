@@ -48,10 +48,7 @@ App.ServiceConfigView = Em.View.extend({
         return false;
     }
   }.property('controller.name', 'controller.selectedService'),
-  showConfigHistoryFlow: function() {
-    //TODO change condition to actual
-    return (this.get('controller.name') === 'mainServiceInfoConfigsController' && this.get('controller.selectedConfigGroup.isDefault'))
-  }.property('controller.name', 'controller.selectedConfigGroup.isDefault'),
+  showConfigHistoryFeature: false,
   toggleRestartMessageView: function () {
     this.$('.service-body').toggle('blind', 200);
     this.set('isRestartMessageCollapsed', !this.get('isRestartMessageCollapsed'));
@@ -107,7 +104,8 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
   // default,
   // cacheable )
   categoryConfigs: function () {
-    return this.get('serviceConfigs').filterProperty('category', this.get('category.name')).filterProperty('isVisible', true);
+    var categoryConfigs = this.get('serviceConfigs').filterProperty('category', this.get('category.name'));
+    return this.orderContentAtLast(categoryConfigs).filterProperty('isVisible', true);
   }.property('serviceConfigs.@each', 'categoryConfigsAll.@each.isVisible').cacheable(),
 
   /**
@@ -120,6 +118,31 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
   categoryConfigsAll: function () {
     return this.get('serviceConfigs').filterProperty('category', this.get('category.name'));
   }.property('serviceConfigs.@each').cacheable(),
+
+  /**
+   * Re-order the configs to list content displayType properties at last in the category
+   * @param categoryConfigs
+   */
+  orderContentAtLast: function(categoryConfigs) {
+    var contentProperties =  categoryConfigs.filterProperty('displayType','content');
+    var self = this;
+    if (!contentProperties.length) {
+      return categoryConfigs
+    } else {
+      var comparator;
+      return categoryConfigs.sort(function(a,b){
+        var aContent = contentProperties.someProperty('name', a.get('name'));
+        var bContent = contentProperties.someProperty('name', b.get('name'));
+        if (aContent && bContent) {
+          return 0;
+        } else if (aContent){
+          return 1;
+        } else {
+          return -1;
+        }
+      });
+    }
+  },
 
   /**
    * Warn/prompt user to adjust Service props when changing user/groups in Misc
@@ -331,7 +354,7 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
       var passesFilters = true;
 
       selectedFilters.forEach(function (filter) {
-        if (!config.get(filter.attributeName)) {
+        if (config.get(filter.attributeName) !== filter.attributeValue) {
           passesFilters = false;
         }
       });
@@ -374,7 +397,7 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
     var categoryBlock = $('.' + this.get('category.name').split(' ').join('.') + '>.accordion-body');
     filteredResult.length && !this.get('category.isCollapsed') ? categoryBlock.show() : categoryBlock.hide();
     return filteredResult;
-  }.property('categoryConfigs', 'parentView.filter', 'parentView.columns.@each.selected').cacheable(),
+  }.property('categoryConfigs', 'parentView.filter', 'parentView.columns.@each.selected', 'categoryConfigs.@each.isValid').cacheable(),
 
   /**
    * sort configs in current category by index
@@ -425,7 +448,8 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
     } else {
       this.$('.accordion-body').show();
     }
-    App.tooltip(this.$('[data-toggle=tooltip]'),{
+    $('body').tooltip({
+      selector: '[data-toggle=tooltip]',
       placement: 'top'
     });
     this.updateReadOnlyFlags();
@@ -681,6 +705,10 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
   removeProperty: function (event) {
     var serviceConfigProperty = event.contexts[0];
     this.get('serviceConfigs').removeObject(serviceConfigProperty);
+    // push config's file name if this config was stored on server
+    if (!serviceConfigProperty.get('isNotSaved')) {
+      this.get('controller').get('modifiedFileNames').push(serviceConfigProperty.get('filename'));
+    }
     Em.$('body>.tooltip').remove(); //some tooltips get frozen when their owner's DOM element is removed
   },
 

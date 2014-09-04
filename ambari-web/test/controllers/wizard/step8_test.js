@@ -282,21 +282,6 @@ describe('App.WizardStep8Controller', function () {
       installerStep8Controller.loadStep();
       expect(installerStep8Controller.get('isBackBtnDisabled')).to.equal(false);
     });
-    it('should call setSecurityStatus for non-installerController', function () {
-      var obj = Em.Object.create({
-        setSecurityStatus: Em.K
-      });
-      sinon.stub(App.router, 'get', function () {
-        return obj;
-      });
-      sinon.spy(obj, 'setSecurityStatus');
-      installerStep8Controller.set('content.controllerName', 'addServiceController');
-      installerStep8Controller.loadStep();
-      expect(obj.setSecurityStatus.calledOnce).to.equal(true);
-      obj.setSecurityStatus.restore();
-      App.router.get.restore();
-
-    });
   });
 
   describe('#removeHiveConfigs', function () {
@@ -304,6 +289,7 @@ describe('App.WizardStep8Controller', function () {
         {
           globals: [
             {name: 'hive_database', value: 'New MySQL Database'},
+            {name: 'hive_database_type', value: 'mysql'},
             {name: 'hive_ambari_host', value: 'h1'},
             {name: 'hive_hostname', value: 'h2'}
           ],
@@ -316,6 +302,7 @@ describe('App.WizardStep8Controller', function () {
         {
           globals: [
             {name: 'hive_database', value: 'Existing MySQL Database'},
+            {name: 'hive_database_type', value: 'mysql'},
             {name: 'hive_existing_mysql_host', value: 'h1'},
             {name: 'hive_hostname', value: 'h2'}
           ],
@@ -328,6 +315,7 @@ describe('App.WizardStep8Controller', function () {
         {
           globals: [
             {name: 'hive_database', value: 'Existing PostgreSQL Database'},
+            {name: 'hive_database_type', value: 'postgresql'},
             {name: 'hive_existing_postgresql_host', value: 'h1'},
             {name: 'hive_hostname', value: 'h2'}
           ],
@@ -340,6 +328,7 @@ describe('App.WizardStep8Controller', function () {
         {
           globals: [
             {name: 'hive_database', value: 'Existing Oracle Database'},
+            {name: 'hive_database_type', value: 'oracle'},
             {name: 'hive_existing_oracle_host', value: 'h1'},
             {name: 'hive_hostname', value: 'h2'}
           ],
@@ -369,6 +358,7 @@ describe('App.WizardStep8Controller', function () {
         {
           globals: [
             {name: 'oozie_database', value: 'New Derby Database'},
+            {name: 'oozie_database_type', value: 'derby'},
             {name: 'oozie_ambari_host', value: 'h1'},
             {name: 'oozie_hostname', value: 'h2'}
           ],
@@ -382,6 +372,7 @@ describe('App.WizardStep8Controller', function () {
         {
           globals: [
             {name: 'oozie_database', value: 'Existing MySQL Database'},
+            {name: 'oozie_database_type', value: 'mysql'},
             {name: 'oozie_existing_mysql_host', value: 'h1'},
             {name: 'oozie_hostname', value: 'h2'}
           ],
@@ -394,6 +385,7 @@ describe('App.WizardStep8Controller', function () {
         {
           globals: [
             {name: 'oozie_database', value: 'Existing PostgreSQL Database'},
+            {name: 'oozie_database_type', value: 'postgresql'},
             {name: 'oozie_existing_postgresql_host', value: 'h1'},
             {name: 'oozie_hostname', value: 'h2'}
           ],
@@ -406,6 +398,7 @@ describe('App.WizardStep8Controller', function () {
         {
           globals: [
             {name: 'oozie_database', value: 'Existing Oracle Database'},
+            {name: 'oozie_database_type', value: 'oracle'},
             {name: 'oozie_existing_oracle_host', value: 'h1'},
             {name: 'oozie_hostname', value: 'h2'}
           ],
@@ -1294,7 +1287,7 @@ describe('App.WizardStep8Controller', function () {
       it('should call addRequestToAjaxQueue', function() {
         var serviceConfigTags = [
             {
-              type: 'type1',
+              type: 'hdfs',
               tag: 'tag1',
               properties: [
                 {},
@@ -1304,15 +1297,19 @@ describe('App.WizardStep8Controller', function () {
           ],
           data = '['+JSON.stringify({
             Clusters: {
-              desired_config: {
-                type: serviceConfigTags[0].type,
-                tag: serviceConfigTags[0].tag,
-                properties: serviceConfigTags[0].properties
-              }
+              desired_config: [serviceConfigTags[0]]
             }
           })+']';
-        installerStep8Controller.reopen({serviceConfigTags: serviceConfigTags});
-        installerStep8Controller.applyConfigurationsToCluster();
+        installerStep8Controller.reopen({
+          selectedServices: [
+              Em.Object.create({
+                isSelected: true,
+                isInstalled: false,
+                configTypesRendered: {hdfs:'tag1'}
+              })
+            ]
+        });
+        installerStep8Controller.applyConfigurationsToCluster(serviceConfigTags);
         expect(installerStep8Controller.addRequestToAjaxQueue.args[0][0].data).to.eql({data: data});
       });
     });

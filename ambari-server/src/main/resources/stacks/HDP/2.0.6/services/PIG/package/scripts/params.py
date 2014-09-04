@@ -28,6 +28,7 @@ tmp_dir = Script.get_tmp_dir()
 pig_conf_dir = "/etc/pig/conf"
 hadoop_conf_dir = "/etc/hadoop/conf"
 hdfs_user = config['configurations']['hadoop-env']['hdfs_user']
+hdfs_principal_name = config['configurations']['hadoop-env']['hdfs_principal_name']
 smokeuser = config['configurations']['hadoop-env']['smokeuser']
 user_group = config['configurations']['hadoop-env']['user_group']
 _authentication = config['configurations']['core-site']['hadoop.security.authentication']
@@ -40,16 +41,6 @@ pig_env_sh_template = config['configurations']['pig-env']['content']
 java64_home = config['hostLevelParams']['java_home']
 hadoop_home = "/usr"
 
-# pig.properties - if not in the JSON command, then we need to esnure some 
-# basic properties are set; this is a safety mechanism
-if (('pig-properties' in config['configurations']) and ('pig-content' in config['configurations']['pig-properties'])):
-  pig_properties = config['configurations']['pig-properties']['pig-content']
-else:
-  pig_properties = """hcat.bin=/usr/bin/hcat
-pig.location.check.strict=false"""
+pig_properties = config['configurations']['pig-properties']['content']
 
-# log4j.properties
-if (('pig-log4j' in config['configurations']) and ('content' in config['configurations']['pig-log4j'])):
-  log4j_props = config['configurations']['pig-log4j']['content']
-else:
-  log4j_props = None
+log4j_props = config['configurations']['pig-log4j']['content']

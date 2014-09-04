@@ -20,12 +20,14 @@
   <services>
     <service>
       <name>HIVE</name>
+      <displayName>Hive</displayName>
       <comment>Data warehouse system for ad-hoc queries &amp; analysis of large datasets and table &amp; storage management service</comment>
       <version>0.12.0.2.0</version>
       <components>
 
         <component>
           <name>HIVE_METASTORE</name>
+          <displayName>Hive Metastore</displayName>
           <category>MASTER</category>
           <cardinality>1</cardinality>
           <auto-deploy>
@@ -41,6 +43,7 @@
 
         <component>
           <name>HIVE_SERVER</name>
+          <displayName>HiveServer2</displayName>
           <category>MASTER</category>
           <cardinality>1</cardinality>
           <dependencies>
@@ -75,6 +78,7 @@
 
         <component>
           <name>MYSQL_SERVER</name>
+          <displayName>MySQL Server</displayName>
           <category>MASTER</category>
           <cardinality>0-1</cardinality>
           <commandScript>
@@ -85,12 +89,35 @@
 
         <component>
           <name>HIVE_CLIENT</name>
+          <displayName>Hive Client</displayName>
           <category>CLIENT</category>
           <cardinality>1+</cardinality>
           <commandScript>
             <script>scripts/hive_client.py</script>
             <scriptType>PYTHON</scriptType>
           </commandScript>
+          <configFiles>
+            <configFile>
+              <type>xml</type>
+              <fileName>hive-site.xml</fileName>
+              <dictionaryName>hive-site</dictionaryName>
+            </configFile>
+            <configFile>
+              <type>env</type>
+              <fileName>hive-env.sh</fileName>
+              <dictionaryName>hive-env</dictionaryName>
+            </configFile>
+            <configFile>
+              <type>env</type>
+              <fileName>hive-log4j.properties</fileName>
+              <dictionaryName>hive-log4j</dictionaryName>
+            </configFile>
+            <configFile>
+              <type>env</type>
+              <fileName>hive-exec-log4j.properties</fileName>
+              <dictionaryName>hive-exec-log4j</dictionaryName>
+            </configFile>                         
+          </configFiles>
         </component>
       </components>
 
@@ -115,7 +142,7 @@
           </packages>
         </osSpecific>
         <osSpecific>
-          <osFamily>redhat5,redhat6,debian12</osFamily>
+          <osFamily>redhat5,redhat6,ubuntu12</osFamily>
           <packages>
             <package>
               <name>mysql-server</name>
@@ -137,26 +164,59 @@
         <scriptType>PYTHON</scriptType>
         <timeout>300</timeout>
       </commandScript>
+      
+      <requiredServices>
+        <service>ZOOKEEPER</service>
+        <service>YARN</service>
+        <service>TEZ</service>
+      </requiredServices>
 
       <configuration-dependencies>
         <config-type>hive-site</config-type>
         <config-type>hive-log4j</config-type>
         <config-type>hive-exec-log4j</config-type>
+        <config-type>hive-env</config-type>
       </configuration-dependencies>
     </service>
 
     <service>
       <name>HCATALOG</name>
-      <comment>This is comment for HCATALOG service</comment>
+      <displayName>HCatalog</displayName>
+      <comment>A table and storage management layer for Hadoop that enables users with different data processing tools
+        to more easily read and write data on the grid.
+      </comment>
       <version>0.12.0.2.0.6.0</version>
       <components>
         <component>
           <name>HCAT</name>
+          <displayName>HCat</displayName>
           <category>CLIENT</category>
           <commandScript>
             <script>scripts/hcat_client.py</script>
             <scriptType>PYTHON</scriptType>
           </commandScript>
+          <configFiles>
+            <configFile>
+              <type>xml</type>
+              <fileName>hive-site.xml</fileName>
+              <dictionaryName>hive-site</dictionaryName>
+            </configFile>
+            <configFile>
+              <type>env</type>
+              <fileName>hive-env.sh</fileName>
+              <dictionaryName>hive-env</dictionaryName>
+            </configFile>
+            <configFile>
+              <type>env</type>
+              <fileName>hive-log4j.properties</fileName>
+              <dictionaryName>hive-log4j</dictionaryName>
+            </configFile>
+            <configFile>
+              <type>env</type>
+              <fileName>hive-exec-log4j.properties</fileName>
+              <dictionaryName>hive-exec-log4j</dictionaryName>
+            </configFile>
+          </configFiles>
         </component>
       </components>
       <osSpecifics>
@@ -174,10 +234,21 @@
         <scriptType>PYTHON</scriptType>
         <timeout>300</timeout>
       </commandScript>
+      
+      <requiredServices>
+        <service>HIVE</service>
+      </requiredServices>
+      
       <configuration-dependencies>
         <config-type>hive-site</config-type>
         <config-type>hive-env</config-type>
       </configuration-dependencies>
+      <excluded-config-types>
+        <config-type>hive-env</config-type>
+        <config-type>hive-site</config-type>
+        <config-type>hive-exec-log4j</config-type>
+        <config-type>hive-log4j</config-type>
+      </excluded-config-types>
     </service>
 
   </services>

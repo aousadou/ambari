@@ -38,17 +38,25 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
 
     beforeEach(function () {
       sinon.stub(App.router, 'send', Em.K);
+      sinon.stub(controller, 'clearStep', Em.K);
+      sinon.stub(controller, 'loadComponents', Em.K);
       sinon.stub(controller, 'loadStepCallback', Em.K);
       sinon.stub(controller, 'rebalanceSingleComponentHosts', Em.K);
     });
 
     afterEach(function () {
-      controller.rebalanceSingleComponentHosts.restore();
       App.router.send.restore();
+      controller.clearStep.restore();
       controller.loadStepCallback.restore();
+      controller.loadComponents.restore();
+      controller.rebalanceSingleComponentHosts.restore();
     });
 
     it('SECONDARY_NAMENODE is absent, reassign component is NAMENODE', function () {
+      sinon.stub(App, 'get', function (k) {
+        if (k === 'isHaEnabled') return true;
+        return Em.get(App, k);
+      });
       controller.set('content.reassign.component_name', 'NAMENODE');
       controller.set('content.masterComponentHosts', []);
 
@@ -56,8 +64,13 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
       expect(controller.get('showCurrentHost')).to.be.false;
       expect(controller.get('componentToRebalance')).to.equal('NAMENODE');
       expect(controller.get('rebalanceComponentHostsCounter')).to.equal(1);
+      App.get.restore();
     });
     it('SECONDARY_NAMENODE is present, reassign component is NAMENODE', function () {
+      sinon.stub(App, 'get', function (k) {
+        if (k === 'isHaEnabled') return false;
+        return Em.get(App, k);
+      });
       controller.set('content.reassign.component_name', 'NAMENODE');
       controller.set('content.masterComponentHosts', [
         {
@@ -68,6 +81,7 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
       controller.loadStep();
       expect(controller.get('showCurrentHost')).to.be.true;
       expect(controller.rebalanceSingleComponentHosts.calledWith('NAMENODE'));
+      App.get.restore();
     });
     it('SECONDARY_NAMENODE is absent, reassign component is not NAMENODE', function () {
       controller.set('content.reassign.component_name', 'COMP');
@@ -78,12 +92,15 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
       expect(controller.rebalanceSingleComponentHosts.calledWith('COMP'));
     });
     it('if HA is enabled then multipleComponents should contain NAMENODE', function () {
-      sinon.stub(App,'get', function() {
-        return true;
+      controller.get('multipleComponents').clear();
+      sinon.stub(App, 'get', function (k) {
+        if (k === 'isHaEnabled') return true;
+        return Em.get(App, k);
       });
 
       controller.loadStep();
-      expect(controller.get('multipleComponents')).to.eql(['NAMENODE']);
+      expect(controller.get('multipleComponents')).to.contain('NAMENODE');
+      expect(controller.get('multipleComponents')).to.have.length(1);
       App.get.restore();
     });
   });
@@ -222,7 +239,7 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
     });
   });
 
-  describe('#getIsSubmitDisabled', function () {
+  describe('#updateIsSubmitDisabled', function () {
     var hostComponents = [];
     var isSubmitDisabled = false;
 
@@ -239,7 +256,7 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
       controller._super.restore();
     });
     it('No host-components, reassigned equal 0', function () {
-      expect(controller.getIsSubmitDisabled()).to.be.true;
+      expect(controller.updateIsSubmitDisabled()).to.be.true;
       expect(controller.get('submitDisabled')).to.be.true;
     });
     it('Reassign component match existed components, reassigned equal 0', function () {
@@ -252,7 +269,7 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
         selectedHost: 'host1'
       }]);
 
-      expect(controller.getIsSubmitDisabled()).to.be.true;
+      expect(controller.updateIsSubmitDisabled()).to.be.true;
       expect(controller.get('submitDisabled')).to.be.true;
     });
     it('Reassign component do not match existed components, reassigned equal 1', function () {
@@ -263,7 +280,7 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
       })];
       controller.set('servicesMasters', []);
 
-      expect(controller.getIsSubmitDisabled()).to.be.false;
+      expect(controller.updateIsSubmitDisabled()).to.be.false;
       expect(controller.get('submitDisabled')).to.be.false;
     });
     it('Reassign component do not match existed components, reassigned equal 2', function () {
@@ -280,14 +297,14 @@ describe('App.ReassignMasterWizardStep2Controller', function () {
       ];
       controller.set('servicesMasters', []);
 
-      expect(controller.getIsSubmitDisabled()).to.be.true;
+      expect(controller.updateIsSubmitDisabled()).to.be.true;
       expect(controller.get('submitDisabled')).to.be.true;
     });
 
     it('submitDisabled is already true', function () {
       isSubmitDisabled = true;
 
-      expect(controller.getIsSubmitDisabled()).to.be.true;
+      expect(controller.updateIsSubmitDisabled()).to.be.true;
       expect(controller.get('submitDisabled')).to.be.true;
     });
   });

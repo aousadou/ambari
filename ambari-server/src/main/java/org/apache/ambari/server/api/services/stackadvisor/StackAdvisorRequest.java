@@ -19,6 +19,7 @@
 package org.apache.ambari.server.api.services.stackadvisor;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,9 +34,13 @@ public class StackAdvisorRequest {
 
   private String stackName;
   private String stackVersion;
+  private StackAdvisorRequestType requestType;
   private List<String> hosts = new ArrayList<String>();
   private List<String> services = new ArrayList<String>();
   private Map<String, Set<String>> componentHostsMap = new HashMap<String, Set<String>>();
+  private Map<String, Set<String>> hostComponents = new HashMap<String, Set<String>>();
+  private Map<String, Set<String>> hostGroupBindings = new HashMap<String, Set<String>>();
+  private Map<String, Map<String, Map<String, String>>> configurations = new HashMap<String, Map<String, Map<String, String>>>();
 
   public String getStackName() {
     return stackName;
@@ -43,6 +48,10 @@ public class StackAdvisorRequest {
 
   public String getStackVersion() {
     return stackVersion;
+  }
+
+  public StackAdvisorRequestType getRequestType() {
+    return requestType;
   }
 
   public List<String> getHosts() {
@@ -65,6 +74,18 @@ public class StackAdvisorRequest {
     return StringUtils.join(services, ",");
   }
 
+  public Map<String, Set<String>> getHostComponents() {
+    return hostComponents;
+  }
+
+  public Map<String, Set<String>> getHostGroupBindings() {
+    return hostGroupBindings;
+  }
+
+  public Map<String, Map<String, Map<String, String>>> getConfigurations() {
+    return configurations;
+  }
+
   private StackAdvisorRequest(String stackName, String stackVersion) {
     this.stackName = stackName;
     this.stackVersion = stackVersion;
@@ -79,6 +100,11 @@ public class StackAdvisorRequest {
 
     public static StackAdvisorRequestBuilder forStack(String stackName, String stackVersion) {
       return new StackAdvisorRequestBuilder(stackName, stackVersion);
+    }
+
+    public StackAdvisorRequestBuilder ofType(StackAdvisorRequestType requestType) {
+      this.instance.requestType = requestType;
+      return this;
     }
 
     public StackAdvisorRequestBuilder forHosts(List<String> hosts) {
@@ -97,9 +123,53 @@ public class StackAdvisorRequest {
       return this;
     }
 
+    public StackAdvisorRequestBuilder forHostComponents(Map<String, Set<String>> hostComponents) {
+      this.instance.hostComponents = hostComponents;
+      return this;
+    }
+
+    public StackAdvisorRequestBuilder forHostsGroupBindings(
+        Map<String, Set<String>> hostGroupBindings) {
+      this.instance.hostGroupBindings = hostGroupBindings;
+      return this;
+    }
+
+    public StackAdvisorRequestBuilder withConfigurations(
+        Map<String, Map<String, Map<String, String>>> configurations) {
+      this.instance.configurations = configurations;
+      return this;
+    }
+
     public StackAdvisorRequest build() {
       return this.instance;
     }
   }
 
+  public enum StackAdvisorRequestType {
+    HOST_GROUPS("host_groups"), CONFIGURATIONS("configurations");
+
+    private String type;
+
+    private StackAdvisorRequestType(String type) {
+      this.type = type;
+    }
+
+    @Override
+    public String toString() {
+      return type;
+    }
+
+    public static StackAdvisorRequestType fromString(String text) throws StackAdvisorException {
+      if (text != null) {
+        for (StackAdvisorRequestType next : StackAdvisorRequestType.values()) {
+          if (text.equalsIgnoreCase(next.type)) {
+            return next;
+          }
+        }
+      }
+      throw new StackAdvisorException(String.format(
+          "Unknown request type: %s, possible values: %s", text,
+          Arrays.toString(StackAdvisorRequestType.values())));
+    }
+  }
 }

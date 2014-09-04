@@ -120,20 +120,17 @@ App.HighAvailabilityProgressPageController = App.HighAvailabilityWizardControlle
       primary: Em.I18n.t('yes'),
       showCloseButton: false,
       onPrimary: function () {
+        var self = this;
         var controller = App.router.get('highAvailabilityWizardController');
         controller.clearTasksData();
         controller.clearStorageData();
-        controller.setCurrentStep('1');
+        controller.finish();
         App.router.get('updateController').set('isWorking', true);
         App.clusterStatus.setClusterStatus({
           clusterName: App.router.get('content.cluster.name'),
           clusterState: 'DEFAULT',
-          wizardControllerName: App.router.get('highAvailabilityRollbackController.name'),
           localdb: App.db.data
-        });
-        this.hide();
-        App.router.transitionTo('main.admin.index');
-        location.reload();
+        },{alwaysCallback: function() {self.hide();App.router.transitionTo('main.index');location.reload();}});
       },
       secondary: Em.I18n.t('no'),
       onSecondary: function () {
@@ -410,6 +407,29 @@ App.HighAvailabilityProgressPageController = App.HighAvailabilityWizardControlle
       this.removeObserver('tasks.@each.status', this, 'onTaskStatusChange');
       App.router.send('next');
     }
+  },
+  /**
+   *
+   * @param siteNames Array
+   */
+  reconfigureSites: function(siteNames,data) {
+    var tagName =  'version' + (new Date).getTime();
+    var componentName;
+    switch (this.get('content.controllerName')) {
+      case 'rMHighAvailabilityWizardController':
+        componentName =  'RESOURCEMANAGER';
+        break;
+      default:
+        componentName =  'NAMENODE';
+    }
+    return siteNames.map(function(_siteName){
+      return {
+        type: _siteName,
+        tag: tagName,
+        properties: data.items.findProperty('type', _siteName).properties,
+        service_config_version_note: Em.I18n.t('admin.highAvailability.step4.save.configuration.note').format(App.format.role(componentName))
+      }
+    });
   }
 });
 

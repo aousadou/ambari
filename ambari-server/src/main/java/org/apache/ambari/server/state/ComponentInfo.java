@@ -18,18 +18,18 @@
 
 package org.apache.ambari.server.state;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlElementWrapper;
 import javax.xml.bind.annotation.XmlElements;
+import java.util.ArrayList;
+import java.util.List;
 
 @XmlAccessorType(XmlAccessType.FIELD)
 public class ComponentInfo {
   private String name;
+  private String displayName;
   private String category;
   private boolean deleted;
   private String cardinality;
@@ -38,6 +38,13 @@ public class ComponentInfo {
   * Added at schema ver 2
   */
   private CommandScriptDefinition commandScript;
+
+  /**
+   *
+   */
+  @XmlElementWrapper(name = "configFiles")
+  @XmlElements(@XmlElement(name = "configFile"))
+  private List<ClientConfigFileDefinition> clientConfigFiles;
 
   /**
    * Added at schema ver 2
@@ -77,6 +84,7 @@ public class ComponentInfo {
     dependencies = prototype.dependencies;
     autoDeploy = prototype.autoDeploy;
     configDependencies = prototype.configDependencies;
+    clientConfigFiles = prototype.clientConfigFiles;
   }
 
   public String getName() {
@@ -85,6 +93,14 @@ public class ComponentInfo {
 
   public void setName(String name) {
     this.name = name;
+  }
+
+  public String getDisplayName() {
+    return displayName;
+  }
+
+  public void setDisplayName(String displayName) {
+    this.displayName = displayName;
   }
 
   public String getCategory() {
@@ -119,6 +135,14 @@ public class ComponentInfo {
     this.commandScript = commandScript;
   }
 
+  public List<ClientConfigFileDefinition> getClientConfigFiles() {
+    return clientConfigFiles;
+  }
+
+  public void setClientConfigFiles(List<ClientConfigFileDefinition> clientConfigFiles) {
+    this.clientConfigFiles = clientConfigFiles;
+  }
+
   public List<CustomCommandDefinition> getCustomCommands() {
     if (customCommands == null) {
       customCommands = new ArrayList<CustomCommandDefinition>();
@@ -139,6 +163,14 @@ public class ComponentInfo {
       }
     }
     return false;
+  }
+  public CustomCommandDefinition getCustomCommandByName(String commandName){
+    for(CustomCommandDefinition ccd : getCustomCommands()){
+      if (ccd.getName().equals(commandName)){
+        return ccd;
+      }
+    }
+    return null;
   }
 
   public List<DependencyInfo> getDependencies() {

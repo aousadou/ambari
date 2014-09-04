@@ -23,35 +23,61 @@ var dateUtil = require('utils/date');
 
 App.ServiceConfigVersion = DS.Model.extend({
   serviceName: DS.attr('string'),
+  displayName: function() {
+    return App.format.role(this.get('serviceName'));
+  }.property('serviceName'),
+  groupName: DS.attr('string'),
+  groupId: DS.attr('string'),
   version: DS.attr('number'),
   createTime: DS.attr('number'),
-  appliedTime: DS.attr('number'),
   author: DS.attr('string'),
   notes: DS.attr('string'),
   service: DS.belongsTo('App.Service'),
   index: DS.attr('number'),
+  isCurrent: DS.attr('boolean'),
+  isDisplayed: DS.attr('boolean'),
+  currentTooltip: function () {
+    return Em.I18n.t('dashboard.configHistory.table.current.tooltip').format(this.get('displayName'), this.get('configGroupName'));
+  }.property('displayName', 'configGroupName'),
+  configGroupName: function () {
+    return (this.get('groupName') === 'default') ? (this.get('displayName') + ' ' + Em.I18n.t('common.default')) : this.get('groupName');
+  }.property('groupName'),
   briefNotes: function () {
-    var length = this.get('isCurrent') ? 20 : 40;
-    return (typeof this.get('notes') === 'string') ? this.get('notes').slice(0, length) : "";
-  }.property('notes', 'isCurrent'),
-  serviceVersion: function () {
-    return this.get('serviceName') + ': ' + this.get('version');
-  }.property('serviceName', 'version'),
-  modifiedDate: function () {
-    return dateUtil.dateFormat(this.get('appliedTime'));
+    return (typeof this.get('notes') === 'string') ? this.get('notes').slice(0, 100) : "";
+  }.property('notes'),
+  versionText: function () {
+    return Em.I18n.t('dashboard.configHistory.table.version.versionText').format(this.get('version'));
+  }.property('version'),
+  makeCurrentButtonText: function() {
+    return Em.I18n.t('dashboard.configHistory.info-bar.revert.versionButton').format(this.get('versionText'));
+  }.property('versionText'),
+  createdDate: function () {
+    return dateUtil.dateFormat(this.get('createTime'));
   }.property('createTime'),
-  shortModifiedDate: function () {
-    return dateUtil.dateFormat(this.get('appliedTime'), 'MMM DD, YYYY');
+  timeSinceCreated: function () {
+    return $.timeago(this.get('createTime'));
   }.property('createTime'),
-  //TODO set isCurrent value from API response
-  isCurrent: false,
   /**
    * determine whether ServiceConfigVersion is requested from server
    */
   isRequested: DS.attr('boolean'),
   isRestartRequired: function () {
     return this.get('service.isRestartRequired') && this.get('isCurrent');
-  }.property('service.isRestartRequired', 'isCurrent')
+  }.property('service.isRestartRequired', 'isCurrent'),
+  disabledActionMessages: function () {
+    return {
+      view: (this.get('isDisplayed')) ? Em.I18n.t('dashboard.configHistory.info-bar.view.button.disabled') : '',
+      compare: (this.get('isDisplayed')) ? Em.I18n.t('dashboard.configHistory.info-bar.compare.button.disabled') : '',
+      revert: (this.get('isCurrent')) ? Em.I18n.t('dashboard.configHistory.info-bar.revert.button.disabled') : ''
+    }
+  }.property('isDisplayed', 'isCurrent'),
+  disabledActionAttr: function () {
+    return {
+      view: (this.get('isDisplayed')) ? 'disabled' : false,
+      compare: (this.get('isDisabled') || this.get('isDisplayed')) ? 'disabled' : false,
+      revert: (this.get('isDisabled') || this.get('isCurrent')) ? 'disabled' : false
+    }
+  }.property('isDisplayed', 'isCurrent', 'isDisabled')
 });
 
 App.ServiceConfigVersion.FIXTURES = [];

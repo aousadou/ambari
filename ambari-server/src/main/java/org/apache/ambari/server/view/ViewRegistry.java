@@ -18,10 +18,36 @@
 
 package org.apache.ambari.server.view;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
+import java.beans.IntrospectionException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Unmarshaller;
+
+import com.google.common.collect.Sets;
 import org.apache.ambari.server.api.resources.ResourceInstanceFactoryImpl;
 import org.apache.ambari.server.api.resources.SubResourceDefinition;
 import org.apache.ambari.server.api.resources.ViewExternalSubResourceDefinition;
@@ -39,6 +65,7 @@ import org.apache.ambari.server.orm.dao.ViewInstanceDAO;
 import org.apache.ambari.server.orm.entities.GroupEntity;
 import org.apache.ambari.server.orm.entities.MemberEntity;
 import org.apache.ambari.server.orm.entities.PermissionEntity;
+import org.apache.ambari.server.orm.entities.PrivilegeEntity;
 import org.apache.ambari.server.orm.entities.ResourceEntity;
 import org.apache.ambari.server.orm.entities.ResourceTypeEntity;
 import org.apache.ambari.server.orm.entities.UserEntity;
@@ -48,6 +75,8 @@ import org.apache.ambari.server.orm.entities.ViewInstanceDataEntity;
 import org.apache.ambari.server.orm.entities.ViewInstanceEntity;
 import org.apache.ambari.server.orm.entities.ViewParameterEntity;
 import org.apache.ambari.server.orm.entities.ViewResourceEntity;
+import org.apache.ambari.server.security.SecurityHelper;
+import org.apache.ambari.server.security.authorization.AmbariGrantedAuthority;
 import org.apache.ambari.server.view.configuration.EntityConfig;
 import org.apache.ambari.server.view.configuration.InstanceConfig;
 import org.apache.ambari.server.view.configuration.ParameterConfig;
@@ -66,38 +95,18 @@ import org.apache.ambari.view.ViewResourceHandler;
 import org.apache.ambari.view.events.Event;
 import org.apache.ambari.view.events.Listener;
 import org.apache.commons.lang.StringUtils;
-import org.eclipse.jetty.webapp.WebAppContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.GrantedAuthority;
 
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.JAXBException;
-import javax.xml.bind.Unmarshaller;
-
-import java.beans.IntrospectionException;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 /**
  * Registry for view and view instance definitions.
  */
+@Singleton
 public class ViewRegistry {
 
   /**
@@ -120,12 +129,6 @@ public class ViewRegistry {
       new HashMap<ViewEntity, Map<String, ViewInstanceEntity>>();
 
   /**
-   * Mapping of view instances keyed by resource id.
-   */
-  private Map<Long, ViewInstanceEntity> viewInstances =
-      new HashMap<Long, ViewInstanceEntity>();
-
-  /**
    * Mapping of view names to sub-resources.
    */
   private final Map<String, Set<SubResourceDefinition>> subResourceDefinitionsMap =
@@ -134,8 +137,8 @@ public class ViewRegistry {
   /**
    * Mapping of view names to registered listeners.
    */
-  private final Map<String, List<Listener>> listeners =
-      new HashMap<String, List<Listener>>();
+  private final Map<String, Set<Listener>> listeners =
+      new ConcurrentHashMap<String, Set<Listener>>();
 
   /**
    * Helper class.
@@ -145,7 +148,7 @@ public class ViewRegistry {
   /**
    * The singleton view registry instance.
    */
-  private static final ViewRegistry singleton = new ViewRegistry();
+  private static ViewRegistry singleton;
 
   /**
    * The logger.
@@ -155,46 +158,62 @@ public class ViewRegistry {
   /**
    * View data access object.
    */
-  private static ViewDAO viewDAO;
+  @Inject
+  ViewDAO viewDAO;
 
   /**
    * View instance data access object.
    */
-  private static ViewInstanceDAO instanceDAO;
-
-  /**
-   * Admin resource data access object.
-   */
-  private static ResourceDAO resourceDAO;
-
-  /**
-   * Admin resource type data access object.
-   */
-  private static ResourceTypeDAO resourceTypeDAO;
+  @Inject
+  ViewInstanceDAO instanceDAO;
 
   /**
    * User data access object.
    */
-  private static UserDAO userDAO;
+  @Inject
+  UserDAO userDAO;
 
   /**
    * Group member data access object.
    */
-  private static MemberDAO memberDAO;
+  @Inject
+  MemberDAO memberDAO;
 
   /**
    * Privilege data access object.
    */
-  private static PrivilegeDAO privilegeDAO;
-
-
-  // ----- Constructors ------------------------------------------------------
+  @Inject
+  PrivilegeDAO privilegeDAO;
 
   /**
-   * Hide the constructor for this singleton.
+   * Helper with security related utilities.
    */
-  private ViewRegistry() {
-  }
+  @Inject
+  SecurityHelper securityHelper;
+
+  /**
+   * Resource data access object.
+   */
+  @Inject
+  ResourceDAO resourceDAO;
+
+  /**
+   * Resource type data access object.
+   */
+  @Inject
+  ResourceTypeDAO resourceTypeDAO;
+
+  /**
+   * Ambari configuration.
+   */
+  @Inject
+  Configuration configuration;
+
+  /**
+   * The handler list.
+   */
+  @Inject
+  ViewInstanceHandlerList handlerList;
 
 
   // ----- ViewRegistry ------------------------------------------------------
@@ -268,17 +287,6 @@ public class ViewRegistry {
   }
 
   /**
-   * Get the instance definition for the given resource id.
-   *
-   * @param resourceId  the resource id.
-   *
-   * @return the view instance for the given resource id
-   */
-  public ViewInstanceEntity getInstanceDefinition(Long resourceId) {
-    return viewInstances.get(resourceId);
-  }
-
-  /**
     * Get the instance definition for the given view name and instance name.
     *
     * @param viewName      the view name
@@ -312,7 +320,6 @@ public class ViewRegistry {
       view.onCreate(instanceDefinition);
     }
     instanceDefinitions.put(instanceDefinition.getName(), instanceDefinition);
-    viewInstances.put(instanceDefinition.getResource().getId(), instanceDefinition);
   }
 
   /**
@@ -332,9 +339,17 @@ public class ViewRegistry {
           view.onDestroy(instanceDefinition);
         }
         instanceDefinitions.remove(instanceName);
-        viewInstances.remove(instanceDefinition.getResource().getId());
       }
     }
+  }
+
+  /**
+   * Init the singleton instance.
+   *
+   * @param singleton  the view registry
+   */
+  public static void initInstance(ViewRegistry singleton) {
+    ViewRegistry.singleton = singleton;
   }
 
   /**
@@ -410,13 +425,17 @@ public class ViewRegistry {
                 // extract the archive and get the class loader
                 ClassLoader cl = extractViewArchive(archiveFile, helper.getFile(archivePath));
 
+                viewConfig = helper.getViewConfigFromExtractedArchive(archivePath);
+
                 ViewEntity viewDefinition = createViewDefinition(viewConfig, configuration, cl, archivePath);
 
                 Set<ViewInstanceEntity> instanceDefinitions = new HashSet<ViewInstanceEntity>();
 
                 for (InstanceConfig instanceConfig : viewConfig.getInstances()) {
                   try {
-                    instanceDefinitions.add(createViewInstanceDefinition(viewConfig, viewDefinition, instanceConfig));
+                    ViewInstanceEntity instanceEntity = createViewInstanceDefinition(viewConfig, viewDefinition, instanceConfig);
+                    instanceEntity.setXmlDriven(true);
+                    instanceDefinitions.add(instanceEntity);
                   } catch (Exception e) {
                     LOG.error("Caught exception adding view instance for view " +
                         viewDefinition.getViewName(), e);
@@ -449,6 +468,21 @@ public class ViewRegistry {
   }
 
   /**
+   * Determine whether or not the given view instance exists.
+   *
+   * @param instanceEntity  the view instance entity
+   *
+   * @return true if the the given view instance exists; false otherwise
+   */
+  public boolean instanceExists(ViewInstanceEntity instanceEntity) {
+
+    ViewEntity viewEntity = getDefinition(instanceEntity.getViewName());
+
+    return viewEntity != null &&
+        (getInstanceDefinition(viewEntity.getCommonName(), viewEntity.getVersion(), instanceEntity.getName()) != null);
+  }
+
+  /**
    * Install the given view instance with its associated view.
    *
    * @param instanceEntity  the view instance entity
@@ -456,9 +490,10 @@ public class ViewRegistry {
    * @throws IllegalStateException     if the given instance is not in a valid state
    * @throws IllegalArgumentException  if the view associated with the given instance
    *                                   does not exist
+   * @throws SystemException           if the instance can not be installed
    */
   public void installViewInstance(ViewInstanceEntity instanceEntity)
-      throws IllegalStateException, IllegalArgumentException {
+      throws IllegalStateException, IllegalArgumentException, SystemException {
     ViewEntity viewEntity = getDefinition(instanceEntity.getViewName());
 
     if (viewEntity != null) {
@@ -473,11 +508,9 @@ public class ViewRegistry {
         }
         instanceEntity.validate(viewEntity);
 
+        ResourceTypeEntity resourceTypeEntity = resourceTypeDAO.findByName(ViewEntity.getViewName(viewName, version));
         // create an admin resource to represent this view instance
-        ResourceEntity resourceEntity = new ResourceEntity();
-        resourceEntity.setResourceType(viewEntity.getResourceType());
-
-        instanceEntity.setResource(resourceEntity);
+        instanceEntity.setResource(createViewInstanceResource(resourceTypeEntity));
 
         instanceDAO.merge(instanceEntity);
 
@@ -489,6 +522,7 @@ public class ViewRegistry {
           throw new IllegalStateException(message);
         }
         instanceEntity.setViewInstanceId(persistedInstance.getViewInstanceId());
+        instanceEntity.setResource(persistedInstance.getResource());
 
         try {
           // bind the view instance to a view
@@ -500,6 +534,9 @@ public class ViewRegistry {
         }
         // update the registry
         addInstanceDefinition(viewEntity, instanceEntity);
+
+        // add the web app context
+        handlerList.addViewInstance(instanceEntity);
       }
     } else {
       String message = "Attempt to install an instance for an unknown view " +
@@ -522,25 +559,39 @@ public class ViewRegistry {
     ViewEntity viewEntity = getDefinition(instanceEntity.getViewName());
 
     if (viewEntity != null) {
+      instanceEntity.validate(viewEntity);
+      instanceDAO.merge(instanceEntity);
+    }
+  }
+
+  /**
+   * Uninstall a view instance for the view with the given view name.
+   *
+   * @param instanceEntity  the view instance entity
+   * @throws IllegalStateException if the given instance is not in a valid state
+   */
+  public void uninstallViewInstance(ViewInstanceEntity instanceEntity) throws IllegalStateException {
+    ViewEntity viewEntity = getDefinition(instanceEntity.getViewName());
+
+    if (viewEntity != null) {
       String instanceName = instanceEntity.getName();
       String viewName     = viewEntity.getCommonName();
       String version      = viewEntity.getVersion();
 
-      ViewInstanceEntity entity = getInstanceDefinition(viewName, version, instanceName);
-
-      if (entity != null) {
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Updating view instance " + viewName + "/" +
-              version + "/" + instanceName);
+      if (getInstanceDefinition(viewName, version, instanceName) != null) {
+        if (instanceEntity.isXmlDriven()) {
+          throw new IllegalStateException("View instances defined via xml can't be deleted through api requests");
         }
-        entity.setLabel(instanceEntity.getLabel());
-        entity.setDescription(instanceEntity.getDescription());
-        entity.setVisible(instanceEntity.isVisible());
-        entity.setProperties(instanceEntity.getProperties());
-        entity.setData(instanceEntity.getData());
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Deleting view instance " + viewName + "/" +
+              version + "/" +instanceName);
+        }
+        instanceDAO.remove(instanceEntity);
+        viewEntity.removeInstanceDefinition(instanceName);
+        removeInstanceDefinition(viewEntity, instanceName);
 
-        instanceEntity.validate(viewEntity);
-        instanceDAO.merge(entity);
+        // remove the web app context
+        handlerList.removeViewInstance(instanceEntity);
       }
     }
   }
@@ -558,56 +609,6 @@ public class ViewRegistry {
     }
     instanceEntity.removeInstanceData(key);
     instanceDAO.merge(instanceEntity);
-  }
-
-  /**
-   * Uninstall a view instance for the view with the given view name.
-   *
-   * @param instanceEntity  the view instance entity
-   */
-  public void uninstallViewInstance(ViewInstanceEntity instanceEntity) {
-    ViewEntity viewEntity = getDefinition(instanceEntity.getViewName());
-
-    if (viewEntity != null) {
-      String instanceName = instanceEntity.getName();
-      String viewName     = viewEntity.getCommonName();
-      String version      = viewEntity.getVersion();
-
-      if (getInstanceDefinition(viewName, version, instanceName) != null) {
-
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Deleting view instance " + viewName + "/" +
-              version + "/" +instanceName);
-        }
-        instanceDAO.remove(instanceEntity);
-        viewEntity.removeInstanceDefinition(instanceName);
-        removeInstanceDefinition(viewEntity, instanceName);
-      }
-    }
-  }
-
-  /**
-   * Get a WebAppContext for the given view instance.
-   *
-   * @param viewInstanceDefinition  the view instance definition
-   *
-   * @return a web app context
-   *
-   * @throws SystemException if an application context can not be obtained for the given view instance
-   */
-  public WebAppContext getWebAppContext(ViewInstanceEntity viewInstanceDefinition)
-      throws SystemException{
-    try {
-      ViewEntity viewDefinition = viewInstanceDefinition.getViewEntity();
-
-      WebAppContext context = new WebAppContext(viewDefinition.getArchive(), viewInstanceDefinition.getContextPath());
-      context.setClassLoader(viewDefinition.getClassLoader());
-      context.setAttribute(ViewContext.CONTEXT_ATTRIBUTE, new ViewContextImpl(viewInstanceDefinition, this));
-      return context;
-    } catch (Exception e) {
-      throw new SystemException("Can't get application context for view " +
-          viewInstanceDefinition.getViewEntity().getCommonName() + ".", e);
-    }
   }
 
   /**
@@ -634,14 +635,32 @@ public class ViewRegistry {
 
     String name = viewVersion == null ? viewName : ViewEntity.getViewName(viewName, viewVersion);
 
-    List<Listener> listeners = this.listeners.get(name);
+    Set<Listener> listeners = this.listeners.get(name);
 
     if (listeners == null) {
-      listeners = new LinkedList<Listener>();
+      listeners = Sets.newSetFromMap(new ConcurrentHashMap<Listener, Boolean>());
       this.listeners.put(name, listeners);
     }
 
     listeners.add(listener);
+  }
+
+  /**
+   * Un-register the given listener from the view identified by the given name and version.
+   *
+   * @param listener     the listener
+   * @param viewName     the view name
+   * @param viewVersion  the view version; null indicates all versions
+   */
+  public synchronized void unregisterListener(Listener listener, String viewName, String viewVersion) {
+
+    String name = viewVersion == null ? viewName : ViewEntity.getViewName(viewName, viewVersion);
+
+    Set<Listener> listeners = this.listeners.get(name);
+
+    if (listeners != null) {
+      listeners.remove(listener);
+    }
   }
 
   /**
@@ -675,6 +694,65 @@ public class ViewRegistry {
       GroupEntity groupEntity = memberEntity.getGroup();
 
       if (privilegeDAO.exists(groupEntity.getPrincipal(), resourceEntity, permissionEntity)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Determine whether or not access to the view instance resource identified
+   * by the given instance name should be allowed based on the permissions
+   * granted to the current user.
+   *
+   * @param viewName      the view name
+   * @param version       the view version
+   * @param instanceName  the name of the view instance resource
+   * @param readOnly      indicate whether or not this is for a read only operation
+   *
+   * @return true if the access to the view instance is allowed
+   */
+  public boolean checkPermission(String viewName, String version, String instanceName, boolean readOnly) {
+
+    ViewInstanceEntity instanceEntity =
+        instanceName == null ? null : getInstanceDefinition(viewName, version, instanceName);
+
+    return checkPermission(instanceEntity, readOnly);
+  }
+
+  /**
+   * Determine whether or not access to the given view instance should be allowed based
+   * on the permissions granted to the current user.
+   *
+   * @param instanceEntity  the view instance entity
+   * @param readOnly        indicate whether or not this is for a read only operation
+   *
+   * @return true if the access to the view instance is allowed
+   */
+  public boolean checkPermission(ViewInstanceEntity instanceEntity, boolean readOnly) {
+
+    ResourceEntity resourceEntity = instanceEntity == null ? null : instanceEntity.getResource();
+
+    return !configuration.getApiAuthentication() ||
+        (resourceEntity == null && readOnly) || checkAuthorization(resourceEntity);
+  }
+
+  /**
+   * Determine whether or not the given view definition resource should be included
+   * based on the permissions granted to the current user.
+   *
+   * @param definitionEntity  the view definition entity
+   *
+   * @return true if the view instance should be included based on the permissions of the current user
+   */
+  public boolean includeDefinition(ViewEntity definitionEntity) {
+
+    if (checkPermission(null, false)) {
+      return true;
+    }
+
+    for (ViewInstanceEntity instanceEntity: definitionEntity.getInstances()) {
+      if (checkPermission(instanceEntity, true) ) {
         return true;
       }
     }
@@ -868,10 +946,6 @@ public class ViewRegistry {
 
     setPersistenceEntities(viewInstanceDefinition);
 
-    ResourceEntity resourceEntity = new ResourceEntity();
-    resourceEntity.setResourceType(viewDefinition.getResourceType());
-    viewInstanceDefinition.setResource(resourceEntity);
-
     viewDefinition.addInstanceDefinition(viewInstanceDefinition);
   }
 
@@ -969,27 +1043,46 @@ public class ViewRegistry {
     }
   }
 
-  // sync the given view with the db
+  /**
+   * Sync given view with data in DB. Ensures that view data in DB is updated,
+   * all instances changes from xml config are reflected to DB
+   *
+   * @param view                 view config from xml
+   * @param instanceDefinitions  view instances from xml
+   *
+   * @throws Exception if the view can not be synced
+   */
   private void syncView(ViewEntity view,
                         Set<ViewInstanceEntity> instanceDefinitions)
       throws Exception {
 
-    String viewName = view.getName();
-
-    ViewEntity persistedView = viewDAO.findByName(viewName);
+    String             viewName      = view.getName();
+    ViewEntity         persistedView = viewDAO.findByName(viewName);
+    ResourceTypeEntity resourceType  = view.getResourceType();
 
     // if the view is not yet persisted ...
     if (persistedView == null) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Creating View " + viewName + ".");
       }
-      // ... merge it
+
+      // get or create an admin resource type to represent this view
+      ResourceTypeEntity resourceTypeEntity = resourceTypeDAO.findByName(viewName);
+      if (resourceTypeEntity == null) {
+        resourceTypeEntity = resourceType;
+        resourceTypeDAO.create(resourceTypeEntity);
+      }
+
+      for( ViewInstanceEntity instance : view.getInstances()) {
+        instance.setResource(createViewInstanceResource(resourceType));
+      }
+      // ... merge the view
       persistedView = viewDAO.merge(view);
     }
 
-    Map<String, ViewInstanceEntity> instanceEntityMap = new HashMap<String, ViewInstanceEntity>();
+    Map<String, ViewInstanceEntity> xmlInstanceEntityMap = new HashMap<String, ViewInstanceEntity>();
     for( ViewInstanceEntity instance : view.getInstances()) {
-      instanceEntityMap.put(instance.getName(), instance);
+      xmlInstanceEntityMap.put(instance.getName(), instance);
     }
 
     view.setResourceType(persistedView.getResourceType());
@@ -997,39 +1090,44 @@ public class ViewRegistry {
 
     // make sure that each instance of the view in the db is reflected in the given view
     for (ViewInstanceEntity persistedInstance : persistedView.getInstances()){
-      String instanceName = persistedInstance.getName();
 
-      ViewInstanceEntity instance =
-          view.getInstanceDefinition(instanceName);
+      String             instanceName = persistedInstance.getName();
+      ViewInstanceEntity instance     = view.getInstanceDefinition(instanceName);
 
-      instanceEntityMap.remove(instanceName);
+      xmlInstanceEntityMap.remove(instanceName);
 
-      // if the persisted instance is not in the registry ...
+      // if the persisted instance is not in the view ...
       if (instance == null) {
-        // ... create and add it
-        instance = new ViewInstanceEntity(view, instanceName);
-        bindViewInstance(view, instance);
-        instanceDefinitions.add(instance);
+        if (persistedInstance.isXmlDriven()) {
+          // this instance was persisted from an earlier view.xml but has been removed...
+          // remove it from the db
+          instanceDAO.remove(persistedInstance);
+        } else {
+          // this instance was not specified in the view.xml but was added through the API...
+          // bind it to the view and add it to the registry
+          instanceDAO.merge(persistedInstance);
+          bindViewInstance(view, persistedInstance);
+          instanceDefinitions.add(persistedInstance);
+        }
+      } else {
+        instance.setResource(persistedInstance.getResource());
       }
-      instance.setViewInstanceId(persistedInstance.getViewInstanceId());
-
-      // apply the persisted overrides to the in-memory instance
-      instance.setLabel(persistedInstance.getLabel());
-      instance.setDescription(persistedInstance.getDescription());
-      instance.setVisible(persistedInstance.isVisible());
-      instance.setData(persistedInstance.getData());
-      instance.setProperties(persistedInstance.getProperties());
-      instance.setEntities(persistedInstance.getEntities());
-
-      instance.setResource(persistedInstance.getResource());
     }
 
-    // these instances appear in the archive but have been deleted
-    // from the db... remove them from the registry
-    for (ViewInstanceEntity instance : instanceEntityMap.values()) {
-      view.removeInstanceDefinition(instance.getName());
-      instanceDefinitions.remove(instance);
+    // these instances appear in the view.xml but are not present in the db...
+    // add them to db
+    for (ViewInstanceEntity instance : xmlInstanceEntityMap.values()) {
+      instance.setResource(createViewInstanceResource(resourceType));
+      instanceDAO.merge(instance);
     }
+  }
+
+  // create an admin resource to represent a view instance
+  private ResourceEntity createViewInstanceResource(ResourceTypeEntity resourceTypeEntity) {
+    ResourceEntity resourceEntity = new ResourceEntity();
+    resourceEntity.setResourceType(resourceTypeEntity);
+    resourceDAO.create(resourceEntity);
+    return resourceEntity;
   }
 
   // ensure that the extracted view archive directory exists
@@ -1134,7 +1232,7 @@ public class ViewRegistry {
 
   // notify the view identified by the given view name of the given event
   private void fireEvent(Event event, String viewName) {
-    List<Listener> listeners = this.listeners.get(viewName);
+    Set<Listener> listeners = this.listeners.get(viewName);
 
     if (listeners != null) {
       for (Listener listener : listeners) {
@@ -1143,90 +1241,31 @@ public class ViewRegistry {
     }
   }
 
-  /**
-   * Static initialization of DAO.
-   *
-   * @param viewDAO          view data access object
-   * @param instanceDAO      view instance data access object
-   * @param resourceDAO      resource data access object
-   * @param resourceTypeDAO  resource type data access object
-   * @param userDAO          user data access object
-   * @param memberDAO        group member data access object
-   * @param privilegeDAO     the privilege data access object
-   */
-  public static void init(ViewDAO viewDAO, ViewInstanceDAO instanceDAO, ResourceDAO resourceDAO,
-                          ResourceTypeDAO resourceTypeDAO, UserDAO userDAO, MemberDAO memberDAO,
-                          PrivilegeDAO privilegeDAO) {
-    setViewDAO(viewDAO);
-    setInstanceDAO(instanceDAO);
-    setResourceDAO(resourceDAO);
-    setResourceTypeDAO(resourceTypeDAO);
-    setUserDAO(userDAO);
-    setMemberDAO(memberDAO);
-    setPrivilegeDAO(privilegeDAO);
-  }
+  // check that the current user is authorized to access the given view instance resource
+  private boolean checkAuthorization(ResourceEntity resourceEntity) {
+    for (GrantedAuthority grantedAuthority : securityHelper.getCurrentAuthorities()) {
+      if (grantedAuthority instanceof AmbariGrantedAuthority) {
 
-  /**
-   * Set the view DAO.
-   *
-   * @param viewDAO  the view DAO
-   */
-  protected static void setViewDAO(ViewDAO viewDAO) {
-    ViewRegistry.viewDAO = viewDAO;
-  }
+        AmbariGrantedAuthority authority       = (AmbariGrantedAuthority) grantedAuthority;
+        PrivilegeEntity        privilegeEntity = authority.getPrivilegeEntity();
+        Integer                permissionId    = privilegeEntity.getPermission().getId();
 
-  /**
-   * Set the instance DAO.
-   *
-   * @param instanceDAO  the instance DAO
-   */
-  protected static void setInstanceDAO(ViewInstanceDAO instanceDAO) {
-    ViewRegistry.instanceDAO = instanceDAO;
-  }
-
-  /**
-   * Set the resource DAO.
-   *
-   * @param resourceDAO  the resource DAO
-   */
-  protected static void setResourceDAO(ResourceDAO resourceDAO) {
-    ViewRegistry.resourceDAO = resourceDAO;
-  }
-
-  /**
-   * Set the resource type DAO.
-   *
-   * @param resourceTypeDAO  the resource type DAO
-   */
-  protected static void setResourceTypeDAO(ResourceTypeDAO resourceTypeDAO) {
-    ViewRegistry.resourceTypeDAO = resourceTypeDAO;
-  }
-
-  /**
-   * Set the user DAO.
-   *
-   * @param userDAO  the user DAO
-   */
-  protected static void setUserDAO(UserDAO userDAO) {
-    ViewRegistry.userDAO = userDAO;
-  }
-
-  /**
-   * Set the group member DAO.
-   *
-   * @param memberDAO  the group member DAO
-   */
-  protected static void setMemberDAO(MemberDAO memberDAO) {
-    ViewRegistry.memberDAO = memberDAO;
-  }
-
-  /**
-   * Set the privilege DAO.
-   *
-   * @param privilegeDAO  the privilege DAO
-   */
-  protected static void setPrivilegeDAO(PrivilegeDAO privilegeDAO) {
-    ViewRegistry.privilegeDAO = privilegeDAO;
+        // admin has full access
+        if (permissionId.equals(PermissionEntity.AMBARI_ADMIN_PERMISSION)) {
+          return true;
+        }
+        if (resourceEntity != null) {
+          // VIEW.USE for the given view instance resource.
+          if (privilegeEntity.getResource().equals(resourceEntity)) {
+            if (permissionId.equals(PermissionEntity.VIEW_USE_PERMISSION)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    // TODO : should we log this?
+    return false;
   }
 
 
@@ -1249,6 +1288,26 @@ public class ViewRegistry {
       ClassLoader cl = URLClassLoader.newInstance(new URL[]{archiveFile.toURI().toURL()});
 
       InputStream  configStream     = cl.getResourceAsStream(VIEW_XML);
+      JAXBContext  jaxbContext      = JAXBContext.newInstance(ViewConfig.class);
+      Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
+
+      return (ViewConfig) jaxbUnmarshaller.unmarshal(configStream);
+    }
+
+    /**
+     * Get the view configuration from the extracted archive file.
+     *
+     * @param archivePath path to extracted archive
+     *
+     * @return the associated view configuration
+     *
+     * @throws JAXBException if xml is malformed
+     * @throws FileNotFoundException if xml was not found
+     */
+    public ViewConfig getViewConfigFromExtractedArchive(String archivePath)
+        throws JAXBException, FileNotFoundException {
+
+      InputStream configStream      = new FileInputStream(new File(archivePath + File.separator + VIEW_XML));
       JAXBContext  jaxbContext      = JAXBContext.newInstance(ViewConfig.class);
       Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
 

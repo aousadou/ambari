@@ -30,9 +30,11 @@ from mock.mock import patch
 from ambari_commons import OSCheck, OSConst
 import os_check_type
 
-with patch("platform.linux_distribution", return_value=('Suse', '11', 'Final')):
-  # We have to use this import HACK because the filename contains a dash
-  ambari_server = __import__('ambari-server')
+utils = __import__('ambari_server.utils').utils
+# We have to use this import HACK because the filename contains a dash
+with patch("platform.linux_distribution", return_value = ('Suse','11','Final')):
+  with patch.object(utils, "get_postgre_hba_dir"):
+    ambari_server = __import__('ambari-server')
 
 
 class TestOSCheck(TestCase):
@@ -102,11 +104,11 @@ class TestOSCheck(TestCase):
     result = OSCheck.get_os_family()
     self.assertEquals(result, 'redhat')
 
-    # 3 - Debian
+    # 3 - Ubuntu
     mock_exists.return_value = False
     mock_linux_distribution.return_value = ('Ubuntu', '', '')
     result = OSCheck.get_os_family()
-    self.assertEquals(result, 'debian')
+    self.assertEquals(result, 'ubuntu')
 
     # 4 - Suse
     mock_exists.return_value = False
@@ -258,13 +260,13 @@ class TestOSCheck(TestCase):
       pass
 
   @patch.object(OSCheck, "get_os_family")
-  def test_is_debian_family(self, get_os_family_mock):
+  def is_ubuntu_family(self, get_os_family_mock):
 
-    get_os_family_mock.return_value = "debian"
-    self.assertEqual(OSCheck.is_debian_family(), True)
+    get_os_family_mock.return_value = "ubuntu"
+    self.assertEqual(OSCheck.is_ubuntu_family(), True)
 
     get_os_family_mock.return_value = "troll_os"
-    self.assertEqual(OSCheck.is_debian_family(), False)
+    self.assertEqual(OSCheck.is_ubuntu_family(), False)
 
   @patch.object(OSCheck, "get_os_family")
   def test_is_suse_family(self, get_os_family_mock):

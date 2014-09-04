@@ -17,12 +17,14 @@
         "jdk_name": "jdk-7u45-linux-x64.tar.gz", 
         "ambari_db_rca_username": "mapred", 
         "java_home": "/usr/jdk64/jdk1.7.0_45", 
-        "mysql_jdbc_url": "http://c6401.ambari.apache.org:8080/resources//mysql-connector-java.jar"
+        "mysql_jdbc_url": "http://c6401.ambari.apache.org:8080/resources//mysql-connector-java.jar",
+        "group_list": "[\"hadoop\",\"nobody\",\"users\",\"nagios\"]",
+        "user_list": "[\"hive\",\"oozie\",\"nobody\",\"nagios\",\"ambari-qa\",\"flume\",\"hdfs\",\"storm\",\"mapred\",\"hbase\",\"tez\",\"zookeeper\",\"falcon\",\"sqoop\",\"yarn\",\"hcat\"]"
     }, 
     "commandType": "EXECUTION_COMMAND", 
     "roleParams": {}, 
-    "serviceName": "HDFS", 
-    "role": "DATANODE", 
+    "serviceName": "HIVE",
+    "role": "HIVE_SERVER",
     "commandParams": {
         "command_timeout": "600", 
         "service_package_folder": "HDFS",
@@ -296,7 +298,8 @@
             "content": "\nJAVA_HOME={{java64_home}}\nHADOOP_HOME=${HADOOP_HOME:-{{hadoop_home}}}\n    "
         }, 
         "sqoop-env": {
-            "content": "\n# Set Hadoop-specific environment variables here.\n\n#Set path to where bin/hadoop is available\n#Set path to where bin/hadoop is available\nexport HADOOP_HOME=${HADOOP_HOME:-/usr/lib/hadoop}\n\n#set the path to where bin/hbase is available\nexport HBASE_HOME=${HBASE_HOME:-/usr/lib/hbase}\n\n#Set the path to where bin/hive is available\nexport HIVE_HOME=${HIVE_HOME:-/usr/lib/hive}\n\n#Set the path for where zookeper config dir is\nexport ZOOCFGDIR=${ZOOCFGDIR:-/etc/zookeeper/conf}\n\n# add libthrift in hive to sqoop class path first so hive imports work\nexport SQOOP_USER_CLASSPATH=\"`ls ${HIVE_HOME}/lib/libthrift-*.jar 2> /dev/null`:${SQOOP_USER_CLASSPATH}\"\n    "
+            "content": "\n# Set Hadoop-specific environment variables here.\n\n#Set path to where bin/hadoop is available\n#Set path to where bin/hadoop is available\nexport HADOOP_HOME=${HADOOP_HOME:-/usr/lib/hadoop}\n\n#set the path to where bin/hbase is available\nexport HBASE_HOME=${HBASE_HOME:-/usr/lib/hbase}\n\n#Set the path to where bin/hive is available\nexport HIVE_HOME=${HIVE_HOME:-/usr/lib/hive}\n\n#Set the path for where zookeper config dir is\nexport ZOOCFGDIR=${ZOOCFGDIR:-/etc/zookeeper/conf}\n\n# add libthrift in hive to sqoop class path first so hive imports work\nexport SQOOP_USER_CLASSPATH=\"`ls ${HIVE_HOME}/lib/libthrift-*.jar 2> /dev/null`:${SQOOP_USER_CLASSPATH}\"\n    ",
+            "sqoop_user": "sqoop"
         }, 
         "mapred-env": {
             "mapreduce_userlog_retainhours": "24", 
@@ -420,6 +423,9 @@
         },
         "pig-log4j": {
             "content": "log4jproperties\nline2"
+        },
+        "pig-properties": {
+          "content": "pigproperties\nline2"
         },
         "oozie-log4j": {
             "content": "log4jproperties\nline2"

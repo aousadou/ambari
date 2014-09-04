@@ -52,30 +52,37 @@ App.MainServiceItemController = Em.Controller.extend({
       var hostNames = App.Host.find().mapProperty('hostName');
       this.set('allHosts', hostNames);
 
-      ['HBASE_MASTER', 'ZOOKEEPER_SERVER'].forEach(function(componentName) {
+      ['HBASE_MASTER', 'ZOOKEEPER_SERVER', 'FLUME_HANDLER'].forEach(function(componentName) {
         self.loadHostsWithoutComponent(componentName);
       });
     }
   }.observes('App.components.masters', 'content.hostComponents.length'),
 
   loadHostsWithoutComponent: function (componentName) {
+    var self = this;
     var hostsWithComponent = App.HostComponent.find().filterProperty('componentName', componentName).mapProperty('hostName');
 
     var hostsWithoutComponent = this.get('allHosts').filter(function(hostName) {
       return !hostsWithComponent.contains(hostName);
     });
 
+    self.set('add' + componentName, function() {
+      self.addComponent(componentName);
+    });
 
-    if (componentName === 'HBASE_MASTER') {
-      this.set('hostsWithoutHBaseMaster', hostsWithoutComponent);
-      var disabledMsg = Em.I18n.t('services.summary.allHostsAlreadyRunComponent').format(Em.I18n.t('dashboard.services.hbase.masterServer'));
-      this.set('addHBaseMasterDisabledMsg', disabledMsg);
-    }
-    if (componentName === 'ZOOKEEPER_SERVER') {
-      this.set('hostsWithoutZookeeperServer', hostsWithoutComponent);
-      var disabledMsg = Em.I18n.t('services.summary.allHostsAlreadyRunComponent').format(Em.I18n.t('dashboard.services.zookeeper.server'));
-      this.set('addZookeeperServerDisabledMsg', disabledMsg);
-    }
+    Em.defineProperty(self, 'addDisabledTooltip-' + componentName, Em.computed('isAddDisabled-' + componentName, 'addDisabledMsg-' + componentName, function() {
+      if (self.get('isAddDisabled-' + componentName)) {
+        return self.get('addDisabledMsg-' + componentName);
+      }
+    }));
+
+    Em.defineProperty(self, 'isAddDisabled-' + componentName, Em.computed('hostsWithoutComponent-' + componentName, function() {
+      return self.get('hostsWithoutComponent-' + componentName).length === 0 ? 'disabled' : '';
+    }));
+
+    var disabledMsg = Em.I18n.t('services.summary.allHostsAlreadyRunComponent').format(componentName);
+    self.set('hostsWithoutComponent-' + componentName, hostsWithoutComponent);
+    self.set('addDisabledMsg-' + componentName, disabledMsg);
   },
 
   /**
@@ -91,34 +98,6 @@ App.MainServiceItemController = Em.Controller.extend({
   isConfigurable: function () {
     return !App.get('services.noConfigTypes').concat('HCATALOG').contains(this.get('content.serviceName'));
   }.property('App.services.noConfigTypes','content.serviceName'),
-
-  isAddHBaseMasterDisabled: function() {
-    return this.get('hostsWithoutHBaseMaster').length === 0;
-  }.property('hostsWithoutHBaseMaster'),
-
-  addHBaseMasterDisabledMsg: null,
-
-  addHBaseMasterDisabledTooltip: function() {
-    if (this.get('isAddHBaseMasterDisabled')) {
-      return this.get('addHBaseMasterDisabledMsg');
-    }
-  }.property('isAddHBaseMasterDisabled', 'addHBaseMasterDisabledMsg'),
-
-  hostsWithoutHBaseMaster: [],
-
-  isAddZooKeeperServerDisabled: function() {
-    return this.get('hostsWithoutZookeeperServer').length === 0;
-  }.property('hostsWithoutZookeeperServer'),
-
-  addZookeeperServerDisabledMsg: null,
-
-  addZooKeeperServerDisabledTooltip: function() {
-    if (this.get('isAddZooKeeperServerDisabled')) {
-      return this.get('addZookeeperServerDisabledMsg');
-    }
-  }.property('isAddZooKeeperServerDisabled', 'addZookeeperServerDisabledMsg'),
-
-  hostsWithoutZookeeperServer: [],
 
   allHosts: [],
 
@@ -251,15 +230,11 @@ App.MainServiceItemController = Em.Controller.extend({
    * @param event
    */
   refreshYarnQueues : function (event) {
-    var self = this;
+    var controller = this;
     return App.showConfirmationPopup(function() {
-      self.refreshYarnQueuesPrimary();
-    });
-  },
-  refreshYarnQueuesPrimary : function(){
     App.ajax.send({
       name : 'service.item.refreshQueueYarnRequest',
-      sender : this,
+        sender: controller,
       data : {
         command : "REFRESHQUEUES",
         context : Em.I18n.t('services.service.actions.run.yarnRefreshQueues.context') ,
@@ -270,6 +245,7 @@ App.MainServiceItemController = Em.Controller.extend({
       },
       success : 'refreshYarnQueuesSuccessCallback',
       error : 'refreshYarnQueuesErrorCallback'
+    });
     });
   },
   refreshYarnQueuesSuccessCallback  : function(data, ajaxOptions, params) {
@@ -289,6 +265,72 @@ App.MainServiceItemController = Em.Controller.extend({
     }
     App.showAlertPopup(Em.I18n.t('services.service.actions.run.yarnRefreshQueues.error'), error);
     console.warn('Error during refreshYarnQueues:'+error);
+  },
+  /**
+   * On click handler for rebalance Hdfs command from items menu
+   */
+  rebalanceHdfsNodes: function () {
+    var controller = this;
+    App.ModalPopup.show({
+      classNames: ['fourty-percent-width-modal'],
+      header: Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes.context'),
+      primary: Em.I18n.t('common.start'),
+      secondary: Em.I18n.t('common.cancel'),
+      inputValue: 10,
+      errorMessage: Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes.promptError'),
+      isInvalid: function () {
+        var intValue = Number(this.get('inputValue'));
+        return this.get('inputValue')!=='DEBUG' && (isNaN(intValue) || intValue < 1 || intValue > 100);
+      }.property('inputValue'),
+      disablePrimary : function() {
+        return this.get('isInvalid');
+      }.property('isInvalid'),
+      onPrimary: function () {
+        if (this.get('isInvalid')) {
+          return;
+        }
+        App.ajax.send({
+          name : 'service.item.rebalanceHdfsNodes',
+          sender: controller,
+          data : {
+            hosts : App.Service.find('HDFS').get('hostComponents').findProperty('componentName', 'NAMENODE').get('hostName'),
+            threshold: this.get('inputValue')
+          },
+          success : 'rebalanceHdfsNodesSuccessCallback',
+          error : 'rebalanceHdfsNodesErrorCallback'
+        });
+        this.hide();
+      },
+      bodyClass: Ember.View.extend({
+        templateName: require('templates/common/prompt_popup'),
+        text: Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes.prompt'),
+        didInsertElement: function () {
+          App.tooltip(this.$(".prompt-input"), {
+            placement: "bottom",
+            title: Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes.promptTooltip')
+          });
+        }
+      })
+    });
+  },
+  rebalanceHdfsNodesSuccessCallback: function (data) {
+    if (data.Requests.id) {
+      App.router.get('backgroundOperationsController').showPopup();
+    } else {
+      console.warn('Error during runRebalanceHdfsNodes');
+    }
+  },
+  rebalanceHdfsNodesErrorCallback : function(data) {
+    var error = Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes.error');
+    if(data && data.responseText){
+      try {
+        var json = $.parseJSON(data.responseText);
+        error += json.message;
+      } catch (err) {
+      }
+    }
+    App.showAlertPopup(Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes.error'), error);
+    console.warn('Error during runRebalanceHdfsNodes:'+error);
   },
 
   /**
@@ -445,19 +487,11 @@ App.MainServiceItemController = Em.Controller.extend({
     }
   },
 
-  addHbaseMaster: function () {
-    this.addClientComponent('HBASE_MASTER');
-  },
-
-  addZooKeeperServer: function () {
-    this.addClientComponent('ZOOKEEPER_SERVER');
-  },
-
   /**
    * Send command to server to install client on selected host
    * @param componentName
    */
-  addClientComponent: function (componentName) {
+  addComponent: function (componentName) {
     var self = this;
     var component = App.HostComponent.find().findProperty('componentName', componentName);
     var componentDisplayName = component.get('displayName');
@@ -488,13 +522,8 @@ App.MainServiceItemController = Em.Controller.extend({
       }.property('componentDisplayName'),
 
       hostsWithoutComponent: function() {
-        if (this.get('componentName') === 'HBASE_MASTER') {
-          return self.hostsWithoutHBaseMaster;
-        }
-        if (this.get('componentName') === 'ZOOKEEPER_SERVER') {
-          return self.hostsWithoutZookeeperServer;
-        }
-      }.property('componentName', 'self.hostsWithoutHBaseMaster', 'self.hostsWithoutZookeeperServer'),
+        return self.get("hostsWithoutComponent-" + this.get('componentName'));
+      }.property('componentName', 'self.hostsWithoutComponent-' + this.get('componentName')),
 
       anyHostsWithoutComponent: function() {
         return this.get('hostsWithoutComponent').length > 0
@@ -531,13 +560,7 @@ App.MainServiceItemController = Em.Controller.extend({
           hostsWithoutComponent.splice(index, 1);
         }
 
-        if (this.get('componentName') === 'HBASE_MASTER') {
-          self.set('hostsWithoutHBaseMaster', hostsWithoutComponent)
-        }
-        if (this.get('componentName') === 'ZOOKEEPER_SERVER') {
-          self.set('hostsWithoutZookeeperServer', hostsWithoutComponent)
-        }
-
+        self.set('hostsWithoutComponent-' + this.get('componentName'), hostsWithoutComponent);
         this.hide();
       }
     });
@@ -580,19 +603,26 @@ App.MainServiceItemController = Em.Controller.extend({
 
   enableHighAvailability: function() {
     var ability_controller = App.router.get('mainAdminHighAvailabilityController');
-    ability_controller.setSecurityStatus();
     ability_controller.enableHighAvailability();
   },
 
   disableHighAvailability: function() {
     var ability_controller = App.router.get('mainAdminHighAvailabilityController');
-    ability_controller.setSecurityStatus();
     ability_controller.disableHighAvailability();
   },
 
   enableRMHighAvailability: function() {
     var ability_controller = App.router.get('mainAdminHighAvailabilityController');
     ability_controller.enableRMHighAvailability();
+  },
+
+  downloadClientConfigs: function () {
+    var component = this.get('content.hostComponents').findProperty('isClient');
+    componentsUtils.downloadClientConfigs.call(this, {
+      serviceName: this.get('content.serviceName'),
+      componentName: component.get('componentName'),
+      displayName: component.get('displayName')
+    });
   },
 
   isPending:true

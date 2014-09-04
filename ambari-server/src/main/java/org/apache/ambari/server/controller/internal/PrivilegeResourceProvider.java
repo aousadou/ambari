@@ -18,6 +18,15 @@
 
 package org.apache.ambari.server.controller.internal;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.ambari.server.AmbariException;
 import org.apache.ambari.server.DuplicateResourceException;
 import org.apache.ambari.server.controller.spi.NoSuchParentResourceException;
@@ -29,7 +38,6 @@ import org.apache.ambari.server.controller.spi.Resource;
 import org.apache.ambari.server.controller.spi.ResourceAlreadyExistsException;
 import org.apache.ambari.server.controller.spi.SystemException;
 import org.apache.ambari.server.controller.spi.UnsupportedPropertyException;
-import org.apache.ambari.server.controller.utilities.PropertyHelper;
 import org.apache.ambari.server.orm.dao.GroupDAO;
 import org.apache.ambari.server.orm.dao.PermissionDAO;
 import org.apache.ambari.server.orm.dao.PrincipalDAO;
@@ -43,14 +51,6 @@ import org.apache.ambari.server.orm.entities.PrincipalTypeEntity;
 import org.apache.ambari.server.orm.entities.PrivilegeEntity;
 import org.apache.ambari.server.orm.entities.ResourceEntity;
 import org.apache.ambari.server.orm.entities.UserEntity;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Abstract resource provider for privilege resources.
@@ -139,11 +139,21 @@ public abstract class PrivilegeResourceProvider<T> extends AbstractResourceProvi
   /**
    * Get the entities for the owning resources from the given properties.
    *
-   * @param properties  the set of properties
+   * @param properties the set of properties
    *
    * @return the entities
+   * @throws AmbariException if resource entities were not found
    */
-  public abstract Map<Long, T> getResourceEntities(Map<String, Object> properties);
+  public abstract Map<Long, T> getResourceEntities(Map<String, Object> properties) throws AmbariException;
+
+  /**
+   * Get the id for the resource specified by predicate.
+   *
+   * @param predicate predicate
+   *
+   * @return the resource id
+   */
+  public abstract Long getResourceEntityId(Predicate predicate);
 
 
   // ----- ResourceProvider --------------------------------------------------
@@ -174,7 +184,12 @@ public abstract class PrivilegeResourceProvider<T> extends AbstractResourceProvi
     }
 
     for (Map<String, Object> properties : propertyMaps) {
-      Map<Long, T> resourceEntities = getResourceEntities(properties);
+      Map<Long, T> resourceEntities;
+      try {
+        resourceEntities = getResourceEntities(properties);
+      } catch (AmbariException e) {
+        throw new SystemException("Could not get resource list from request", e);
+      }
 
       resourceIds.addAll(resourceEntities.keySet());
 
@@ -219,14 +234,16 @@ public abstract class PrivilegeResourceProvider<T> extends AbstractResourceProvi
   @Override
   public RequestStatus updateResources(Request request, Predicate predicate)
       throws SystemException, UnsupportedPropertyException, NoSuchResourceException, NoSuchParentResourceException {
-    throw new UnsupportedOperationException("Not supported.");
+    modifyResources(getUpdateCommand(request, predicate));
+    notifyUpdate(resourceType, request, predicate);
+    return getRequestStatus(null);
   }
 
   @Override
   public RequestStatus deleteResources(Predicate predicate)
       throws SystemException, UnsupportedPropertyException, NoSuchResourceException, NoSuchParentResourceException {
     modifyResources(getDeleteCommand(predicate));
-    notifyDelete(Resource.Type.ViewInstance, predicate);
+    notifyDelete(resourceType, predicate);
     return getRequestStatus(null);
   }
 
@@ -308,20 +325,16 @@ public abstract class PrivilegeResourceProvider<T> extends AbstractResourceProvi
     PrivilegeEntity entity         = new PrivilegeEntity();
     String          permissionName = (String) properties.get(PERMISSION_NAME_PROPERTY_ID);
     ResourceEntity  resourceEntity = resourceDAO.findById(resourceId);
-
-    entity.setResource(resourceEntity);
-
-    PermissionEntity permission =
-        permissionDAO.findPermissionByNameAndType(permissionName, resourceEntity.getResourceType());
+    PermissionEntity permission = getPermission(permissionName, resourceEntity);
     if (permission == null) {
       throw new AmbariException("Can't find a permission named " + permissionName +
-          " for the resource type " + resourceEntity.getResourceType().getName() + ".");
+          " for the resource.");
     }
     entity.setPermission(permission);
+    entity.setResource(resourceEntity);
 
     String principalName = (String) properties.get(PRINCIPAL_NAME_PROPERTY_ID);
     String principalType = (String) properties.get(PRINCIPAL_TYPE_PROPERTY_ID);
-
     if (PrincipalTypeEntity.GROUP_PRINCIPAL_TYPE_NAME.equalsIgnoreCase(principalType)) {
       GroupEntity groupEntity = groupDAO.findGroupByName(principalName);
       if (groupEntity != null) {
@@ -329,11 +342,26 @@ public abstract class PrivilegeResourceProvider<T> extends AbstractResourceProvi
       }
     } else if (PrincipalTypeEntity.USER_PRINCIPAL_TYPE_NAME.equalsIgnoreCase(principalType)) {
       UserEntity userEntity = userDAO.findLocalUserByName(principalName);
+      if (userEntity == null) {
+        userEntity = userDAO.findLdapUserByName(principalName);
+      }
       if (userEntity != null) {
         entity.setPrincipal(principalDAO.findById(userEntity.getPrincipal().getId()));
       }
+    } else {
+      throw new AmbariException("Unknown principal type " + principalType);
+    }
+    if (entity.getPrincipal() == null) {
+      throw new AmbariException("Could not find " + principalType + " named " + principalName);
     }
     return entity;
+  }
+
+  // Get a permission with the given permission name for the given resource.
+  protected PermissionEntity getPermission(String permissionName, ResourceEntity resourceEntity)
+      throws AmbariException {
+
+    return permissionDAO.findPermissionByNameAndType(permissionName, resourceEntity.getResourceType());
   }
 
   // Create a create command with the given properties map.
@@ -359,7 +387,6 @@ public abstract class PrivilegeResourceProvider<T> extends AbstractResourceProvi
           throw new AmbariException("Can't grant " + entity.getPermission().getResourceType().getName() +
               " permission on a " + entity.getResource().getResourceType().getName() + " resource.");
         }
-
         privilegeDAO.create(entity);
         return null;
       }
@@ -372,18 +399,85 @@ public abstract class PrivilegeResourceProvider<T> extends AbstractResourceProvi
       @Override
       public Void invoke() throws AmbariException {
         try {
-          Set<Resource> resources = getResources(PropertyHelper.getReadRequest(), predicate);
-          for (Resource resource : resources) {
-
-            PrivilegeEntity entity =
-                privilegeDAO.findById((Integer) resource.getPropertyValue(PRIVILEGE_ID_PROPERTY_ID));
-
+          for (Map<String, Object> resource : getPropertyMaps(predicate)) {
+            if (resource.get(PRIVILEGE_ID_PROPERTY_ID) == null) {
+              throw new AmbariException("Privilege ID should be provided for this request");
+            }
+            PrivilegeEntity entity = privilegeDAO.findById(Integer.valueOf(resource.get(PRIVILEGE_ID_PROPERTY_ID).toString()));
             if (entity != null) {
+              if (!checkResourceTypes(entity)) {
+                throw new AmbariException("Can't remove " + entity.getPermission().getResourceType().getName() +
+                    " permission from a " + entity.getResource().getResourceType().getName() + " resource.");
+              }
               privilegeDAO.remove(entity);
             }
           }
         } catch (Exception e) {
           throw new AmbariException("Caught exception deleting privilege.", e);
+        }
+        return null;
+      }
+    };
+  }
+
+  private Command<Void> getUpdateCommand(final Request request, final Predicate predicate) {
+    return new Command<Void>() {
+      @Override
+      public Void invoke() throws AmbariException {
+        Long resource = null;
+        final List<PrivilegeEntity> requiredEntities = new ArrayList<PrivilegeEntity>();
+        for (Map<String, Object> properties: request.getProperties()) {
+          Set<Long> resourceIds = getResourceEntities(properties).keySet();
+          Long      resourceId  = resourceIds.iterator().next();
+
+          if (resource != null && resourceId != resource) {
+            throw new AmbariException("Can't update privileges of multiple resources in one request");
+          }
+          resource = resourceId;
+
+          PrivilegeEntity entity = toEntity(properties, resourceId);
+          requiredEntities.add(entity);
+        }
+        if (resource == null) {
+          // request body is empty, use predicate instead
+          resource = getResourceEntityId(predicate);
+        }
+        final List<PrivilegeEntity> currentPrivileges = privilegeDAO.findByResourceId(resource);
+
+        for (PrivilegeEntity requiredPrivilege: requiredEntities) {
+          boolean isInBothLists = false;
+          for (PrivilegeEntity currentPrivilege: currentPrivileges) {
+            if (requiredPrivilege.getPermission().getPermissionName().equals(currentPrivilege.getPermission().getPermissionName()) &&
+                    requiredPrivilege.getPrincipal().getId().equals(currentPrivilege.getPrincipal().getId())) {
+              isInBothLists = true;
+              break;
+            }
+          }
+          if (!isInBothLists) {
+            if (!checkResourceTypes(requiredPrivilege)) {
+              throw new AmbariException("Can't grant " + requiredPrivilege.getPermission().getResourceType().getName() +
+                  " permission on a " + requiredPrivilege.getResource().getResourceType().getName() + " resource.");
+            }
+
+            privilegeDAO.create(requiredPrivilege);
+          }
+        }
+        for (PrivilegeEntity currentPrivilege: currentPrivileges) {
+          boolean isInBothLists = false;
+          for (PrivilegeEntity requiredPrivilege: requiredEntities) {
+            if (requiredPrivilege.getPermission().getPermissionName().equals(currentPrivilege.getPermission().getPermissionName()) &&
+                    requiredPrivilege.getPrincipal().getId().equals(currentPrivilege.getPrincipal().getId())) {
+              isInBothLists = true;
+              break;
+            }
+          }
+          if (!isInBothLists) {
+            if (!checkResourceTypes(currentPrivilege)) {
+              throw new AmbariException("Can't remove " + currentPrivilege.getPermission().getResourceType().getName() +
+                  " permission from a " + currentPrivilege.getResource().getResourceType().getName() + " resource.");
+            }
+            privilegeDAO.remove(currentPrivilege);
+          }
         }
         return null;
       }

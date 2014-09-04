@@ -97,7 +97,7 @@ module.exports =
       "name": "dfs.replication",
       "displayName": "Block replication",
       "displayType": "int",
-      "category": "Advanced",
+      "category": "General",
       "serviceName": "HDFS"
     },
     {
@@ -115,7 +115,7 @@ module.exports =
       "name": "dfs.client.read.shortcircuit",
       "displayName": "HDFS Short-circuit read",
       "displayType": "checkbox",
-      "category": "Advanced",
+      "category": "Advanced hdfs-site",
       "serviceName": "HDFS"
     },
     {
@@ -126,7 +126,7 @@ module.exports =
       "isRequired": false,
       "isRequiredByAgent": false,
       "isVisible": false,
-      "category": "Advanced",
+      "category": "Advanced hdfs-site",
       "serviceName": "HDFS"
     },
     {
@@ -137,7 +137,7 @@ module.exports =
       "isRequiredByAgent": false,
       "isRequired": false,
       "isVisible": false,
-      "category": "Advanced",
+      "category": "Advanced hdfs-site",
       "serviceName": "HDFS"
     },
 
@@ -262,7 +262,7 @@ module.exports =
       "id": "site property",
       "name": "yarn.log.server.url",
       "displayName": "yarn.log.server.url",
-      "category": "Advanced",
+      "category": "Advanced yarn-site",
       "serviceName": "YARN"
     },
     {
@@ -378,14 +378,14 @@ module.exports =
       "displayName": "hadoop.security.auth_to_local",
       "displayType": "multiLine",
       "serviceName": "HDFS",
-      "category": "Advanced"
+      "category": "Advanced core-site"
     },
     {
       "id": "site property",
       "name": "yarn.app.mapreduce.am.resource.mb",
       "displayName": "yarn.app.mapreduce.am.resource.mb",
       "displayType": "int",
-      "category": "Advanced",
+      "category": "Advanced mapred-site",
       "serviceName": "MAPREDUCE2"
     },
 
@@ -510,7 +510,7 @@ module.exports =
       "displayName": "hive.server2.tez.default.queues",
       "isRequired": false,
       "serviceName": "HIVE",
-      "category": "Advanced"
+      "category": "Advanced hive-site"
     },
     {
       "id": "site property",
@@ -522,7 +522,7 @@ module.exports =
       "isReconfigurable": true,
       "isOverridable": false,
       "isVisible": true,
-      "category": "Advanced",
+      "category": "Advanced hive-site",
       "serviceName": "HIVE"
     },
   /**********************************************tez-site*****************************************/
@@ -613,7 +613,7 @@ module.exports =
       "displayName": "HBase local directory",
       "defaultDirectory": "/hadoop/hbase",
       "displayType": "directory",
-      "category": "Advanced",
+      "category": "Advanced hbase-site",
       "serviceName": "HBASE"
 
     },
@@ -626,14 +626,14 @@ module.exports =
     "isOverridable": false,
     "isVisible": true,
     "serviceName": "HBASE",
-    "category": "Advanced"
+    "category": "Advanced hbase-site"
     },
     {
       "id": "site property",
       "name": "hbase.regionserver.global.memstore.size",
       "displayName": "hbase.regionserver.global.memstore.size",
       "displayType": "float",
-      "category": "Advanced",
+      "category": "Advanced hbase-site",
       "serviceName": "HBASE"
     },
     {
@@ -641,7 +641,7 @@ module.exports =
       "name": "hbase.regionserver.global.memstore.size.lower.limit",
       "displayName": "hbase.regionserver.global.memstore.size.lower.limit",
       "displayType": "float",
-      "category": "Advanced",
+      "category": "Advanced hbase-site",
       "serviceName": "HBASE"
     },
     {
@@ -649,7 +649,7 @@ module.exports =
       "name": "hbase.hstore.blockingStoreFiles",
       "displayName": "hstore blocking storefiles",
       "displayType": "int",
-      "category": "Advanced",
+      "category": "Advanced hbase-site",
       "serviceName": "HBASE"
     },
     {
@@ -713,7 +713,7 @@ module.exports =
       "name": "hbase.hregion.memstore.mslab.enabled",
       "displayName": "hbase.hregion.memstore.mslab.enabled",
       "displayType": "checkbox",
-      "category": "Advanced",
+      "category": "Advanced hbase-site",
       "serviceName": "HBASE"
     },
     {
@@ -760,7 +760,7 @@ module.exports =
       "id": "site property",
       "name": "hbase.coprocessor.region.classes",
       "displayName": "hbase.coprocessor.region.classes",
-      "category": "Advanced",
+      "category": "Advanced hbase-site",
       "isRequired": false,
       "serviceName": "HBASE"
     },
@@ -768,7 +768,7 @@ module.exports =
       "id": "site property",
       "name": "hbase.coprocessor.master.classes",
       "displayName": "hbase.coprocessor.master.classes",
-      "category": "Advanced",
+      "category": "Advanced hbase-site",
       "isRequired": false,
       "serviceName": "HBASE"
     },
@@ -778,7 +778,7 @@ module.exports =
       "displayName": "hbase.zookeeper.quorum",
       "displayType": "multiLine",
       "serviceName": "HBASE",
-      "category": "Advanced"
+      "category": "Advanced hbase-site"
     },
 
   /**********************************************storm-site***************************************/
@@ -1203,7 +1203,7 @@ module.exports =
     {
       "id": "site property",
       "serviceName": "STORM",
-      "category": "Advanced",
+      "category": "Advanced storm-site",
       "displayName": "worker.childopts",
       "name": "worker.childopts",
       "displayType": "multiLine",
@@ -1212,7 +1212,7 @@ module.exports =
   /*********************************************oozie-site for Falcon*****************************/
     {
       "id": "site property",
-      "isReconfigurable": false,
+      "isReconfigurable": true,
       "serviceName": "FALCON",
       "category": "Falcon - Oozie integration",
       "displayName": "oozie.service.ELService.ext.functions.coord-job-submit-instances",
@@ -1222,7 +1222,7 @@ module.exports =
     },
     {
       "id": "site property",
-      "isReconfigurable": false,
+      "isReconfigurable": true,
       "serviceName": "FALCON",
       "category": "Falcon - Oozie integration",
       "displayName": "oozie.service.ELService.ext.functions.coord-action-create-inst",
@@ -1232,7 +1232,7 @@ module.exports =
     },
     {
       "id": "site property",
-      "isReconfigurable": false,
+      "isReconfigurable": true,
       "serviceName": "FALCON",
       "category": "Falcon - Oozie integration",
       "displayName": "oozie.service.ELService.ext.functions.coord-action-create",
@@ -1242,7 +1242,7 @@ module.exports =
     },
     {
       "id": "site property",
-      "isReconfigurable": false,
+      "isReconfigurable": true,
       "serviceName": "FALCON",
       "category": "Falcon - Oozie integration",
       "displayName": "oozie.service.ELService.ext.functions.coord-job-submit-data",
@@ -1252,7 +1252,7 @@ module.exports =
     },
     {
       "id": "site property",
-      "isReconfigurable": false,
+      "isReconfigurable": true,
       "serviceName": "FALCON",
       "category": "Falcon - Oozie integration",
       "displayName": "oozie.service.ELService.ext.functions.coord-action-start",
@@ -1262,7 +1262,7 @@ module.exports =
     },
     {
       "id": "site property",
-      "isReconfigurable": false,
+      "isReconfigurable": true,
       "serviceName": "FALCON",
       "category": "Falcon - Oozie integration",
       "displayName": "oozie.service.ELService.ext.functions.coord-sla-submit",
@@ -1272,7 +1272,7 @@ module.exports =
     },
     {
       "id": "site property",
-      "isReconfigurable": false,
+      "isReconfigurable": true,
       "serviceName": "FALCON",
       "category": "Falcon - Oozie integration",
       "displayName": "oozie.service.ELService.ext.functions.coord-sla-create",
@@ -1565,7 +1565,7 @@ module.exports =
       "displayName": "templeton.hive.archive",
       "isRequired": false,
       "serviceName": "WEBHCAT",
-      "category": "Advanced"
+      "category": "Advanced webhcat-site"
     },
     {
       "id": "site property",
@@ -1573,7 +1573,7 @@ module.exports =
       "displayName": "templeton.pig.archive",
       "isRequired": false,
       "serviceName": "WEBHCAT",
-      "category": "Advanced"
+      "category": "Advanced webhcat-site"
     },
     {
       "id": "site property",
@@ -1581,12 +1581,12 @@ module.exports =
       "displayName": "templeton.zookeeper.hosts",
       "displayType": "multiLine",
       "serviceName": "WEBHCAT",
-      "category": "Advanced"
+      "category": "Advanced webhcat-site"
     },
   /**********************************************pig.properties*****************************************/
     {
       "id": "site property",
-      "name": "pig-content",
+      "name": "content",
       "displayName": "content",
       "value": "",
       "defaultValue": "",
@@ -1596,46 +1596,7 @@ module.exports =
       "showLabel": false,
       "serviceName": "PIG",
       "filename": "pig-properties.xml",
-      "category": "Advanced"
-    },
-
-    //***************************************** GLUSTERFS stack********************************************
-
-    {
-      "id": "site property",
-      "name": "fs.glusterfs.impl",
-      "displayName": "GlusterFS fs impl",
-      "displayType": "string",
-      "filename": "core-site.xml",
-      "serviceName": "GLUSTERFS",
-      "category": "General"
-    },
-    {
-      "id": "site property",
-      "name": "fs.AbstractFileSystem.glusterfs.impl",
-      "displayName": "Abstract File System Implementation",
-      "displayType": "string",
-      "filename": "core-site.xml",
-      "serviceName": "GLUSTERFS",
-      "category": "General"
-    },
-    {
-      "id": "site property",
-      "name": "fs.glusterfs.volumes",
-      "displayName": "Gluster volume name(s)",
-      "displayType": "string",
-      "filename": "core-site.xml",
-      "serviceName": "GLUSTERFS",
-      "category": "General"
-    },
-    {
-      "id": "site property",
-      "name": "fs.glusterfs.volume.fuse.gv0",
-      "displayName": "Gluster mount point for volume",
-      "displayType": "string",
-      "filename": "core-site.xml",
-      "serviceName": "GLUSTERFS",
-      "category": "General"
+      "category": "Advanced pig-properties"
     }, 
   /********************************************* flume-agent *****************************/
     {
@@ -1739,7 +1700,6 @@ module.exports =
       "isOverridable": false,
       "isVisible": true,
       "isRequiredByAgent": false,
-      "domain": "datanode-global",
       "serviceName": "HDFS",
       "filename": "hadoop-env.xml",
       "category": "DATANODE",
@@ -1754,7 +1714,6 @@ module.exports =
       "displayType": "int",
       "unit": "MB",
       "isVisible": true,
-      "domain": "datanode-global",
       "serviceName": "HDFS",
       "filename": "hadoop-env.xml",
       "category": "DATANODE",
@@ -1771,6 +1730,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "HDFS",
       "filename": "hadoop-env.xml",
+      "category": "General",
       "index": 1
     },
     {
@@ -1785,7 +1745,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "HDFS",
       "filename": "hadoop-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hadoop-env"
     },
     {
       "id": "puppet var",
@@ -1799,7 +1759,20 @@ module.exports =
       "isVisible": true,
       "serviceName": "HDFS",
       "filename": "hadoop-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hadoop-env"
+    },
+    {
+      "id": "puppet var",
+      "name": "hadoop_root_logger",
+      "displayName": "Hadoop Root Logger",
+      "description": "Hadoop logging options",
+      "defaultValue": "INFO,RFA",
+      "displayType": "string",
+      "isOverridable": false,
+      "isVisible": true,
+      "serviceName": "HDFS",
+      "filename": "hadoop-env.xml",
+      "category": "Advanced hadoop-env"
     },
     {
       "id": "puppet var",
@@ -1813,7 +1786,7 @@ module.exports =
       "isVisible": false,
       "serviceName": "HDFS",
       "filename": "hadoop-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hadoop-env"
     },
 
   /**********************************************MAPREDUCE2***************************************/
@@ -1859,7 +1832,7 @@ module.exports =
       "isReconfigurable": false,
       "serviceName": "MAPREDUCE2",
       "filename": "mapred-env.xml",
-      "category": "Advanced"
+      "category": "Advanced mapred-env"
     },
     {
       "id": "puppet var",
@@ -1873,7 +1846,7 @@ module.exports =
       "isReconfigurable": false,
       "serviceName": "MAPREDUCE2",
       "filename": "mapred-env.xml",
-      "category": "Advanced"
+      "category": "Advanced mapred-env"
     },
   /**********************************************YARN***************************************/
     {
@@ -1963,7 +1936,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "YARN",
       "filename": "yarn-env.xml",
-      "category": "Advanced"
+      "category": "Advanced yarn-env"
     },
     {
       "id": "puppet var",
@@ -1977,7 +1950,18 @@ module.exports =
       "isReconfigurable": false,
       "serviceName": "YARN",
       "filename": "yarn-env.xml",
-      "category": "Advanced"
+      "category": "Advanced yarn-env"
+    },
+    {
+      "id": "puppet var",
+      "name": "min_user_id",
+      "displayName": "Minimum user ID for submitting job",
+      "isOverridable": true,
+      "displayType": "int",
+      "isVisible": true,
+      "serviceName": "YARN",
+      "filename": "yarn-env.xml",
+      "category": "Advanced yarn-env"
     },
     {
       "id": "puppet var",
@@ -2105,7 +2089,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "HBASE",
       "filename": "hbase-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hbase-env"
     },
     {
       "id": "puppet var",
@@ -2119,34 +2103,69 @@ module.exports =
       "isVisible": true,
       "serviceName": "HBASE",
       "filename": "hbase-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hbase-env"
+    },
+     //***************************************** GLUSTERFS stack********************************************
+    {
+      "id": "site property",
+      "name": "fs.glusterfs.impl",
+      "displayName": "GlusterFS fs impl",
+      "displayType": "string",
+      "filename": "core-site.xml",
+      "serviceName": "GLUSTERFS",
+      "category": "General"
+    },
+    {
+      "id": "site property",
+      "name": "fs.AbstractFileSystem.glusterfs.impl",
+      "displayName": "GlusterFS Abstract File System Implementation",
+      "displayType": "string",
+      "filename": "core-site.xml",
+      "serviceName": "GLUSTERFS",
+      "category": "General"
+    },
+    {
+      "id": "site property",
+      "name": "fs.glusterfs.volumes",
+      "displayName": "Gluster volume name(s)",
+      "displayType": "string",
+      "filename": "core-site.xml",
+      "serviceName": "GLUSTERFS",
+      "category": "General"
+    },
+    {
+      "id": "site property",
+      "name": "fs.glusterfs.volume.fuse.gv0",
+      "displayName": "Gluster mount point for volume",
+      "displayType": "string",
+      "filename": "core-site.xml",
+      "serviceName": "GLUSTERFS",
+      "category": "General"
     },
   /**********************************************GLUSTERFS***************************************/
     {
       "id": "puppet var",
-      "name": "glusterfs_defaultFS_name",
-      "displayName": "GlusterFS default fs name",
-      "description": "GlusterFS default filesystem name (glusterfs:///)",
+      "name": "fs_glusterfs_default_name",
+      "displayName": "GlusterFS default fs name 1.x Hadoop",
+      "description": "GlusterFS default filesystem name (glusterfs://{MasterFQDN}:9000)",
       "defaultValue": "glusterfs:///localhost:8020",
       "displayType": "string",
       "isVisible": true,
-      "domain": "global",
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "General"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
     },
     {
       "id": "puppet var",
-      "name": "fs_glusterfs_default_name",
-      "displayName": "GlusterFS default fs name",
+      "name": "glusterfs_defaultFS_name",
+      "displayName": "GlusterFS default fs name 2.x Hadoop",
       "description": "GlusterFS default filesystem name (glusterfs:///)",
       "defaultValue": "glusterfs:///localhost:8020",
       "displayType": "string",
       "isVisible": true,
-      "domain": "global",
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "General"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
     },
     {
       "id": "puppet var",
@@ -2157,10 +2176,10 @@ module.exports =
       "displayType": "int",
       "unit": "MB",
       "isVisible": true,
-      "domain": "global",
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "General"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop",
+      "index": 1
     },
     {
       "id": "puppet var",
@@ -2171,10 +2190,10 @@ module.exports =
       "isReconfigurable": false,
       "displayType": "directory",
       "isOverridable": false,
-      "isVisible": true,
+      "isVisible": false,
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "Advanced"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
     },
     {
       "id": "puppet var",
@@ -2185,10 +2204,10 @@ module.exports =
       "isReconfigurable": false,
       "displayType": "directory",
       "isOverridable": false,
-      "isVisible": true,
+      "isVisible": false,
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "Advanced"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
     },
     {
       "id": "puppet var",
@@ -2201,8 +2220,8 @@ module.exports =
       "isOverridable": false,
       "isVisible": false,
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "Advanced"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
     },
     {
       "id": "puppet var",
@@ -2215,8 +2234,8 @@ module.exports =
       "isOverridable": false,
       "isVisible": false,
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "category"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
     },
     {
       "id": "puppet var",
@@ -2229,8 +2248,8 @@ module.exports =
       "isOverridable": false,
       "isVisible": false,
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "Advanced"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
     },
     {
       "id": "puppet var",
@@ -2241,10 +2260,57 @@ module.exports =
       "displayType": "int",
       "unit": "MB",
       "isVisible": false,
-      "domain": "datanode-global",
       "serviceName": "GLUSTERFS",
-      "filename": "glusterfs-env.xml",
-      "category": "Advanced"
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
+    },
+    {
+      "id": "puppet var",
+      "name": "glusterfs_user",
+      "displayName": "glusterfs user",
+      "description": "glusterfs user",
+      "defaultValue": "root",
+      "displayType": "string",
+      "isVisible": false,
+      "serviceName": "GLUSTERFS",
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
+    },
+    {
+      "id": "puppet var",
+      "name": "namenode_host",
+      "displayName": "NameNode Host",
+      "description": "NameNode Host.",
+      "defaultValue": "",
+      "displayType": "string",
+      "isVisible": false,
+      "serviceName": "GLUSTERFS",
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
+    },
+    {
+      "id": "puppet var",
+      "name": "snamenode_host",
+      "displayName": "Secondary NameNode Host",
+      "description": "Secondary NameNode Host.",
+      "defaultValue": "",
+      "displayType": "string",
+      "isVisible": false,
+      "serviceName": "GLUSTERFS",
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
+    },
+    {
+      "id": "puppet var",
+      "name": "content",
+      "displayName": "Hadoop Environment Template",
+      "description": "Hadoop Environment Template.",
+      "defaultValue": "",
+      "displayType": "string",
+      "isVisible": false,
+      "serviceName": "GLUSTERFS",
+      "filename": "hadoop-env.xml",
+      "category": "General Hadoop"
     },
   /**********************************************HIVE***************************************/
     {
@@ -2461,7 +2527,7 @@ module.exports =
       "isVisible": false,
       "serviceName": "HIVE",
       "filename": "hive-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hive-env"
     },
     {
       "id": "puppet var",
@@ -2475,7 +2541,7 @@ module.exports =
       "isRequiredByAgent": false, // Make this to true when we expose the property on ui by making "isVisible": true
       "serviceName": "HIVE",
       "filename": "hive-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hive-env"
     },
     {
       "id": "puppet var",
@@ -2489,7 +2555,7 @@ module.exports =
       "isRequiredByAgent": false, // Make this to true when we expose the property on ui by making "isVisible": true
       "serviceName": "HIVE",
       "filename": "hive-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hive-env"
     },
     {
       "id": "puppet var",
@@ -2503,7 +2569,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "HIVE",
       "filename": "hive-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hive-env"
     },
     {
       "id": "puppet var",
@@ -2517,7 +2583,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "HIVE",
       "filename": "hive-env.xml",
-      "category": "Advanced"
+      "category": "Advanced hive-env"
     },
   /**********************************************WEBHCAT***************************************/
     {
@@ -2547,7 +2613,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "WEBHCAT",
       "filename": "webhcat-env.xml",
-      "category": "Advanced"
+      "category": "Advanced webhcat-env"
     },
     {
       "id": "puppet var",
@@ -2561,7 +2627,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "WEBHCAT",
       "filename": "webhcat-env.xml",
-      "category": "Advanced"
+      "category": "Advanced webhcat-env"
     },
   /**********************************************OOZIE***************************************/
     {
@@ -2813,7 +2879,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "OOZIE",
       "filename": "oozie-env.xml",
-      "category": "Advanced"
+      "category": "Advanced oozie-env"
     },
     {
       "id": "puppet var",
@@ -2827,7 +2893,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "OOZIE",
       "filename": "oozie-env.xml",
-      "category": "Advanced"
+      "category": "Advanced oozie-env"
     },
     {
       "id": "puppet var",
@@ -2839,7 +2905,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "OOZIE",
       "filename": "oozie-env.xml",
-      "category": "Advanced"
+      "category": "Advanced oozie-env"
     },
   /**********************************************NAGIOS***************************************/
     {
@@ -2853,6 +2919,7 @@ module.exports =
       "isOverridable": false,
       "isVisible": true,
       "serviceName": "NAGIOS",
+      "category": "General",
       "filename": "nagios-env.xml",
       "index": 0
     },
@@ -2868,6 +2935,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "NAGIOS",
       "filename": "nagios-env.xml",
+      "category": "General",
       "index": 1
     },
     {
@@ -2881,6 +2949,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "NAGIOS",
       "filename": "nagios-env.xml",
+      "category": "General",
       "index": 2
     },
   /**********************************************ZOOKEEPER***************************************/
@@ -2985,7 +3054,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "ZOOKEEPER",
       "filename": "zookeeper-env.xml",
-      "category": "Advanced",
+      "category": "Advanced zookeeper-env",
       "index": 0
     },
     {
@@ -3000,7 +3069,7 @@ module.exports =
       "isVisible": true,
       "serviceName": "ZOOKEEPER",
       "filename": "zookeeper-env.xml",
-      "category": "Advanced",
+      "category": "Advanced zookeeper-env",
       "index": 1
     },
   /**********************************************GANGLIA***************************************/
@@ -3016,7 +3085,7 @@ module.exports =
       "isRequiredByAgent": false,
       "serviceName": "GANGLIA",
       "filename": "ganglia-env.xml",
-      "category": "Advanced"
+      "category": "Advanced ganglia-env"
     },
   /**********************************************FALCON***************************************/
     {
@@ -3087,7 +3156,7 @@ module.exports =
       "isReconfigurable": false,
       "serviceName": "FALCON",
       "filename": "falcon-env.xml",
-      "category": "Advanced"
+      "category": "Advanced falcon-env"
     },
     {
       "id": "puppet var",
@@ -3102,7 +3171,7 @@ module.exports =
       "isReconfigurable": false,
       "serviceName": "FALCON",
       "filename": "falcon-env.xml",
-      "category": "Advanced"
+      "category": "Advanced falcon-env"
     },
     {
       "id": "puppet var",
@@ -3117,7 +3186,7 @@ module.exports =
       "isReconfigurable": true,
       "serviceName": "FALCON",
       "filename": "falcon-env.xml",
-      "category": "Advanced"
+      "category": "Advanced falcon-env"
     },
     {
       "id": "puppet var",
@@ -3132,7 +3201,7 @@ module.exports =
       "isReconfigurable": true,
       "serviceName": "FALCON",
       "filename": "falcon-env.xml",
-      "category": "Advanced"
+      "category": "Advanced falcon-env"
     },
     {
       "id": "puppet var",
@@ -3147,7 +3216,7 @@ module.exports =
       "isReconfigurable": true,
       "serviceName": "FALCON",
       "filename": "falcon-env.xml",
-      "category": "Advanced"
+      "category": "Advanced falcon-env"
     },
   /**********************************************STORM***************************************/
     {
@@ -3162,7 +3231,7 @@ module.exports =
       "isRequiredByAgent": true,
       "serviceName": "STORM",
       "filename": "storm-env.xml",
-      "category": "General"
+      "category": "Advanced storm-env"
     },
     {
       "id": "puppet var",
@@ -3176,7 +3245,7 @@ module.exports =
       "isRequiredByAgent": true,
       "serviceName": "STORM",
       "filename": "storm-env.xml",
-      "category": "General"
+      "category": "Advanced storm-env"
     },
     {
       "id": "puppet var",
@@ -3460,6 +3529,22 @@ module.exports =
     },
     {
       "id": "puppet var",
+      "name": "flume_user",
+      "displayName": "Flume User",
+      "description": "User to run Flume as",
+      "defaultValue": "flume",
+      "isReconfigurable": false,
+      "displayType": "user",
+      "isOverridable": false,
+      "isVisible": true,
+      "serviceName": "MISC",
+      "filename": "flume-env.xml",
+      "category": "Users and Groups",
+      "belongsToService": ["FLUME"],
+      "index": 12
+    },
+    {
+      "id": "puppet var",
       "name": "gmetad_user",
       "displayName": "Ganglia User",
       "description": "The user used to run Ganglia",
@@ -3472,7 +3557,7 @@ module.exports =
       "filename": "ganglia-env.xml",
       "category": "Users and Groups",
       "belongsToService": ["GANGLIA"],
-      "index": 12
+      "index": 13
     },
     {
       "id": "puppet var",
@@ -3567,7 +3652,21 @@ module.exports =
       "filename": "hadoop-env.xml",
       "category": "Users and Groups",
       "belongsToService": ["HDFS"],
-      "index": 16
+      "index": 17
+    },
+    {
+      "id": "puppet var",
+      "name": "sqoop_user",
+      "displayName": "Sqoop User",
+      "isReconfigurable": false,
+      "displayType": "user",
+      "isOverridable": false,
+      "isVisible": true,
+      "serviceName": "MISC",
+      "filename": "sqoop-env.xml",
+      "category": "Users and Groups",
+      "belongsToService": ["SQOOP"],
+      "index": 17
     },
     {
       "id": "puppet var",

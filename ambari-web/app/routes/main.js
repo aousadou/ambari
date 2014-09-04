@@ -26,18 +26,22 @@ module.exports = Em.Route.extend({
     console.log('in /main:enter');
     router.getAuthenticated().done(function (loggedIn) {
       if (loggedIn) {
-        App.router.get('mainAdminAccessController').loadShowJobsForUsers().done(function () {
-          App.router.get('clusterController').loadClusterName(false).done(function () {
-            if (App.get('testMode')) {
-              router.get('mainController').initialize();
-            } else {
+        App.router.get('clusterController').loadClusterName(false).done(function () {
+          if (App.get('testMode')) {
+            router.get('mainController').initialize();
+          } else {
+            if (App.get('clusterName')) {
               App.router.get('mainController').checkServerClientVersion().done(function () {
                 App.router.get('clusterController').loadClientServerClockDistance().done(function () {
                   router.get('mainController').initialize();
                 });
               });
             }
-          });
+            else {
+              App.router.get('clusterController').set('isLoaded', true);
+              App.router.get('mainViewsController').loadAmbariViews();
+            }
+          }
         });
         // TODO: redirect to last known state
       } else {
@@ -68,28 +72,6 @@ module.exports = Em.Route.extend({
   connectOutlets: function (router, context) {
     router.get('applicationController').connectOutlet('main');
   },
-
-
-  views: Em.Route.extend({
-    route: '/views',
-    index: Em.Route.extend({
-      route: '/',
-      connectOutlets: function (router, context) {
-        router.get('mainController').connectOutlet('mainViews');
-      }
-    }),
-    viewDetails: Em.Route.extend({
-      route: '/:viewName/:version/:instanceName',
-      connectOutlets: function (router, params) {
-        router.get('mainController').dataLoading().done(function() {
-          // find and set content for `mainViewsDetails` and associated controller
-          router.get('mainController').connectOutlet('mainViewsDetails', App.router.get('clusterController.ambariViews')
-            .findProperty('href', ['/views', params.viewName, params.version, params.instanceName].join('/')));
-        });
-      }
-    })
-  }),
-
 
   test: Em.Route.extend({
     route: '/test',
@@ -167,7 +149,8 @@ module.exports = Em.Route.extend({
     }),
     goToServiceConfigs: function (router, event) {
       router.get('mainServiceItemController').set('routeToConfigs', true);
-      router.transitionTo('main.services.service.configs', App.Service.find(event.context));
+      router.get('mainServiceInfoConfigsController').set('preSelectedConfigVersion', event.context);
+      router.transitionTo('main.services.service.configs', App.Service.find(event.context.get('serviceName')));
       router.get('mainServiceItemController').set('routeToConfigs', false);
     }
   }),
@@ -184,47 +167,6 @@ module.exports = Em.Route.extend({
         router.get('mainController').connectOutlet('mainApps');
       }
     }
-  }),
-
-  jobs: Em.Route.extend({
-    route: '/jobs',
-    enter: function (router) {
-      if (!App.router.get('mainAdminAccessController.showJobs') && !App.get('isAdmin')) {
-        Em.run.next(function () {
-          router.transitionTo('main.dashboard.index');
-        });
-      }
-    },
-    exit: function (router) {
-      clearInterval(router.get('mainJobsController').jobsUpdate);
-    },
-    index: Ember.Route.extend({
-      route: '/',
-      connectOutlets: function (router) {
-        if (!App.get('isHadoop2Stack')) {
-          Em.run.next(function () {
-            router.transitionTo('main.dashboard.index');
-          });
-        } else {
-          router.get('mainJobsController').updateJobs('mainJobsController', 'refreshLoadedJobs');
-          router.get('mainController').connectOutlet('mainJobs');
-        }
-      }
-    }),
-    jobDetails: Em.Route.extend({
-      route: '/:job_id',
-      connectOutlets: function (router, job) {
-        if (job) {
-          router.get('mainHiveJobDetailsController').set('loaded', false);
-          router.get('mainController').connectOutlet('mainHiveJobDetails', job);
-          router.get('mainHiveJobDetailsController').loadJobDetails();
-          router.get('mainJobsController').updateJobs('mainHiveJobDetailsController', 'loadJobDetails');
-        }
-      },
-      exit: function (router) {
-        router.get('mainHiveJobDetailsController').set('loaded', false);
-      }
-    })
   }),
 
   mirroring: Em.Route.extend({
@@ -290,6 +232,7 @@ module.exports = Em.Route.extend({
     }
   }),
 
+  views: require('routes/views'),
 
   hosts: Em.Route.extend({
     route: '/hosts',
@@ -303,6 +246,7 @@ module.exports = Em.Route.extend({
     hostDetails: Em.Route.extend({
       route: '/:host_id',
       connectOutlets: function (router, host) {
+        router.get('mainHostController').set('showFilterConditionsFirstLoad', true);
         router.get('mainController').connectOutlet('mainHostDetails', host);
       },
 
@@ -395,62 +339,8 @@ module.exports = Em.Route.extend({
        router.transitionTo('admin' + controller.get('category').capitalize());
        }, */
       route: '/',
-      redirectsTo: 'adminUser'
+      redirectsTo: 'adminRepositories'
     }),
-
-
-    adminUser: Em.Route.extend({
-      route: '/user',
-      index: Em.Route.extend({
-        route: '/',
-        redirectsTo: 'allUsers'
-      }),
-      enter: function (router) {
-        router.set('mainAdminController.category', "user");
-        Em.run.next(function () {
-          router.transitionTo('allUsers');
-        });
-      },
-      routePath: function (router, event) {
-        router.set('mainAdminController.category', "user");
-        router.transitionTo('allUsers');
-        Em.run.next(function () {
-          router.transitionTo('allUsers');
-        });
-      },
-      // events
-      gotoUsers: Em.Router.transitionTo("allUsers"),
-      gotoCreateUser: Em.Router.transitionTo("createUser"),
-      gotoEditUser: function (router, event) {
-        router.transitionTo("editUser", event.context)
-      },
-
-      // states
-      allUsers: Em.Route.extend({
-        route: '/allUsers',
-        // index: Ember.Route.extend({
-        //route: '/',
-        connectOutlets: function (router) {
-          router.get('mainAdminController').connectOutlet('mainAdminUser');
-        }
-        //})
-      }),
-
-      createUser: Em.Route.extend({
-        route: '/create',
-        connectOutlets: function (router) {
-          router.get('mainAdminController').connectOutlet('mainAdminUserCreate', {});
-        }
-      }),
-
-      editUser: Em.Route.extend({
-        route: '/edit/:user_id',
-        connectOutlets: function (router, user) {
-          router.get('mainAdminController').connectOutlet('mainAdminUserEdit', user);
-        }
-      })
-    }),
-
 
     adminAuthentication: Em.Route.extend({
       route: '/authentication',
@@ -459,28 +349,6 @@ module.exports = Em.Route.extend({
         router.get('mainAdminController').connectOutlet('mainAdminAuthentication');
       }
     }),
-
-    adminHighAvailability: Em.Route.extend({
-      route: '/highAvailability',
-      enter: function (router) {
-        Em.run.next(function () {
-          router.transitionTo('adminHighAvailability.index');
-        });
-      },
-      index: Ember.Route.extend({
-        route: '/',
-        connectOutlets: function (router, context) {
-          router.set('mainAdminController.category', "highAvailability");
-          router.get('mainAdminController').connectOutlet('mainAdminHighAvailability');
-        }
-      })
-    }),
-
-    enableHighAvailability: require('routes/high_availability_routes'),
-
-    rollbackHighAvailability: require('routes/rollbackHA_routes'),
-
-    enableRMHighAvailability: require('routes/rm_high_availability_routes'),
 
     adminSecurity: Em.Route.extend({
       route: '/security',
@@ -593,11 +461,11 @@ module.exports = Em.Route.extend({
       adminAddSecurity: require('routes/add_security')
     }),
 
-    adminCluster: Em.Route.extend({
-      route: '/cluster',
+    adminRepositories: Em.Route.extend({
+      route: '/repositories',
       connectOutlets: function (router) {
-        router.set('mainAdminController.category', "cluster");
-        router.get('mainAdminController').connectOutlet('mainAdminCluster');
+        router.set('mainAdminController.category', "repositories");
+        router.get('mainAdminController').connectOutlet('mainAdminRepositories');
       }
     }),
     adminAdvanced: Em.Route.extend({
@@ -607,23 +475,11 @@ module.exports = Em.Route.extend({
         router.get('mainAdminController').connectOutlet('mainAdminAdvanced');
       }
     }),
-    adminMisc: Em.Route.extend({
-      route: '/misc',
+    adminServiceAccounts: Em.Route.extend({
+      route: '/serviceAccounts',
       connectOutlets: function (router) {
-        router.set('mainAdminController.category', "misc");
-        router.get('mainAdminController').connectOutlet('mainAdminMisc');
-      }
-    }),
-    adminAccess: Em.Route.extend({
-      enter: function (router) {
-        router.get('mainController').dataLoading().done(function () {
-          if (!router.get('mainAdminController.isAccessAvailable')) router.transitionTo('adminUser.allUsers');
-        });
-      },
-      route: '/access',
-      connectOutlets: function (router) {
-        router.set('mainAdminController.category', "access");
-        router.get('mainAdminController').connectOutlet('mainAdminAccess');
+        router.set('mainAdminController.category', "serviceAccounts");
+        router.get('mainAdminController').connectOutlet('mainAdminServiceAccounts');
       }
     }),
 
@@ -758,7 +614,7 @@ module.exports = Em.Route.extend({
           mainServiceInfoConfigsController.showSavePopup(router.get('location.lastSetURL').replace('configs', 'summary'));
           return false;
         }
-        var parent = event.view._parentView;
+        var parent = event.view.get('_parentView');
         parent.deactivateChildViews();
         event.view.set('active', "active");
         router.transitionTo(event.context);
@@ -766,7 +622,13 @@ module.exports = Em.Route.extend({
     }),
     showService: Em.Router.transitionTo('service'),
     addService: Em.Router.transitionTo('serviceAdd'),
-    reassign: Em.Router.transitionTo('reassign')
+    reassign: Em.Router.transitionTo('reassign'),
+
+    enableHighAvailability: require('routes/high_availability_routes'),
+
+    enableRMHighAvailability: require('routes/rm_high_availability_routes'),
+
+    rollbackHighAvailability: require('routes/rollbackHA_routes')
   }),
 
   reassign: require('routes/reassign_master_routes'),

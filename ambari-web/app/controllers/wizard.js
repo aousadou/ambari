@@ -742,7 +742,7 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
   usersLoading: function () {
     var self = this;
     var dfd = $.Deferred();
-    var miscController = App.MainAdminMiscController.create({content: self.get('content')});
+    var miscController = App.MainAdminServiceAccountsController.create({content: self.get('content')});
     miscController.loadUsers();
     var interval = setInterval(function () {
       if (miscController.get('dataIsLoaded')) {
@@ -845,7 +845,8 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
           isRequiredByAgent: _configProperties.get('isRequiredByAgent'),
           hasInitialValue: !!_configProperties.get('hasInitialValue'),
           isRequired: _configProperties.get('isRequired'), // flag that allow saving property with empty value
-          group: !!_configProperties.get('group') ? _configProperties.get('group.name') : null
+          group: !!_configProperties.get('group') ? _configProperties.get('group.name') : null,
+          showLabel: _configProperties.get('showLabel'),
         };
         serviceConfigProperties.push(configProperty);
       }, this);
@@ -974,7 +975,7 @@ App.WizardController = Em.Controller.extend(App.LocalStorage, {
    */
   loadMasterComponentHosts: function () {
     var masterComponentHosts = this.getDBProperty('masterComponentHosts');
-    var stackMasterComponents = App.get('components.masters').concat(App.get('components.masterBehavior')).uniq();
+    var stackMasterComponents = App.get('components.masters').uniq();
     if (!masterComponentHosts) {
       masterComponentHosts = [];
       App.HostComponent.find().filter(function(component) {

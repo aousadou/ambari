@@ -28,25 +28,25 @@ from resource_management.core import shell
 class TestPackageResource(TestCase):
   @patch.object(shell, "call")
   @patch.object(shell, "checked_call")
-  @patch.object(System, "os_family", new = 'debian')
-  def test_action_install_debian_update(self, shell_mock, call_mock):
+  @patch.object(System, "os_family", new = 'ubuntu')
+  def test_action_install_ubuntu_update(self, shell_mock, call_mock):
     call_mock.return_value= (1, None)
     with Environment('/') as env:
       Package("some_package",
       )
     call_mock.assert_has_calls([call("dpkg --get-selections some_package | grep -v deinstall"),
                                 call("DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get -q -o Dpkg::Options::='--force-confdef'"
-                                      " --allow-unauthenticated --assume-yes install some_package")
+                                      " --allow-unauthenticated --assume-yes install some_package"),
+                                call("apt-get update -qq")
                               ])
     
-    shell_mock.assert_has_calls([call("apt-get update -qq"),
-                                call("DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get -q -o Dpkg::Options::='--force-confdef' --allow-unauthenticated --assume-yes install some_package")
+    shell_mock.assert_has_calls([call("DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get -q -o Dpkg::Options::='--force-confdef' --allow-unauthenticated --assume-yes install some_package")
                               ])
   
   @patch.object(shell, "call")
   @patch.object(shell, "checked_call")
-  @patch.object(System, "os_family", new = 'debian')
-  def test_action_install_debian(self, shell_mock, call_mock):
+  @patch.object(System, "os_family", new = 'ubuntu')
+  def test_action_install_ubuntu(self, shell_mock, call_mock):
     call_mock.side_effect = [(1, None), (0, None)]
     with Environment('/') as env:
       Package("some_package",

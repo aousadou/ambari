@@ -18,13 +18,22 @@
 
 package org.apache.ambari.view.slider;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.inject.Inject;
-import com.google.inject.Singleton;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.zip.ZipException;
+
 import org.apache.ambari.view.ViewContext;
 import org.apache.ambari.view.slider.clients.AmbariClient;
 import org.apache.ambari.view.slider.clients.AmbariCluster;
@@ -58,29 +67,21 @@ import org.apache.slider.common.params.ActionThawArgs;
 import org.apache.slider.common.tools.SliderFileSystem;
 import org.apache.slider.core.exceptions.UnknownApplicationInstanceException;
 import org.apache.slider.core.main.LauncherExitCodes;
+import org.apache.slider.providers.agent.application.metadata.Application;
 import org.apache.slider.providers.agent.application.metadata.Component;
 import org.apache.slider.providers.agent.application.metadata.Metainfo;
 import org.apache.slider.providers.agent.application.metadata.MetainfoParser;
-import org.apache.slider.providers.agent.application.metadata.Service;
 import org.apache.tools.zip.ZipFile;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Field;
-import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.zip.ZipException;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.inject.Inject;
+import com.google.inject.Singleton;
 
 @Singleton
 public class SliderAppsViewControllerImpl implements SliderAppsViewController {
@@ -154,9 +155,9 @@ public class SliderAppsViewControllerImpl implements SliderAppsViewController {
       }
       // Check security
       if (cluster.getDesiredConfigs() != null
-          && cluster.getDesiredConfigs().containsKey("global")) {
+          && cluster.getDesiredConfigs().containsKey("hadoop-env")) {
         Map<String, String> globalConfig = ambariClient.getConfiguration(
-            clusterInfo, "global", cluster.getDesiredConfigs().get("global"));
+            clusterInfo, "hadoop-env", cluster.getDesiredConfigs().get("hadoop-env"));
         if (globalConfig != null
             && globalConfig.containsKey("security_enabled")) {
           String securityValue = globalConfig.get("security_enabled");
@@ -458,19 +459,19 @@ public class SliderAppsViewControllerImpl implements SliderAppsViewController {
       AmbariService zkService = ambariClient.getService(ambariCluster,
                                                         "ZOOKEEPER");
       if (zkService != null && ambariCluster.getDesiredConfigs() != null
-          && ambariCluster.getDesiredConfigs().containsKey("global")
+          && ambariCluster.getDesiredConfigs().containsKey("zookeeper-env")
           && ambariCluster.getDesiredConfigs().containsKey("yarn-site")
           && ambariCluster.getDesiredConfigs().containsKey("core-site")) {
-        Map<String, String> globalConfigs = ambariClient.getConfiguration(
-            ambariCluster, "global",
-            ambariCluster.getDesiredConfigs().get("global"));
+        Map<String, String> zkConfigs = ambariClient.getConfiguration(
+            ambariCluster, "zookeeper-env",
+            ambariCluster.getDesiredConfigs().get("zookeeper-env"));
         Map<String, String> yarnSiteConfigs = ambariClient.getConfiguration(
             ambariCluster, "yarn-site",
             ambariCluster.getDesiredConfigs().get("yarn-site"));
         Map<String, String> coreSiteConfigs = ambariClient.getConfiguration(
             ambariCluster, "core-site",
             ambariCluster.getDesiredConfigs().get("core-site"));
-        String zkPort = globalConfigs.get("clientPort");
+        String zkPort = zkConfigs.get("clientPort");
         String hdfsPath = coreSiteConfigs.get("fs.defaultFS");
         String rmAddress = yarnSiteConfigs.get("yarn.resourcemanager.address");
         String rmSchedulerAddress = yarnSiteConfigs
@@ -595,9 +596,8 @@ public class SliderAppsViewControllerImpl implements SliderAppsViewController {
             Metainfo metainfo = new MetainfoParser().parse(zipFile
                                                                .getInputStream(zipFile.getEntry("metainfo.xml")));
             // Create app type object
-            if (metainfo.getServices() != null
-                && metainfo.getServices().size() > 0) {
-              Service service = metainfo.getServices().get(0);
+            if (metainfo.getApplication() != null) {
+              Application application = metainfo.getApplication();
               String appConfigJsonString = IOUtils.toString(
                   zipFile.getInputStream(zipFile.getEntry("appConfig.json")),
                   "UTF-8");
@@ -609,10 +609,10 @@ public class SliderAppsViewControllerImpl implements SliderAppsViewController {
               JsonElement resourcesJson = new JsonParser()
                   .parse(resourcesJsonString);
               SliderAppType appType = new SliderAppType();
-              appType.setId(service.getName());
-              appType.setTypeName(service.getName());
-              appType.setTypeDescription(service.getComment());
-              appType.setTypeVersion(service.getVersion());
+              appType.setId(application.getName());
+              appType.setTypeName(application.getName());
+              appType.setTypeDescription(application.getComment());
+              appType.setTypeVersion(application.getVersion());
               appType.setTypePackageFileName(appZip.getName());
               // Configs
               Map<String, String> configsMap = new HashMap<String, String>();
@@ -624,7 +624,7 @@ public class SliderAppsViewControllerImpl implements SliderAppsViewController {
               appType.setTypeConfigs(configsMap);
               // Components
               ArrayList<SliderAppTypeComponent> appTypeComponentList = new ArrayList<SliderAppTypeComponent>();
-              for (Component component : service.getComponents()) {
+              for (Component component : application.getComponents()) {
                 if ("CLIENT".equals(component.getCategory())) {
                   continue;
                 }
@@ -744,7 +744,7 @@ public class SliderAppsViewControllerImpl implements SliderAppsViewController {
       createArgs.template = appConfigJsonFile;
       createArgs.resources = resourcesJsonFile;
       createArgs.image = new Path(hdfsLocation
-                                  + "/slider/agent/slider-agent.tar.gz");
+                                  + "/user/yarn/agent/slider-agent.tar.gz");
 
       ClassLoader currentClassLoader = Thread.currentThread()
           .getContextClassLoader();

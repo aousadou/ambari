@@ -24,6 +24,7 @@ App.stackServiceMapper = App.QuickDataMapper.create({
   config: {
     id: 'service_name',
     service_name: 'service_name',
+    display_name: 'display_name',
     config_types: 'config_types',
     comments: 'comments',
     service_version: 'service_version',
@@ -31,6 +32,8 @@ App.stackServiceMapper = App.QuickDataMapper.create({
     stack_version: 'stack_version',
     is_selected: 'is_selected',
     is_installed: 'is_installed',
+    required_services: 'required_services',
+    service_check_supported: 'service_check_supported',
     service_components_key: 'service_components',
     service_components_type: 'array',
     service_components: {
@@ -41,7 +44,9 @@ App.stackServiceMapper = App.QuickDataMapper.create({
   component_config: {
     id: 'component_name',
     component_name: 'component_name',
+    display_name: 'display_name',
     cardinality: 'cardinality',
+    custom_commands: 'custom_commands',
     service_name: 'service_name',
     component_category: 'component_category',
     is_master: 'is_master',
@@ -97,6 +102,7 @@ App.stackServiceMapper = App.QuickDataMapper.create({
       records.forEach(function (rec) {
         Ember.run(this, function () {
           rec.deleteRecord();
+          App.store.commit();
         });
       }, this);
     }, this);

@@ -107,20 +107,6 @@ describe('App.WizardStep6Controller', function () {
     });
   });
 
-  describe('#isServiceSelected', function () {
-    describe('selected', function () {
-      services.forEach(function (service) {
-        it(service.serviceName + ' is selected', function () {
-          expect(controller.isServiceSelected(service.serviceName)).to.equal(true);
-        });
-      });
-    });
-    var unselectedService = 'FAKESERVICE';
-    it(unselectedService + ' is not selected', function () {
-      expect(controller.isServiceSelected(unselectedService)).to.equal(false);
-    });
-  });
-
   describe('#clearStep', function () {
     beforeEach(function () {
       sinon.stub(controller, 'clearError', Em.K);
@@ -152,40 +138,6 @@ describe('App.WizardStep6Controller', function () {
       controller.set('isLoaded', true);
       controller.clearStep();
       expect(controller.get('isLoaded')).to.equal(false);
-    });
-  });
-
-  describe('#selectAllNodes', function () {
-    beforeEach(function () {
-      sinon.stub(controller, 'setAllNodes', Em.K);
-    });
-    afterEach(function () {
-      controller.setAllNodes.restore();
-    });
-    it('should call setAllNodes', function () {
-      controller.selectAllNodes({context: {name: 'name'}});
-      expect(controller.setAllNodes.calledWith('name', true)).to.equal(true);
-    });
-    it('shouldn\'t call setAllNodes', function () {
-      controller.selectAllNodes();
-      expect(controller.setAllNodes.called).to.equal(false);
-    });
-  });
-
-  describe('#deselectAllNodes', function () {
-    beforeEach(function () {
-      sinon.stub(controller, 'setAllNodes', Em.K);
-    });
-    afterEach(function () {
-      controller.setAllNodes.restore();
-    });
-    it('should call setAllNodes', function () {
-      controller.deselectAllNodes({context: {name: 'name'}});
-      expect(controller.setAllNodes.calledWith('name', false)).to.equal(true);
-    });
-    it('shouldn\'t call setAllNodes', function () {
-      controller.deselectAllNodes();
-      expect(controller.setAllNodes.called).to.equal(false);
     });
   });
 
@@ -450,7 +402,7 @@ describe('App.WizardStep6Controller', function () {
           return test.r
         });
         controller.set('content.controllerName', test.controllerName);
-        expect(controller.validate()).to.equal(test.e);
+        expect(controller.callClientSideValidation()).to.equal(test.e);
         controller[test.method].restore();
       });
     });

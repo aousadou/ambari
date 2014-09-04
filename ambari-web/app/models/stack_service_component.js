@@ -24,7 +24,9 @@ var numberUtils = require('utils/number_utils');
  */
 App.StackServiceComponent = DS.Model.extend({
   componentName: DS.attr('string'),
+  displayName: DS.attr('string'),
   cardinality: DS.attr('string'),
+  customCommands: DS.attr('array'),
   dependencies: DS.attr('array'),
   serviceName: DS.attr('string'),
   componentCategory: DS.attr('string'),
@@ -53,15 +55,6 @@ App.StackServiceComponent = DS.Model.extend({
     return numberUtils.getCardinalityValue(this.get('cardinality'), true);
   }.property('cardinality'),
 
-  /** @property {String} displayName**/
-  displayName: function() {
-    if (App.format.role(this.get('componentName'))) {
-      return App.format.role(this.get('componentName'));
-    } else {
-      return this.get('componentName');
-    }
-  }.property('componentName'),
-
   /** @property {Boolean} isRequired - component required to install **/
   isRequired: function() {
     return this.get('minToInstall') > 0;
@@ -89,7 +82,7 @@ App.StackServiceComponent = DS.Model.extend({
 
   /** @property {Boolean} isRollinRestartAllowed - component supports rolling restart action **/
   isRollinRestartAllowed: function() {
-    return this.get('isSlave') && !this.get('isMasterBehavior');
+    return this.get('isSlave');
   }.property('componentName'),
 
   /** @property {Boolean} isDecommissionAllowed - component supports decommission action **/
@@ -117,7 +110,7 @@ App.StackServiceComponent = DS.Model.extend({
   isShownOnInstallerAssignMasterPage: function() {
     var component = this.get('componentName');
     var mastersNotShown = ['MYSQL_SERVER'];
-    return ((this.get('isMaster') && !mastersNotShown.contains(component)) || component === 'APP_TIMELINE_SERVER');
+    return this.get('isMaster') && !mastersNotShown.contains(component);
   }.property('isMaster','componentName'),
 
   /** @property {Boolean} isShownOnInstallerSlaveClientPage - component visible on "Assign Slaves and Clients" step of Install Wizard**/
@@ -154,12 +147,7 @@ App.StackServiceComponent = DS.Model.extend({
     return this.get('isMaster') && this.get('isMultipleAllowed') && this.get('maxToInstall') > 2;
   }.property('componentName'),
 
-  /** @property {Boolean} isMasterBehavior - Some non master components can be assigned as master **/
-  isMasterBehavior: function() {
-    var componentsName = ['APP_TIMELINE_SERVER'];
-    return componentsName.contains(this.get('componentName'));
-  }.property('componentName'),
-
+ 
   /** @property {Boolean} isClientBehavior - Some non client components can be assigned as clients.
    *
    * Used for ignoring such components as Ganglia Monitor on Installer "Review" step.

@@ -46,6 +46,7 @@ App.Router = Em.Router.extend({
     this.get('addHostController').clear();
     this.get('addServiceController').clear();
     this.get('stackUpgradeController').clear();
+    this.get('backgroundOperationsController').clear();
     for (var i = 1; i < 11; i++) {
       this.set('wizardStep' + i + 'Controller.hasSubmitted', false);
       this.set('wizardStep' + i + 'Controller.isDisabled', true);
@@ -154,6 +155,36 @@ App.Router = Em.Router.extend({
     return App.db.getUser();
   },
 
+  /**
+   * Get user privileges.
+   *
+   * @param {String} userName
+   * @returns {$.Deferred}
+   **/
+  getUserPrivileges: function(userName) {
+    return App.ajax.send({
+      name: 'router.user.privileges',
+      sender: this,
+      data: {
+        userName: userName
+      },
+      success: 'getUserPrivilegesSuccess',
+      error: 'getUserPrivilegesError'
+    });
+  },
+
+  getUserPrivilegesSuccess: function() {},
+
+  getUserPrivilegesError: function(req) {
+    console.log("Get user privileges error: " + req.statusCode);
+  },
+
+  setUserLoggedIn: function(userName) {
+    this.setAuthenticated(true);
+    this.setLoginName(userName);
+    this.setUser(App.User.find().findProperty('id', userName));
+  },
+
   login: function () {
     var controller = this.get('loginController');
     var loginName = controller.get('loginName').toLowerCase();
@@ -190,33 +221,16 @@ App.Router = Em.Router.extend({
 
   loginSuccessCallback: function(data, opt, params) {
     console.log('login success');
-    var d = data;
-    var isAdmin = data.Users.roles.indexOf('admin') >= 0;
-    var self = this;
-    if (isAdmin) {
-      App.set('isAdmin', true);
-      var controller = this.get('loginController');
-      this.setAuthenticated(true);
-      this.setLoginName(params.loginName);
-      App.usersMapper.map({"items": [data]});
-      this.setUser(App.User.find().findProperty('id', params.loginName));
-      this.getSection(function(route){
-        self.transitionTo(route);
-        controller.postLogin(true,true);
-      });
-    }
-    else {
-      App.ajax.send({
-        name: 'router.login2',
-        sender: this,
-        data: {
-          loginName: params.loginName,
-          loginData: data
-        },
-        success: 'login2SuccessCallback',
-        error: 'login2ErrorCallback'
-      });
-    }
+    App.ajax.send({
+      name: 'router.login.clusters',
+      sender: this,
+      data: {
+        loginName: params.loginName,
+        loginData: data
+      },
+      success: 'loginGetClustersSuccessCallback',
+      error: 'loginGetClustersErrorCallback'
+    });
   },
 
   loginErrorCallback: function(request, ajaxOptions, error, opt) {
@@ -231,26 +245,56 @@ App.Router = Em.Router.extend({
 
   },
 
-  login2SuccessCallback: function (clusterResp, opt, params) {
-    var controller = this.get('loginController');
-    var self = this;
-    if (clusterResp.items.length) {
-      this.setAuthenticated(true);
-      this.setLoginName(params.loginName);
-      App.usersMapper.map({"items": [params.loginData]});
-      this.setUser(App.User.find().findProperty('id', params.loginName));
-      this.getSection(function(route){
-        self.transitionTo(route);
-        controller.postLogin(true,true);
-      });
-    }
-    else {
-      controller.set('errorMessage', Em.I18n.t('router.hadoopClusterNotSetUp'));
-    }
+  loginGetClustersSuccessCallback: function (clustersData, opt, params) {
+    var adminViewUrl = '/views/ADMIN_VIEW/1.0.0/INSTANCE/#/';
+    //TODO: Replace hard coded value with query. Same in templates/application.hbs
+    var loginController = this.get('loginController');
+    var loginData = params.loginData;
+    var router = this;
+
+    this.getUserPrivileges(params.loginName).done(function(privileges) {
+      loginData.privileges = privileges;
+      App.usersMapper.map({"items": [loginData]});
+      router.setUserLoggedIn(params.loginName);
+      var permissionList = privileges.items.mapProperty('PrivilegeInfo.permission_name');
+      var isAdmin = permissionList.indexOf('AMBARI.ADMIN') > -1;
+      var transitionToApp = false;
+      if (isAdmin) {
+        App.set('isAdmin', true);
+        if (clustersData.items.length) {
+          transitionToApp = true;
+        } else {
+          window.location = adminViewUrl;
+          return;
+        }
+      } else {
+        if (clustersData.items.length) {
+          //TODO: Iterate over clusters
+          var clusterName = clustersData.items[0].Clusters.cluster_name;
+          var clusterPermissions = privileges.items.filterProperty('PrivilegeInfo.cluster_name', clusterName).mapProperty('PrivilegeInfo.permission_name');
+          if (clusterPermissions.indexOf('CLUSTER.OPERATE') > -1) {
+            App.set('isAdmin', true);
+            App.set('isOperator', true);
+            transitionToApp = true;
+          } else if (clusterPermissions.indexOf('CLUSTER.READ') > -1) {
+            transitionToApp = true;
+          }
+        }
+      }
+      if (transitionToApp) {
+        router.getSection(function (route) {
+          router.transitionTo(route);
+          loginController.postLogin(true, true);
+        });
+      } else {
+        router.transitionTo('main.views.index');
+        loginController.postLogin(true,true);
+      }
+    });
   },
 
-  login2ErrorCallback: function (req) {
-    console.log("Server not responding: " + req.statusCode);
+  loginGetClustersErrorCallback: function (req) {
+    console.log("Get clusters error: " + req.statusCode);
   },
 
   getSection: function (callback) {
@@ -284,10 +328,13 @@ App.Router = Em.Router.extend({
         route = 'main.reassign';
       } else if (clusterStatusOnServer && clusterStatusOnServer.wizardControllerName === App.router.get('highAvailabilityWizardController.name')) {
         // if wizardControllerName == "highAvailabilityWizardController", then it means someone closed the browser or the browser was crashed when we were last in NameNode High Availability wizard
-        route = 'main.admin.enableHighAvailability';
+        route = 'main.services.enableHighAvailability';
+      } else if (clusterStatusOnServer && clusterStatusOnServer.wizardControllerName === App.router.get('rMHighAvailabilityWizardController.name')) {
+        // if wizardControllerName == "highAvailabilityWizardController", then it means someone closed the browser or the browser was crashed when we were last in NameNode High Availability wizard
+        route = 'main.services.enableRMHighAvailability';
       } else if (clusterStatusOnServer && clusterStatusOnServer.wizardControllerName === App.router.get('rollbackHighAvailabilityWizardController.name')) {
         // if wizardControllerName == "highAvailabilityRollbackController", then it means someone closed the browser or the browser was crashed when we were last in NameNode High Availability Rollback wizard
-        route = 'main.admin.rollbackHighAvailability';
+        route = 'main.services.rollbackHighAvailability';
       }
       callback(route);
     });
@@ -303,6 +350,7 @@ App.Router = Em.Router.extend({
     // since it's a computed property but we are not setting it as a dependent of App.db.
     App.db.cleanUp();
     App.set('isAdmin', false);
+    App.set('isOperator', false);
     this.set('loggedIn', false);
     this.clearAllSteps();
     console.log("Log off: " + App.router.getClusterName());
@@ -321,7 +369,11 @@ App.Router = Em.Router.extend({
         error:'logOffErrorCallback'
       });
     }
-    this.transitionTo('login', context);
+    if (App.router.get('clusterController.isLoaded')) {
+      window.location.reload();
+    } else {
+      this.transitionTo('login', context);
+    }
   },
 
   logOffSuccessCallback: function (data) {
@@ -383,16 +435,20 @@ App.Router = Em.Router.extend({
     installer: require('routes/installer'),
 
     main: require('routes/main'),
-    
+
     experimental: Em.Route.extend({
       route: '/experimental',
       enter: function (router, context) {
-        
+        if (!App.get('isAdmin')) {
+          router.transitionTo("main");
+        }
       },
       connectOutlets: function (router, context) {
-        $('title').text("Ambari Experimental");
-        console.log('/experimental:connectOutlet');
-        router.get('applicationController').connectOutlet('experimental');
+        if (App.get('isAdmin')) {
+          $('title').text("Ambari Experimental");
+          console.log('/experimental:connectOutlet');
+          router.get('applicationController').connectOutlet('experimental');
+        }
       }
     }),
 

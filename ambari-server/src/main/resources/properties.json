@@ -6,7 +6,7 @@
         "Clusters/version",
         "Clusters/state",
         "Clusters/desired_configs",
-        "Clusters/desired_serviceconfigversions",
+        "Clusters/desired_service_config_versions",
         "Clusters/total_hosts",
         "Clusters/health_report",
         "_"
@@ -88,10 +88,14 @@
     "ServiceConfigVersion":[
         "ServiceConfigVersion/cluster_name",
         "ServiceConfigVersion/service_name",
-        "ServiceConfigVersion/serviceconfigversion",
+        "ServiceConfigVersion/group_id",
+        "ServiceConfigVersion/group_name",
+        "ServiceConfigVersion/hosts",
+        "ServiceConfigVersion/service_config_version",
+        "ServiceConfigVersion/is_current",
         "ServiceConfigVersion/createtime",
-        "ServiceConfigVersion/appliedtime",
-        "ServiceConfigVersion/user"
+        "ServiceConfigVersion/user",
+        "ServiceConfigVersion/service_config_version_note"
     ],
     "ConfigGroup": [
         "ConfigGroup/id",
@@ -170,11 +174,12 @@
     ],
     "User":[
         "Users/user_name",
-        "Users/roles",
         "Users/password",
         "Users/old_password",
         "Users/ldap_user",
         "Users/active",
+        "Users/groups",
+        "Users/admin",
         "_"
     ],
     "Group":[
@@ -197,6 +202,7 @@
         "Versions/min_upgrade_version",
         "Versions/active",
         "Versions/parent_stack_version",
+        "Versions/config_types",
         "_"
     ],
     "OperatingSystem":[
@@ -222,12 +228,14 @@
         "StackServices/stack_name",
         "StackServices/stack_version",
         "StackServices/service_name",
+        "StackServices/display_name",
         "StackServices/user_name",
         "StackServices/comments",
         "StackServices/service_version",
         "StackServices/config_types",
         "StackServices/service_check_supported",
         "StackServices/custom_commands",
+        "StackServices/required_services",
         "_"
     ],
     "StackConfiguration":[
@@ -239,6 +247,7 @@
         "StackConfigurations/property_description",
         "StackConfigurations/type",
         "StackConfigurations/final",
+        "StackConfigurations/property_type",
         "_"
     ],
     "StackServiceComponent":[
@@ -246,6 +255,7 @@
         "StackServiceComponents/stack_version",
         "StackServiceComponents/service_name",
         "StackServiceComponents/component_name",
+        "StackServiceComponents/display_name",
         "StackServiceComponents/component_category",
         "StackServiceComponents/is_client",
         "StackServiceComponents/is_master",
@@ -370,6 +380,7 @@
         "Recommendation/id",
         "Versions/stack_name",
         "Versions/stack_version",
+        "recommend",
         "hosts",
         "services",
         "recommendations",
@@ -396,6 +407,7 @@
         "items/config-type",
         "items/config-name",
         "items/host-group",
+        "validate",
         "hosts",
         "services",
         "recommendations"
@@ -413,6 +425,7 @@
       "AlertDefinition/component_name",
       "AlertDefinition/id",
       "AlertDefinition/name",
+      "AlertDefinition/label",
       "AlertDefinition/interval",
       "AlertDefinition/enabled",
       "AlertDefinition/scope",
@@ -425,6 +438,24 @@
         "LDAP/groups",
         "LDAP/synced_users",
         "LDAP/synced_groups",
+        "_"
+    ],
+    "ClientConfig":[
+        "ServiceComponentInfo/service_name",
+        "ServiceComponentInfo/component_name",
+        "ServiceComponentInfo/cluster_name",
+        "HostRoles/host_name",
+        "_"
+    ],
+    "StackLevelConfiguration":[
+        "StackLevelConfigurations/stack_name",
+        "StackLevelConfigurations/stack_version",
+        "StackLevelConfigurations/property_name",
+        "StackLevelConfigurations/property_value",
+        "StackLevelConfigurations/property_description",
+        "StackLevelConfigurations/type",
+        "StackLevelConfigurations/final",
+        "StackConfigurations/property_type",
         "_"
     ]
 }

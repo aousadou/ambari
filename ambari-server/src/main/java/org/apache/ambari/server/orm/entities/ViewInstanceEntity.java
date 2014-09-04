@@ -43,14 +43,12 @@ import javax.persistence.Transient;
 import javax.persistence.UniqueConstraint;
 
 import org.apache.ambari.server.controller.spi.Resource;
+import org.apache.ambari.server.security.SecurityHelper;
+import org.apache.ambari.server.security.SecurityHelperImpl;
 import org.apache.ambari.server.view.configuration.InstanceConfig;
 import org.apache.ambari.view.ResourceProvider;
 import org.apache.ambari.view.ViewDefinition;
 import org.apache.ambari.view.ViewInstanceDefinition;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 
 /**
  * Represents an instance of a View.
@@ -63,7 +61,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 @NamedQuery(name = "allViewInstances",
   query = "SELECT viewInstance FROM ViewInstanceEntity viewInstance")
 @TableGenerator(name = "view_instance_id_generator",
-  table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "value"
+  table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "sequence_value"
   , pkColumnValue = "view_instance_id_seq"
   , initialValue = 1
   , allocationSize = 1
@@ -125,6 +123,13 @@ public class ViewInstanceEntity implements ViewInstanceDefinition {
   private String icon64;
 
   /**
+   * The XML driven instance flag.
+   */
+  @Column(name="xml_driven")
+  @Basic
+  private char xmlDriven = 'N';
+
+  /**
    * The instance properties.
    */
   @OneToMany(cascade = CascadeType.ALL, mappedBy = "viewInstance")
@@ -179,8 +184,9 @@ public class ViewInstanceEntity implements ViewInstanceDefinition {
   /**
    * Helper class.
    */
+  // TODO : we should @Inject this.
   @Transient
-  private UserNameProvider userNameProvider = new UserNameProvider();
+  private SecurityHelper securityHelper = SecurityHelperImpl.getInstance();
 
 
   // ----- Constructors ------------------------------------------------------
@@ -220,13 +226,24 @@ public class ViewInstanceEntity implements ViewInstanceDefinition {
    * @param name the instance name
    */
   public ViewInstanceEntity(ViewEntity view, String name) {
+    this(view, name, view.getLabel());
+  }
+
+  /**
+   * Construct a view instance definition.
+   *
+   * @param view the parent view definition
+   * @param name the instance name
+   * @param label the instance label
+   */
+  public ViewInstanceEntity(ViewEntity view, String name, String label) {
     this.name = name;
     this.instanceConfig = null;
     this.view = view;
     this.viewName = view.getName();
     this.description = null;
     this.visible = 'Y';
-    this.label = view.getLabel();
+    this.label = label;
   }
 
 
@@ -395,6 +412,24 @@ public class ViewInstanceEntity implements ViewInstanceDefinition {
    */
   public void setIcon64(String icon64) {
     this.icon64 = icon64;
+  }
+
+  /**
+   * Get the xml driven flag.
+   *
+   * @return the xml driven flag
+   */
+  public boolean isXmlDriven() {
+    return xmlDriven == 'y' || xmlDriven == 'Y';
+  }
+
+  /**
+   * Set the xml driven flag.
+   *
+   * @param xmlDriven the xml driven flag
+   */
+  public void setXmlDriven(boolean xmlDriven) {
+    this.xmlDriven = (xmlDriven) ? 'Y' : 'N';
   }
 
   /**
@@ -647,7 +682,7 @@ public class ViewInstanceEntity implements ViewInstanceDefinition {
    * @return the current user name; empty String if user is not known
    */
   public String getUsername() {
-    return userNameProvider.getUsername();
+    return securityHelper.getCurrentUserName();
   }
 
   /**
@@ -698,7 +733,7 @@ public class ViewInstanceEntity implements ViewInstanceDefinition {
   // ----- helper methods ----------------------------------------------------
 
   // get the current user name
-  private String getCurrentUserName() {
+  public String getCurrentUserName() {
     String currentUserName = getUsername();
 
     return currentUserName == null || currentUserName.length() == 0 ?
@@ -706,33 +741,31 @@ public class ViewInstanceEntity implements ViewInstanceDefinition {
   }
 
   /**
-   * Set the user name provider helper.
+   * Set the security helper.
    *
-   * @param userNameProvider the helper
+   * @param securityHelper the helper
    */
-  protected void setUserNameProvider(UserNameProvider userNameProvider) {
-    this.userNameProvider = userNameProvider;
+  protected void setSecurityHelper(SecurityHelper securityHelper) {
+    this.securityHelper = securityHelper;
   }
 
 
-  // ----- inner class : UserNameProvider ----------------------------------
+  // ----- Object overrides --------------------------------------------------
 
-  /**
-   * User name provider helper class.
-   */
-  protected static class UserNameProvider {
-    public String getUsername() {
-      SecurityContext ctx = SecurityContextHolder.getContext();
-      Authentication authentication = ctx == null ? null : ctx.getAuthentication();
-      Object principal = authentication == null ? null : authentication.getPrincipal();
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
 
-      String username;
-      if (principal instanceof UserDetails) {
-        username = ((UserDetails) principal).getUsername();
-      } else {
-        username = principal == null ? "" : principal.toString();
-      }
-      return username;
-    }
+    ViewInstanceEntity that = (ViewInstanceEntity) o;
+
+    return name.equals(that.name) && viewName.equals(that.viewName);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = viewName.hashCode();
+    result = 31 * result + name.hashCode();
+    return result;
   }
 }

@@ -46,6 +46,7 @@ import org.apache.ambari.server.state.DesiredConfig;
 import org.apache.ambari.server.state.HostState;
 import org.apache.ambari.server.state.Service;
 import org.apache.ambari.server.state.State;
+import org.apache.ambari.server.state.Cluster;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,7 +134,7 @@ public abstract class AbstractProviderModule implements ProviderModule, Resource
   private final Map<Resource.Type,List<PropertyProvider>> propertyProviders = new HashMap<Resource.Type, List<PropertyProvider>>();
 
   @Inject
-  private AmbariManagementController managementController;
+  AmbariManagementController managementController;
 
   /**
    * The map of host components.
@@ -209,6 +210,19 @@ public abstract class AbstractProviderModule implements ProviderModule, Resource
   public String getHostName(String clusterName, String componentName) throws SystemException {
     checkInit();
     return clusterHostComponentMap.get(clusterName).get(componentName);
+  }
+
+  @Override
+  public Set<String> getHostNames(String clusterName, String componentName) {
+    Set<String> hosts = null;
+    try {
+      Cluster cluster = managementController.getClusters().getCluster(clusterName);
+      String serviceName = managementController.findServiceName(cluster, componentName);
+      hosts = cluster.getService(serviceName).getServiceComponent(componentName).getServiceComponentHosts().keySet();
+    } catch (Exception e) {
+      LOG.warn("Exception in getting host names for jmx metrics: ", e);
+    }
+    return hosts;
   }
 
   @Override
@@ -528,7 +542,14 @@ public abstract class AbstractProviderModule implements ProviderModule, Resource
 
   private void initProviderMaps() throws SystemException {
     ResourceProvider provider = getResourceProvider(Resource.Type.Cluster);
-    Request          request  = PropertyHelper.getReadRequest(CLUSTER_NAME_PROPERTY_ID);
+
+    Set<String> propertyIds = new HashSet<String>();
+    propertyIds.add(ClusterResourceProvider.CLUSTER_NAME_PROPERTY_ID);
+
+    Map<String, String> requestInfoProperties = new HashMap<String, String>();
+    requestInfoProperties.put(ClusterResourceProvider.GET_IGNORE_PERMISSIONS_PROPERTY_ID, "true");
+
+    Request request = PropertyHelper.getReadRequest(propertyIds, requestInfoProperties, null);
 
     try {
       jmxPortMap.clear();
@@ -607,9 +628,17 @@ public abstract class AbstractProviderModule implements ProviderModule, Resource
 
     Set<Resource> clusterResource = null;
     try {
-      clusterResource = clusterResourceProvider.getResources(
-        PropertyHelper.getReadRequest(ClusterResourceProvider.CLUSTER_NAME_PROPERTY_ID,
-          ClusterResourceProvider.CLUSTER_DESIRED_CONFIGS_PROPERTY_ID), basePredicate);
+
+      Set<String> propertyIds = new HashSet<String>();
+      propertyIds.add(ClusterResourceProvider.CLUSTER_NAME_PROPERTY_ID);
+      propertyIds.add(ClusterResourceProvider.CLUSTER_DESIRED_CONFIGS_PROPERTY_ID);
+
+      Map<String, String> requestInfoProperties = new HashMap<String, String>();
+      requestInfoProperties.put(ClusterResourceProvider.GET_IGNORE_PERMISSIONS_PROPERTY_ID, "true");
+
+      Request readRequest = PropertyHelper.getReadRequest(propertyIds, requestInfoProperties, null);
+
+      clusterResource = clusterResourceProvider.getResources(readRequest, basePredicate);
     } catch (NoSuchResourceException e) {
       LOG.error("Resource for the desired config not found. " + e);
     }

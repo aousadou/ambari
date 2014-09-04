@@ -49,7 +49,8 @@ import org.apache.ambari.server.controller.utilities.PropertyHelper;
 public class ValidationResourceProvider extends StackAdvisorResourceProvider {
 
   protected static final String VALIDATION_ID_PROPERTY_ID = PropertyHelper.getPropertyId(
-      "Validations", "id");
+      "Validation", "id");
+  protected static final String VALIDATE_PROPERTY_ID = "validate";
 
   protected static final String ITEMS_PROPERTY_ID = "items";
   protected static final String ITEMS_TYPE_PROPERTY_ID = "type";
@@ -69,13 +70,18 @@ public class ValidationResourceProvider extends StackAdvisorResourceProvider {
   }
 
   @Override
+  protected String getRequestTypePropertyId() {
+    return VALIDATE_PROPERTY_ID;
+  }
+
+  @Override
   public RequestStatus createResources(final Request request) throws SystemException,
       UnsupportedPropertyException, ResourceAlreadyExistsException, NoSuchParentResourceException {
     StackAdvisorRequest validationRequest = prepareStackAdvisorRequest(request);
 
     final ValidationResponse response;
     try {
-      response = saHelper.getComponentLayoutValidation(validationRequest);
+      response = saHelper.validate(validationRequest);
     } catch (StackAdvisorException e) {
       LOG.warn("Error occured during component-layout validation", e);
       throw new WebApplicationException(Response.status(Status.BAD_REQUEST).entity(e.getMessage())
@@ -87,7 +93,7 @@ public class ValidationResourceProvider extends StackAdvisorResourceProvider {
       public Resource invoke() throws AmbariException {
 
         Resource resource = new ResourceImpl(Resource.Type.Validation);
-        setResourceProperty(resource, VALIDATION_ID_PROPERTY_ID, "1", getPropertyIds());
+        setResourceProperty(resource, VALIDATION_ID_PROPERTY_ID, response.getId(), getPropertyIds());
         setResourceProperty(resource, STACK_NAME_PROPERTY_ID, response.getVersion().getStackName(), getPropertyIds());
         setResourceProperty(resource, STACK_VERSION_PROPERTY_ID, response.getVersion().getStackVersion(), getPropertyIds());
 
@@ -102,6 +108,8 @@ public class ValidationResourceProvider extends StackAdvisorResourceProvider {
 
           if (item.getComponentName() != null) {
             mapItemProps.put(ITEMS_COMPONENT_NAME_PROPERTY_ID, item.getComponentName());
+          }
+          if (item.getHost() != null) {
             mapItemProps.put(ITEMS_HOST_PROPERTY_ID, item.getHost());
           }
           if (item.getConfigType() != null) {

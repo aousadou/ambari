@@ -20,7 +20,9 @@ package org.apache.ambari.server.orm.entities;
 
 import javax.persistence.Basic;
 import javax.persistence.CascadeType;
+import javax.persistence.CollectionTable;
 import javax.persistence.Column;
+import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -32,12 +34,13 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import javax.persistence.TableGenerator;
+import java.util.Collection;
 import java.util.List;
 
 @Entity
 @Table(name = "serviceconfig")
 @TableGenerator(name = "service_config_id_generator",
-  table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "value"
+  table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "sequence_value"
   , pkColumnValue = "service_config_id_seq"
   , initialValue = 1
   , allocationSize = 1
@@ -57,6 +60,10 @@ public class ServiceConfigEntity {
   private String serviceName;
 
   @Basic
+  @Column(name = "group_id", nullable = true)
+  private Long groupId;
+
+  @Basic
   @Column(name = "version", nullable = false)
   private Long version;
 
@@ -64,8 +71,18 @@ public class ServiceConfigEntity {
   @Column(name = "create_timestamp", nullable = false)
   private Long createTimestamp = System.currentTimeMillis();
 
-  @OneToMany(mappedBy = "serviceConfigEntity", cascade = CascadeType.ALL)
-  private List<ServiceConfigApplicationEntity> serviceConfigApplicationEntities;
+  @Basic
+  @Column(name = "user_name")
+  private String user = "_db";
+
+  @Basic
+  @Column(name = "note")
+  private String note;
+
+  @ElementCollection()
+  @CollectionTable(name = "serviceconfighosts", joinColumns = {@JoinColumn(name = "service_config_id")})
+  @Column(name = "hostname")
+  private List<String> hostNames;
 
   @ManyToMany
   @JoinTable(
@@ -111,15 +128,6 @@ public class ServiceConfigEntity {
     this.createTimestamp = create_timestamp;
   }
 
-
-  public List<ServiceConfigApplicationEntity> getServiceConfigApplicationEntities() {
-    return serviceConfigApplicationEntities;
-  }
-
-  public void setServiceConfigApplicationEntities(List<ServiceConfigApplicationEntity> serviceConfigApplicationEntities) {
-    this.serviceConfigApplicationEntities = serviceConfigApplicationEntities;
-  }
-
   public List<ClusterConfigEntity> getClusterConfigEntities() {
     return clusterConfigEntities;
   }
@@ -142,5 +150,37 @@ public class ServiceConfigEntity {
 
   public void setClusterEntity(ClusterEntity clusterEntity) {
     this.clusterEntity = clusterEntity;
+  }
+
+  public String getUser() {
+    return user;
+  }
+
+  public void setUser(String user) {
+    this.user = user;
+  }
+
+  public String getNote() {
+    return note;
+  }
+
+  public void setNote(String note) {
+    this.note = note;
+  }
+
+  public Long getGroupId() {
+    return groupId;
+  }
+
+  public void setGroupId(Long groupId) {
+    this.groupId = groupId;
+  }
+
+  public List<String> getHostNames() {
+    return hostNames;
+  }
+
+  public void setHostNames(List<String> hostNames) {
+    this.hostNames = hostNames;
   }
 }

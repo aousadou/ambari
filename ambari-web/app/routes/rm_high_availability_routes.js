@@ -21,7 +21,7 @@ var App = require('app');
 module.exports = App.WizardRoute.extend({
   route: '/highAvailability/ResourceManager/enable',
 
-  enter: function (router) {
+  enter: function (router,transition) {
     Em.run.next(function () {
       var rMHighAvailabilityWizardController = router.get('rMHighAvailabilityWizardController');
       App.router.get('updateController').set('isWorking', false);
@@ -43,13 +43,14 @@ module.exports = App.WizardRoute.extend({
             var self = this;
             App.showConfirmationPopup(function () {
               router.get('updateController').set('isWorking', true);
+              rMHighAvailabilityWizardController.finish();
               App.clusterStatus.setClusterStatus({
                 clusterName: App.router.getClusterName(),
                 clusterState: 'DEFAULT',
                 localdb: App.db.data
               }, {alwaysCallback: function () {
                 self.hide();
-                router.transitionTo('main.admin.adminHighAvailability.index');
+                router.route('/main/services/YARN/summary');
                 location.reload();
               }});
             }, Em.I18n.t('admin.rm_highAvailability.closePopup'));
@@ -57,7 +58,7 @@ module.exports = App.WizardRoute.extend({
             this.hide();
             rMHighAvailabilityWizardController.setCurrentStep('1');
             router.get('updateController').set('isWorking', true);
-            router.transitionTo('main.admin.adminHighAvailability.index')
+            router.route('/main/services/YARN/summary');
           }
         },
         didInsertElement: function () {
@@ -163,8 +164,13 @@ module.exports = App.WizardRoute.extend({
         controller.connectOutlet('rMHighAvailabilityWizardStep4', controller.get('content'));
       })
     },
-    unroutePath: function () {
-      return false;
+    unroutePath: function (router, path) {
+      // allow user to leave route if wizard has finished
+      if (router.get('rMHighAvailabilityWizardController').get('isFinished')) {
+        this._super(router, path);
+      } else {
+        return false;
+      }
     },
     next: function (router) {
       var controller = router.get('rMHighAvailabilityWizardController');
@@ -175,7 +181,7 @@ module.exports = App.WizardRoute.extend({
         localdb: App.db.data
       }, {alwaysCallback: function () {
         controller.get('popup').hide();
-        router.transitionTo('main.admin.adminHighAvailability.index');
+        router.route('/main/services/YARN/summary');
         location.reload();
       }});
     }

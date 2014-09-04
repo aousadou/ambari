@@ -18,9 +18,40 @@
 'use strict';
 
 angular.module('ambariAdminConsole')
-.controller('NavbarCtrl',['$scope', 'Cluster', function($scope, Cluster) {
-	$scope.cluster = null;
-	Cluster.getStatus().then(function(cluster) {
-		$scope.cluster = cluster;
-	});
+.controller('NavbarCtrl',['$scope', 'Cluster', '$location', 'uiAlert', 'ROUTES', 'LDAP', 'ConfirmationModal', '$rootScope', function($scope, Cluster, $location, uiAlert, ROUTES, LDAP, ConfirmationModal, $rootScope) {
+  $scope.cluster = null;
+  Cluster.getStatus().then(function(cluster) {
+    $scope.cluster = cluster;
+  }).catch(function(data) {
+  	uiAlert.danger(data.status, data.message);
+  });
+
+  $scope.isActive = function(path) {
+  	var route = ROUTES;
+  	angular.forEach(path.split('.'), function(routeObj) {
+  		route = route[routeObj];
+  	});
+  	var r = new RegExp( route.url.replace(/(:\w+)/, '\\w+'));
+  	return r.test($location.path());
+  };
+
+  $scope.isLDAPConfigured = false;
+  $scope.ldapData = {};
+  LDAP.get().then(function(data) {
+    $scope.ldapData = data.data;
+    $scope.isLDAPConfigured = data.data['LDAP']['configured'];
+  });
+
+  $scope.syncLDAP = function() {
+    ConfirmationModal.show('Sync LDAP', 'Are you sure you want to sync LDAP?').then(function() {
+      LDAP.sync($scope.ldapData['LDAP'].groups, $scope.ldapData['LDAP'].users).then(function() {
+        uiAlert.success('LDAP synced successful');
+        $rootScope.$evalAsync(function() {
+          $rootScope.LDAPSynced = true;
+        });
+      }).catch(function(data) {
+        uiAlert.danger(data.data.status, data.data.message);
+      });
+    });
+  };
 }]);

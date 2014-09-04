@@ -32,16 +32,15 @@ describe('App.AddServiceController', function() {
     var t = {
       additionalClients: {
         componentName: "TEZ_CLIENT",
-        hostName: "hostName"
+        hostNames: ["hostName1", "hostName2"]
+      },
+      additionalClientsWithoutHosts: {
+        componentName: "TEZ_CLIENT",
+        hostNames: []
       },
       RequestInfo: {
-        "context": Em.I18n.t('requestInfo.installHostComponent') + " hostName",
-        "operation_level": {
-          "level": "HOST_COMPONENT",
-          "cluster_name": "tdk",
-          "host_name": "hostName",
-          "service_name": "TEZ"
-        }
+        "context": Em.I18n.t('requestInfo.installHostComponent') + ' ' + App.format.role("TEZ_CLIENT"),
+        "query": "HostRoles/component_name=TEZ_CLIENT&HostRoles/host_name.in(hostName1,hostName2)"
       },
       Body: {
         HostRoles: {
@@ -71,6 +70,12 @@ describe('App.AddServiceController', function() {
       expect(JSON.parse($.ajax.args[0][0].data).Body).to.deep.eql(t.Body);
       expect(JSON.parse($.ajax.args[0][0].data).RequestInfo).to.eql(t.RequestInfo);
     });
+
+    it('should not send request to install client', function () {
+      addServiceController.set("content.additionalClients", [t.additionalClientsWithoutHosts]);
+      expect($.ajax.called).to.be.false;
+    });
+
   });
 
 });

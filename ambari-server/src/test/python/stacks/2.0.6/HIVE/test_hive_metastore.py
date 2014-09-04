@@ -57,7 +57,7 @@ class TestHiveMetastore(RMFTestCase):
                               user = 'hive'
     )
 
-    self.assertResourceCalled('Execute', '/usr/jdk64/jdk1.7.0_45/bin/java -cp /usr/lib/ambari-agent/DBConnectionVerification.jar:/usr/share/java/mysql-connector-java.jar org.apache.ambari.server.DBConnectionVerification jdbc:mysql://c6402.ambari.apache.org/hive?createDatabaseIfNotExist=true hive \'!`"\'"\'"\' 1\' com.mysql.jdbc.Driver',
+    self.assertResourceCalled('Execute', '/usr/jdk64/jdk1.7.0_45/bin/java -cp /usr/lib/ambari-agent/DBConnectionVerification.jar:/usr/share/java/mysql-connector-java.jar org.apache.ambari.server.DBConnectionVerification \'jdbc:mysql://c6402.ambari.apache.org/hive?createDatabaseIfNotExist=true\' hive \'!`"\'"\'"\' 1\' com.mysql.jdbc.Driver',
                               path=['/usr/sbin:/sbin:/usr/local/bin:/bin:/usr/bin'], tries=5, try_sleep=10
     )
 
@@ -125,7 +125,7 @@ class TestHiveMetastore(RMFTestCase):
                               user = 'hive'
     )
 
-    self.assertResourceCalled('Execute', '/usr/jdk64/jdk1.7.0_45/bin/java -cp /usr/lib/ambari-agent/DBConnectionVerification.jar:/usr/share/java/mysql-connector-java.jar org.apache.ambari.server.DBConnectionVerification jdbc:mysql://c6402.ambari.apache.org/hive?createDatabaseIfNotExist=true hive \'!`"\'"\'"\' 1\' com.mysql.jdbc.Driver',
+    self.assertResourceCalled('Execute', '/usr/jdk64/jdk1.7.0_45/bin/java -cp /usr/lib/ambari-agent/DBConnectionVerification.jar:/usr/share/java/mysql-connector-java.jar org.apache.ambari.server.DBConnectionVerification \'jdbc:mysql://c6402.ambari.apache.org/hive?createDatabaseIfNotExist=true\' hive \'!`"\'"\'"\' 1\' com.mysql.jdbc.Driver',
                               path=['/usr/sbin:/sbin:/usr/local/bin:/bin:/usr/bin'], tries=5, try_sleep=10
     )
 
@@ -144,7 +144,7 @@ class TestHiveMetastore(RMFTestCase):
     self.assertNoMoreResources()
 
   def assert_configure_default(self):
-    self.assertResourceCalled('Execute', 'hive mkdir -p /tmp/HDP-artifacts/ ; cp /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib//mysql-connector-java.jar',
+    self.assertResourceCalled('Execute', 'hive mkdir -p /tmp/AMBARI-artifacts/ ; cp /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib//mysql-connector-java.jar',
       creates = '/usr/lib/hive/lib//mysql-connector-java.jar',
       path = ['/bin', '/usr/bin/'],
       not_if = 'test -f /usr/lib/hive/lib//mysql-connector-java.jar',
@@ -175,7 +175,7 @@ class TestHiveMetastore(RMFTestCase):
       environment = {'no_proxy': 'c6401.ambari.apache.org'}
     )
     self.assertResourceCalled('File', '/etc/hive/conf.server/hive-env.sh',
-      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content'], conf_dir="/etc/hive/conf.server"),
+      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content']),
       owner = 'hive',
       group = 'hadoop',
     )
@@ -211,7 +211,7 @@ class TestHiveMetastore(RMFTestCase):
     )
 
   def assert_configure_secured(self):
-    self.assertResourceCalled('Execute', 'hive mkdir -p /tmp/HDP-artifacts/ ; cp /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib//mysql-connector-java.jar',
+    self.assertResourceCalled('Execute', 'hive mkdir -p /tmp/AMBARI-artifacts/ ; cp /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib//mysql-connector-java.jar',
       creates = '/usr/lib/hive/lib//mysql-connector-java.jar',
       path = ['/bin', '/usr/bin/'],
       not_if = 'test -f /usr/lib/hive/lib//mysql-connector-java.jar',
@@ -242,7 +242,7 @@ class TestHiveMetastore(RMFTestCase):
       environment = {'no_proxy': 'c6401.ambari.apache.org'}
     )
     self.assertResourceCalled('File', '/etc/hive/conf.server/hive-env.sh',
-      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content'], conf_dir="/etc/hive/conf.server"),
+      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content']),
       owner = 'hive',
       group = 'hadoop',
     )

@@ -21,8 +21,13 @@ package org.apache.ambari.server.api.services.stackadvisor;
 import java.io.File;
 import java.io.IOException;
 
+import org.apache.ambari.server.api.services.AmbariMetaInfo;
+import org.apache.ambari.server.api.services.stackadvisor.StackAdvisorRequest.StackAdvisorRequestType;
 import org.apache.ambari.server.api.services.stackadvisor.commands.GetComponentLayoutRecommnedationCommand;
 import org.apache.ambari.server.api.services.stackadvisor.commands.GetComponentLayoutValidationCommand;
+import org.apache.ambari.server.api.services.stackadvisor.commands.GetConfigurationRecommnedationCommand;
+import org.apache.ambari.server.api.services.stackadvisor.commands.GetConfigurationValidationCommand;
+import org.apache.ambari.server.api.services.stackadvisor.commands.StackAdvisorCommand;
 import org.apache.ambari.server.api.services.stackadvisor.recommendations.RecommendationResponse;
 import org.apache.ambari.server.api.services.stackadvisor.validations.ValidationResponse;
 import org.apache.ambari.server.configuration.Configuration;
@@ -35,49 +40,89 @@ public class StackAdvisorHelper {
 
   private File recommendationsDir;
   private String stackAdvisorScript;
+  private final AmbariMetaInfo metaInfo;
 
   /* Monotonically increasing requestid */
   private int requestId = 0;
   private StackAdvisorRunner saRunner;
 
   @Inject
-  public StackAdvisorHelper(Configuration conf, StackAdvisorRunner saRunner) throws IOException {
+  public StackAdvisorHelper(Configuration conf, StackAdvisorRunner saRunner,
+                            AmbariMetaInfo metaInfo) throws IOException {
     this.recommendationsDir = conf.getRecommendationsDir();
     this.stackAdvisorScript = conf.getStackAdvisorScript();
     this.saRunner = saRunner;
+    this.metaInfo = metaInfo;
   }
 
   /**
-   * Return component-layout validation result.
+   * Returns validation (component-layout or configurations) result for the
+   * request.
    * 
    * @param validationRequest the validation request
    * @return {@link ValidationResponse} instance
    * @throws StackAdvisorException in case of stack advisor script errors
    */
-  public synchronized ValidationResponse getComponentLayoutValidation(StackAdvisorRequest request)
+  public synchronized ValidationResponse validate(StackAdvisorRequest request)
       throws StackAdvisorException {
     requestId += 1;
 
-    GetComponentLayoutValidationCommand command = new GetComponentLayoutValidationCommand(
-        recommendationsDir, stackAdvisorScript, requestId, saRunner);
+    StackAdvisorCommand<ValidationResponse> command = createValidationCommand(request
+        .getRequestType());
+
     return command.invoke(request);
   }
 
+  StackAdvisorCommand<ValidationResponse> createValidationCommand(
+      StackAdvisorRequestType requestType) throws StackAdvisorException {
+    StackAdvisorCommand<ValidationResponse> command;
+    if (requestType == StackAdvisorRequestType.HOST_GROUPS) {
+      command = new GetComponentLayoutValidationCommand(recommendationsDir, stackAdvisorScript,
+          requestId, saRunner, metaInfo);
+    } else if (requestType == StackAdvisorRequestType.CONFIGURATIONS) {
+      command = new GetConfigurationValidationCommand(recommendationsDir, stackAdvisorScript,
+          requestId, saRunner, metaInfo);
+    } else {
+      throw new StackAdvisorException(String.format("Unsupported request type, type=%s",
+          requestType));
+    }
+
+    return command;
+  }
+
   /**
-   * Return component-layout recommendation based on hosts and services
-   * information.
+   * Returns recommendation (component-layout or configurations) based on the
+   * request.
    * 
    * @param request the recommendation request
    * @return {@link RecommendationResponse} instance
    * @throws StackAdvisorException in case of stack advisor script errors
    */
-  public synchronized RecommendationResponse getComponentLayoutRecommnedation(
-      StackAdvisorRequest request) throws StackAdvisorException {
+  public synchronized RecommendationResponse recommend(StackAdvisorRequest request)
+      throws StackAdvisorException {
     requestId += 1;
 
-    GetComponentLayoutRecommnedationCommand command = new GetComponentLayoutRecommnedationCommand(
-        recommendationsDir, stackAdvisorScript, requestId, saRunner);
+    StackAdvisorCommand<RecommendationResponse> command = createRecommendationCommand(request
+        .getRequestType());
+
     return command.invoke(request);
+  }
+
+  StackAdvisorCommand<RecommendationResponse> createRecommendationCommand(
+      StackAdvisorRequestType requestType) throws StackAdvisorException {
+    StackAdvisorCommand<RecommendationResponse> command;
+    if (requestType == StackAdvisorRequestType.HOST_GROUPS) {
+      command = new GetComponentLayoutRecommnedationCommand(recommendationsDir, stackAdvisorScript,
+          requestId, saRunner, metaInfo);
+    } else if (requestType == StackAdvisorRequestType.CONFIGURATIONS) {
+      command = new GetConfigurationRecommnedationCommand(recommendationsDir, stackAdvisorScript,
+          requestId, saRunner, metaInfo);
+    } else {
+      throw new StackAdvisorException(String.format("Unsupported request type, type=%s",
+          requestType));
+    }
+
+    return command;
   }
 
 }

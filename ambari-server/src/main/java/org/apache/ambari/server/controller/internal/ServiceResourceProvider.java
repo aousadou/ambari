@@ -597,7 +597,10 @@ public class ServiceResourceProvider extends AbstractControllerResourceProvider 
     }
 
     Clusters       clusters        = controller.getClusters();
-    Set<String> maintenanceClusters = new HashSet<String>();
+
+    // We don't expect batch requests for different clusters, that's why
+    // nothing bad should happen if value is overwritten few times
+    String maintenanceCluster = null;
 
     for (ServiceRequest request : requests) {
       if (request.getClusterName() == null
@@ -653,8 +656,7 @@ public class ServiceResourceProvider extends AbstractControllerResourceProvider 
               "maintenance state to one of " + EnumSet.of(MaintenanceState.OFF, MaintenanceState.ON));
           } else {
             s.setMaintenanceState(newMaint);
-            
-            maintenanceClusters.add(cluster.getClusterName());
+            maintenanceCluster = cluster.getClusterName();
           }
         }
       }
@@ -726,9 +728,9 @@ public class ServiceResourceProvider extends AbstractControllerResourceProvider 
           + " changes for a set of services at the same time");
     }
     
-    if (maintenanceClusters.size() > 0) {
+    if (maintenanceCluster != null) {
       try {
-        maintenanceStateHelper.createRequests(controller, requestProperties, maintenanceClusters);
+        maintenanceStateHelper.createRequests(controller, requestProperties, maintenanceCluster);
       } catch (Exception e) {
         LOG.warn("Could not send maintenance state to Nagios (" + e.getMessage() + ")");
       }
@@ -992,34 +994,48 @@ public class ServiceResourceProvider extends AbstractControllerResourceProvider 
 
               if (componentInfo != null) {
                 State state = getHostComponentState(hostComponentResponse);
+                // Components in MM should not affect service status,
+                // so we tend to ignore them
+                boolean isInMaintenance = ! MaintenanceState.OFF.toString().
+                        equals(hostComponentResponse.getMaintenanceState());
 
-                if (state.equals(State.DISABLED)) {
+                if (state.equals(State.DISABLED) || isInMaintenance) {
                   hasDisabled = true;
-                } else {
-                  if (componentInfo.isMaster()) {
+                }
+
+                if (componentInfo.isMaster()) {
+                  if (state.equals(State.STARTED) || ! isInMaintenance) {
+                    // We rely on master's state to determine service state
                     hasMaster = true;
-                    if(!state.equals(State.STARTED) &&
-                        ( masterState == null || state.ordinal() > masterState.ordinal())) {
-                      masterState = state;
-                    }
-                  } else if (componentInfo.isClient()) {
-                    hasClient = true;
-                    if (!state.equals(State.INSTALLED) &&
-                        (clientState == null || state.ordinal() > clientState.ordinal())) {
-                      clientState = state;
-                    }
-                  } else {
-                    hasOther  = true;
-                    if (otherState == null || state.ordinal() > otherState.ordinal()) {
-                      otherState = state;
-                    }
+                  }
+
+                  if (! state.equals(State.STARTED) &&
+                      ! isInMaintenance &&  // Ignore status of MM component
+                      ( masterState == null || state.ordinal() > masterState.ordinal())) {
+                    masterState = state;
+                  }
+                } else if (componentInfo.isClient()) {
+                  hasClient = true;
+                  if (!state.equals(State.INSTALLED) &&
+                      (clientState == null || state.ordinal() > clientState.ordinal())) {
+                    clientState = state;
+                  }
+                } else {
+                  if (state.equals(State.STARTED) || ! isInMaintenance) {
+                    // We rely on slaves's state to determine service state
+                    hasOther = true;
+                  }
+                  if (! state.equals(State.STARTED) &&
+                      ! isInMaintenance && // Ignore status of MM component
+                      ( otherState == null || state.ordinal() > otherState.ordinal())) {
+                    otherState = state;
                   }
                 }
               }
             }
 
             return hasMaster   ? masterState == null ? State.STARTED : masterState :
-                   hasOther    ? otherState :
+                   hasOther    ? otherState == null ? State.STARTED : otherState :
                    hasClient   ? clientState == null ? State.INSTALLED : clientState :
                    hasDisabled ? State.DISABLED : State.UNKNOWN;
           }

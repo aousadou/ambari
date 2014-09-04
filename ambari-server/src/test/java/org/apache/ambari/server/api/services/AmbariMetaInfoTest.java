@@ -59,6 +59,7 @@ import org.apache.ambari.server.state.alert.AlertDefinition;
 import org.apache.ambari.server.state.stack.MetricDefinition;
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -72,6 +73,7 @@ import com.google.inject.Injector;
 public class AmbariMetaInfoTest {
 
   private static final String STACK_NAME_HDP = "HDP";
+  private static final String STACK_NAME_XYZ = "XYZ";
   private static final String STACK_VERSION_HDP = "0.1";
   private static final String EXT_STACK_NAME = "2.0.6";
   private static final String STACK_VERSION_HDP_02 = "0.2";
@@ -87,7 +89,7 @@ public class AmbariMetaInfoTest {
   private static final String NON_EXT_VALUE = "XXX";
 
   private static final int REPOS_CNT = 3;
-  private static final int STACKS_NAMES_CNT = 1;
+  private static final int STACKS_NAMES_CNT = 2;
   private static final int PROPERTIES_CNT = 62;
   private static final int OS_CNT = 4;
 
@@ -97,7 +99,7 @@ public class AmbariMetaInfoTest {
   private static final String FILE_NAME = "hbase-site.xml";
   private static final String HADOOP_ENV_FILE_NAME = "hadoop-env.xml";
   private static final String HDFS_LOG4J_FILE_NAME = "hdfs-log4j.xml";
-  
+
   private Injector injector;
 
 
@@ -117,7 +119,7 @@ public class AmbariMetaInfoTest {
       LOG.info("Error in initializing ", e);
     }
   }
-  
+
   public class MockModule extends AbstractModule {
     @Override
     protected void configure() {
@@ -140,8 +142,8 @@ public class AmbariMetaInfoTest {
   public void getRestartRequiredServicesNames() throws AmbariException {
     Set<String> res = metaInfo.getRestartRequiredServicesNames(STACK_NAME_HDP, "2.0.7");
     assertEquals(1, res.size());
-  }  
-  
+  }
+
   @Test
   public void getComponentsByService() throws AmbariException {
     List<ComponentInfo> components = metaInfo.getComponentsByService(
@@ -321,8 +323,9 @@ public class AmbariMetaInfoTest {
     pinfo = sinfo.getProperties();
     for (PropertyInfo pinfol: pinfo) {
       if ("global.xml".equals(pinfol.getFilename())) {
-        if ("hadoop_heapsize".equals(pinfol.getName()))
+        if ("hadoop_heapsize".equals(pinfol.getName())) {
           checkforhadoopheapsize = true;
+        }
       }
     }
     Assert.assertTrue(checkforhadoopheapsize);
@@ -335,7 +338,7 @@ public class AmbariMetaInfoTest {
     File stackRootTmp = new File(buildDir + "/ambari-metaInfo"); stackRootTmp.mkdir();
     FileUtils.copyDirectory(stackRoot, stackRootTmp);
     AmbariMetaInfo ambariMetaInfo = new AmbariMetaInfo(stackRootTmp, new File("target/version"));
-    ambariMetaInfo.injector = this.injector;
+    ambariMetaInfo.injector = injector;
     File f1, f2, f3;
     f1 = new File(stackRootTmp.getAbsolutePath() + "/001.svn"); f1.createNewFile();
     f2 = new File(stackRootTmp.getAbsolutePath() + "/abcd.svn/001.svn"); f2.mkdirs(); f2.createNewFile();
@@ -406,6 +409,7 @@ public class AmbariMetaInfoTest {
     Set<Stack> stackNames = metaInfo.getStackNames();
     assertEquals(stackNames.size(), STACKS_NAMES_CNT);
     assertTrue(stackNames.contains(new Stack(STACK_NAME_HDP)));
+    assertTrue(stackNames.contains(new Stack(STACK_NAME_XYZ)));
   }
 
   @Test
@@ -430,6 +434,15 @@ public class AmbariMetaInfoTest {
     } catch (StackAccessException e) {
       Assert.assertTrue(e instanceof StackAccessException);
     }
+  }
+
+  @Test
+  public void testGetStackParentVersions() throws Exception {
+    List<String> parents = metaInfo.getStackParentVersions(STACK_NAME_HDP, "2.0.8");
+    Assert.assertEquals(3, parents.size());
+    Assert.assertEquals("2.0.7", parents.get(0));
+    Assert.assertEquals("2.0.6", parents.get(1));
+    Assert.assertEquals("2.0.5", parents.get(2));
   }
 
   @Test
@@ -496,7 +509,6 @@ public class AmbariMetaInfoTest {
     Assert.assertTrue(metaInfo.isOsSupported("suse11"));
     Assert.assertTrue(metaInfo.isOsSupported("sles11"));
     Assert.assertTrue(metaInfo.isOsSupported("ubuntu12"));
-    Assert.assertTrue(metaInfo.isOsSupported("debian12"));
     Assert.assertFalse(metaInfo.isOsSupported("windows"));
   }
 
@@ -625,7 +637,7 @@ public class AmbariMetaInfoTest {
 
   @Test
   public void testGetApplicableServices() throws Exception {
-    StackExtensionHelper helper = new StackExtensionHelper(injector, 
+    StackExtensionHelper helper = new StackExtensionHelper(injector,
       metaInfo.getStackRoot());
     helper.fillInfo();
     List<ServiceInfo> allServices = helper.getAllApplicableServices(metaInfo
@@ -675,7 +687,7 @@ public class AmbariMetaInfoTest {
     File stackRoot = new File("src/test/resources/bad-stacks");
     LOG.info("Stacks file " + stackRoot.getAbsolutePath());
     AmbariMetaInfo mi = new AmbariMetaInfo(stackRoot, new File("target/version"));
-    mi.injector = this.injector;
+    mi.injector = injector;
     try {
       mi.init();
     } catch(Exception e) {
@@ -1233,12 +1245,17 @@ public class AmbariMetaInfoTest {
     Assert.assertEquals("scripts/yet_another_parent_command.py",
             ccd.getCommandScript().getScript());
 
-    Assert.assertEquals(2, component.getCustomCommands().size());
+    ccd = findCustomCommand("REBALANCEHDFS", component);
+    Assert.assertEquals("scripts/namenode.py",
+        ccd.getCommandScript().getScript());
+    Assert.assertTrue(ccd.isBackground());
+
+    Assert.assertEquals(3, component.getCustomCommands().size());
 
     // Test custom command script inheritance
     component = metaInfo.getComponent(STACK_NAME_HDP, "2.0.8",
             "HDFS", "NAMENODE");
-    Assert.assertEquals(3, component.getCustomCommands().size());
+    Assert.assertEquals(4, component.getCustomCommands().size());
 
     ccd = findCustomCommand("YET_ANOTHER_PARENT_COMMAND", component);
     Assert.assertEquals("scripts/yet_another_parent_command.py",
@@ -1385,17 +1402,18 @@ public class AmbariMetaInfoTest {
     PropertyInfo passwordProperty = null;
     for (PropertyInfo propertyInfo : propertyInfoList) {
       if (propertyInfo.isRequireInput()
-          && propertyInfo.getType().equals(PropertyInfo.PropertyType.PASSWORD)) {
+          && propertyInfo.getPropertyTypes().contains(PropertyInfo.PropertyType.PASSWORD)) {
         passwordProperty = propertyInfo;
       } else {
-        Assert.assertEquals(PropertyInfo.PropertyType.DEFAULT, propertyInfo.getType());
+        Assert.assertTrue(propertyInfo.getPropertyTypes().isEmpty());
       }
     }
     Assert.assertNotNull(passwordProperty);
     Assert.assertEquals("javax.jdo.option.ConnectionPassword", passwordProperty.getName());
   }
-  
+
   @Test
+  @Ignore
   public void testAlertsJson() throws Exception {
     ServiceInfo svc = metaInfo.getService(STACK_NAME_HDP, "2.0.5", "HDFS");
     Assert.assertNotNull(svc);
@@ -1408,11 +1426,11 @@ public class AmbariMetaInfoTest {
     svc = metaInfo.getService(STACK_NAME_HDP, "1.3.4", "HDFS");
     Assert.assertNotNull(svc);
     Assert.assertNull(svc.getAlertsFile());
-    
+
     Set<AlertDefinition> set = metaInfo.getAlertDefinitions(STACK_NAME_HDP,
         "2.0.5", "HDFS");
     Assert.assertNotNull(set);
     Assert.assertTrue(set.size() > 0);
-    
-  }  
+
+  }
 }

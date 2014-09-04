@@ -18,19 +18,20 @@
 
 package org.apache.ambari.server.controller;
 
+import org.apache.ambari.server.state.CustomCommandDefinition;
+import org.apache.ambari.server.state.ServiceInfo;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.ambari.server.state.CustomCommandDefinition;
-import org.apache.ambari.server.state.ServiceInfo;
 
 public class StackServiceResponse {
 
   private String stackName;
   private String stackVersion;
   private String serviceName;
+  private String serviceDisplayName;
   private String userName;
   private String comments;
   private String serviceVersion;
@@ -38,6 +39,7 @@ public class StackServiceResponse {
   private List<String> customCommands;
 
   private Map<String, Map<String, Map<String, String>>> configTypes;
+  private List<String> requiredServices;
 
   /**
    * Constructor.
@@ -47,10 +49,12 @@ public class StackServiceResponse {
    */
   public StackServiceResponse(ServiceInfo service) {
     serviceName = service.getName();
+    serviceDisplayName = service.getDisplayName();
     userName = null;
     comments = service.getComment();
     serviceVersion = service.getVersion();
     configTypes = service.getConfigTypes();
+    requiredServices = service.getRequiredServices();
     serviceCheckSupported = null != service.getCommandScript();
 
     // the custom command names defined at the service (not component) level
@@ -89,6 +93,14 @@ public class StackServiceResponse {
     this.serviceName = serviceName;
   }
 
+  public String getServiceDisplayName() {
+    return serviceDisplayName;
+  }
+
+  public void setServiceDisplayName(String serviceDisplayName) {
+    this.serviceDisplayName = serviceDisplayName;
+  }
+
   public String getUserName() {
     return userName;
   }
@@ -115,6 +127,14 @@ public class StackServiceResponse {
 
   public Map<String, Map<String, Map<String, String>>> getConfigTypes() {
     return configTypes;
+  }
+  
+  public List<String> getRequiredServices() {
+    return requiredServices;
+  }
+
+  public void setRequiredServices(List<String> requiredServices) {
+    this.requiredServices = requiredServices;
   }
 
   /**

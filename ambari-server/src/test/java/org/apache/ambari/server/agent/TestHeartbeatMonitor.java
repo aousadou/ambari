@@ -127,7 +127,7 @@ public class TestHeartbeatMonitor {
         new HashMap<String,String>() {{ put("a", "b"); }}, new HashMap<String, Map<String,String>>());
     config.setTag("version1");
     cluster.addConfig(config);
-    cluster.addDesiredConfig("_test", config);
+    cluster.addDesiredConfig("_test", Collections.singleton(config));
     
     
     clusters.mapHostsToCluster(hostNames, clusterName);
@@ -218,7 +218,7 @@ public class TestHeartbeatMonitor {
       }}, new HashMap<String, Map<String,String>>());
     config.setTag("version1");
     cluster.addConfig(config);
-    cluster.addDesiredConfig("_test", config);
+    cluster.addDesiredConfig("_test", Collections.singleton(config));
 
 
     clusters.mapHostsToCluster(hostNames, clusterName);
@@ -295,6 +295,8 @@ public class TestHeartbeatMonitor {
     assertTrue("HeartbeatMonitor should generate StatusCommands for host2, " +
       "even if it has only client components", cmds.size() == 1);
     assertTrue(cmds.get(0).getComponentName().equals(Role.HDFS_CLIENT.name()));
+    assertEquals(hostname2, cmds.get(0).getHostname());
+
   }
 
   @Test

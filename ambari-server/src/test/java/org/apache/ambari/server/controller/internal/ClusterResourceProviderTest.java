@@ -21,11 +21,11 @@ package org.apache.ambari.server.controller.internal;
 import static org.easymock.EasyMock.anyObject;
 import static org.easymock.EasyMock.capture;
 import static org.easymock.EasyMock.createMock;
-import static org.easymock.EasyMock.createMockBuilder;
 import static org.easymock.EasyMock.createNiceMock;
 import static org.easymock.EasyMock.createStrictMock;
 import static org.easymock.EasyMock.eq;
 import static org.easymock.EasyMock.expect;
+import static org.easymock.EasyMock.isA;
 import static org.easymock.EasyMock.replay;
 import static org.easymock.EasyMock.verify;
 import static org.junit.Assert.assertEquals;
@@ -34,9 +34,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -61,7 +59,6 @@ import org.apache.ambari.server.controller.StackServiceComponentRequest;
 import org.apache.ambari.server.controller.StackServiceComponentResponse;
 import org.apache.ambari.server.controller.StackServiceRequest;
 import org.apache.ambari.server.controller.StackServiceResponse;
-import org.apache.ambari.server.controller.internal.ClusterResourceProvider.PropertyUpdater;
 import org.apache.ambari.server.controller.spi.Predicate;
 import org.apache.ambari.server.controller.spi.Request;
 import org.apache.ambari.server.controller.spi.RequestStatus;
@@ -69,21 +66,23 @@ import org.apache.ambari.server.controller.spi.Resource;
 import org.apache.ambari.server.controller.spi.ResourceProvider;
 import org.apache.ambari.server.controller.utilities.PredicateBuilder;
 import org.apache.ambari.server.controller.utilities.PropertyHelper;
-import org.apache.ambari.server.controller.internal.BaseBlueprintProcessor.HostGroup;
 import org.apache.ambari.server.orm.dao.BlueprintDAO;
 import org.apache.ambari.server.orm.entities.BlueprintConfigEntity;
 import org.apache.ambari.server.orm.entities.BlueprintEntity;
 import org.apache.ambari.server.orm.entities.HostGroupComponentEntity;
 import org.apache.ambari.server.orm.entities.HostGroupConfigEntity;
 import org.apache.ambari.server.orm.entities.HostGroupEntity;
+import org.apache.ambari.server.state.AutoDeployInfo;
+import org.apache.ambari.server.state.Clusters;
 import org.apache.ambari.server.state.ConfigHelper;
 import org.apache.ambari.server.state.DependencyInfo;
 import org.apache.ambari.server.state.PropertyInfo;
 import org.apache.ambari.server.state.State;
-import org.apache.commons.collections.CollectionUtils;
 import org.easymock.Capture;
 import org.easymock.EasyMock;
+import org.easymock.EasyMockSupport;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.google.gson.Gson;
@@ -92,6 +91,14 @@ import com.google.gson.Gson;
  * ClusterResourceProvider tests.
  */
 public class ClusterResourceProviderTest {
+
+  @Before
+  public void setup() throws Exception {
+    // reset this static field, to allow unit tests to function independently
+    BaseBlueprintProcessor.stackInfo = null;
+  }
+
+
   @Test
   public void testCreateResources() throws Exception{
     Resource.Type type = Resource.Type.Cluster;
@@ -321,7 +328,7 @@ public class ClusterResourceProviderTest {
     expect(blueprint.getStackName()).andReturn(stackName);
     expect(blueprint.getStackVersion()).andReturn(stackVersion);
     expect(blueprint.getConfigurations()).andReturn(configurations);
-    expect(blueprint.validateConfigurations(metaInfo, PropertyInfo.PropertyType.PASSWORD)).andReturn(
+    expect(blueprint.validateConfigurations(metaInfo, true)).andReturn(
         Collections.<String, Map<String, Collection<String>>>emptyMap());
 
     expect(metaInfo.getComponentDependencies("test", "1.23", "service1", "component1")).
@@ -445,7 +452,12 @@ public class ClusterResourceProviderTest {
     PersistKeyValueService.init(persistKeyValue);
     ResourceProvider provider = new TestClusterResourceProvider(
         managementController, serviceResourceProvider, componentResourceProvider,
-        hostResourceProvider, hostComponentResourceProvider, configGroupResourceProvider);
+        hostResourceProvider, hostComponentResourceProvider, configGroupResourceProvider) {
+      @Override
+      protected boolean isServiceIncluded(String serviceName, Map<String, HostGroupImpl> blueprintHostGroups) {
+        return true;
+      }
+    };
 
     RequestStatus requestStatus = provider.createResources(request);
 
@@ -522,13 +534,13 @@ public class ClusterResourceProviderTest {
     assertEquals(clusterName, ucr5.getClusterName());
     assertEquals(clusterName, ucr6.getClusterName());
     assertEquals(clusterName, ucr7.getClusterName());
-    ConfigurationRequest cr1 = ucr1.getDesiredConfig();
-    ConfigurationRequest cr2 = ucr2.getDesiredConfig();
-    ConfigurationRequest cr3 = ucr3.getDesiredConfig();
-    ConfigurationRequest cr4 = ucr4.getDesiredConfig();
-    ConfigurationRequest cr5 = ucr5.getDesiredConfig();
-    ConfigurationRequest cr6 = ucr6.getDesiredConfig();
-    ConfigurationRequest cr7 = ucr7.getDesiredConfig();
+    ConfigurationRequest cr1 = ucr1.getDesiredConfig().get(0);
+    ConfigurationRequest cr2 = ucr2.getDesiredConfig().get(0);
+    ConfigurationRequest cr3 = ucr3.getDesiredConfig().get(0);
+    ConfigurationRequest cr4 = ucr4.getDesiredConfig().get(0);
+    ConfigurationRequest cr5 = ucr5.getDesiredConfig().get(0);
+    ConfigurationRequest cr6 = ucr6.getDesiredConfig().get(0);
+    ConfigurationRequest cr7 = ucr7.getDesiredConfig().get(0);
     assertEquals("1", cr1.getVersionTag());
     assertEquals("1", cr2.getVersionTag());
     assertEquals("1", cr3.getVersionTag());
@@ -753,7 +765,7 @@ public class ClusterResourceProviderTest {
     expect(blueprint.getStackName()).andReturn(stackName);
     expect(blueprint.getStackVersion()).andReturn(stackVersion);
     expect(blueprint.getConfigurations()).andReturn(Collections.<BlueprintConfigEntity>singletonList(blueprintConfig));
-    expect(blueprint.validateConfigurations(metaInfo, PropertyInfo.PropertyType.PASSWORD)).andReturn(allMissingPasswords);
+    expect(blueprint.validateConfigurations(metaInfo, true)).andReturn(allMissingPasswords);
 
     expect(metaInfo.getComponentDependencies("test", "1.23", "service1", "component1")).
         andReturn(Collections.<DependencyInfo>emptyList());
@@ -1538,7 +1550,7 @@ public class ClusterResourceProviderTest {
     expect(blueprint.getStackName()).andReturn(stackName);
     expect(blueprint.getStackVersion()).andReturn(stackVersion);
     expect(blueprint.getConfigurations()).andReturn(Collections.<BlueprintConfigEntity>singletonList(blueprintConfig));
-    expect(blueprint.validateConfigurations(metaInfo, PropertyInfo.PropertyType.PASSWORD)).andReturn(allMissingPasswords);
+    expect(blueprint.validateConfigurations(metaInfo, true)).andReturn(allMissingPasswords);
 
     expect(metaInfo.getComponentDependencies("test", "1.23", "service1", "component1")).
         andReturn(Collections.<DependencyInfo>emptyList());
@@ -1649,7 +1661,12 @@ public class ClusterResourceProviderTest {
     PersistKeyValueService.init(persistKeyValue);
     ResourceProvider provider = new TestClusterResourceProvider(
         managementController, serviceResourceProvider, componentResourceProvider,
-        hostResourceProvider, hostComponentResourceProvider, configGroupResourceProvider);
+        hostResourceProvider, hostComponentResourceProvider, configGroupResourceProvider) {
+      @Override
+      protected boolean isServiceIncluded(String serviceName, Map<String, HostGroupImpl> blueprintHostGroups) {
+        return true;
+      }
+    };
 
     RequestStatus requestStatus = provider.createResources(request);
 
@@ -1723,12 +1740,12 @@ public class ClusterResourceProviderTest {
     assertEquals(clusterName, ucr4.getClusterName());
     assertEquals(clusterName, ucr5.getClusterName());
     assertEquals(clusterName, ucr6.getClusterName());
-    ConfigurationRequest cr1 = ucr1.getDesiredConfig();
-    ConfigurationRequest cr2 = ucr2.getDesiredConfig();
-    ConfigurationRequest cr3 = ucr3.getDesiredConfig();
-    ConfigurationRequest cr4 = ucr4.getDesiredConfig();
-    ConfigurationRequest cr5 = ucr5.getDesiredConfig();
-    ConfigurationRequest cr6 = ucr6.getDesiredConfig();
+    ConfigurationRequest cr1 = ucr1.getDesiredConfig().get(0);
+    ConfigurationRequest cr2 = ucr2.getDesiredConfig().get(0);
+    ConfigurationRequest cr3 = ucr3.getDesiredConfig().get(0);
+    ConfigurationRequest cr4 = ucr4.getDesiredConfig().get(0);
+    ConfigurationRequest cr5 = ucr5.getDesiredConfig().get(0);
+    ConfigurationRequest cr6 = ucr6.getDesiredConfig().get(0);
 
     assertEquals("1", cr1.getVersionTag());
     assertEquals("1", cr2.getVersionTag());
@@ -1942,7 +1959,7 @@ public class ClusterResourceProviderTest {
     expect(blueprint.getStackName()).andReturn(stackName);
     expect(blueprint.getStackVersion()).andReturn(stackVersion);
     expect(blueprint.getConfigurations()).andReturn(Collections.<BlueprintConfigEntity>singletonList(blueprintConfig));
-    expect(blueprint.validateConfigurations(metaInfo, PropertyInfo.PropertyType.PASSWORD)).andReturn(
+    expect(blueprint.validateConfigurations(metaInfo, true)).andReturn(
         Collections.<String, Map<String, Collection<String>>>emptyMap());
 
     expect(metaInfo.getComponentDependencies("test", "1.23", "service1", "component1")).
@@ -2210,7 +2227,7 @@ public class ClusterResourceProviderTest {
     expect(blueprint.getStackName()).andReturn(stackName);
     expect(blueprint.getStackVersion()).andReturn(stackVersion);
     expect(blueprint.getConfigurations()).andReturn(configurations).times(2);
-    expect(blueprint.validateConfigurations(metaInfo, PropertyInfo.PropertyType.PASSWORD)).andReturn(
+    expect(blueprint.validateConfigurations(metaInfo, true)).andReturn(
         Collections.<String, Map<String, Collection<String>>>emptyMap());
 
     expect(metaInfo.getComponentDependencies("test", "1.23", "service1", "component1")).
@@ -2341,7 +2358,12 @@ public class ClusterResourceProviderTest {
     PersistKeyValueService.init(persistKeyValue);
     ResourceProvider provider = new TestClusterResourceProvider(
         managementController, serviceResourceProvider, componentResourceProvider,
-        hostResourceProvider, hostComponentResourceProvider, configGroupResourceProvider);
+        hostResourceProvider, hostComponentResourceProvider, configGroupResourceProvider) {
+      @Override
+      protected boolean isServiceIncluded(String serviceName, Map<String, HostGroupImpl> blueprintHostGroups) {
+        return true;
+      }
+    };
 
     RequestStatus requestStatus = provider.createResources(request);
 
@@ -2418,13 +2440,13 @@ public class ClusterResourceProviderTest {
     assertEquals(clusterName, ucr5.getClusterName());
     assertEquals(clusterName, ucr6.getClusterName());
     assertEquals(clusterName, ucr7.getClusterName());
-    ConfigurationRequest cr1 = ucr1.getDesiredConfig();
-    ConfigurationRequest cr2 = ucr2.getDesiredConfig();
-    ConfigurationRequest cr3 = ucr3.getDesiredConfig();
-    ConfigurationRequest cr4 = ucr4.getDesiredConfig();
-    ConfigurationRequest cr5 = ucr5.getDesiredConfig();
-    ConfigurationRequest cr6 = ucr6.getDesiredConfig();
-    ConfigurationRequest cr7 = ucr7.getDesiredConfig();
+    ConfigurationRequest cr1 = ucr1.getDesiredConfig().get(0);
+    ConfigurationRequest cr2 = ucr2.getDesiredConfig().get(0);
+    ConfigurationRequest cr3 = ucr3.getDesiredConfig().get(0);
+    ConfigurationRequest cr4 = ucr4.getDesiredConfig().get(0);
+    ConfigurationRequest cr5 = ucr5.getDesiredConfig().get(0);
+    ConfigurationRequest cr6 = ucr6.getDesiredConfig().get(0);
+    ConfigurationRequest cr7 = ucr7.getDesiredConfig().get(0);
     assertEquals("1", cr1.getVersionTag());
     assertEquals("1", cr2.getVersionTag());
     assertEquals("1", cr3.getVersionTag());
@@ -2535,109 +2557,13 @@ public class ClusterResourceProviderTest {
         hostComponentResourceProvider, configGroupResourceProvider, persistKeyValue, metaInfo);
   }
 
-  @SuppressWarnings("unchecked")
-  @Test
-  public void testBlueprintPropertyUpdaters() throws Exception {
-    final Map<String, String> singleHostProperty1 =
-      Collections.singletonMap("dfs.http.address", "localhost:50070");
-
-    final Map<String, String> singleHostProperty2 =
-      Collections.singletonMap("hive.metastore.uris", "prefix.localhost.suffix");
-
-    final Map<String, String> multiHostProperty1 =
-      Collections.singletonMap("hbase.zookeeper.quorum", "localhost");
-
-    final Map<String, String> multiHostProperty2 =
-      Collections.singletonMap("storm.zookeeper.servers", "['localhost']");
-
-    final Map<String, String> mProperty =
-      Collections.singletonMap("namenode_heapsize", "1025");
-
-    final Map<String, String> databaseProperty =
-        Collections.singletonMap("javax.jdo.option.ConnectionURL", "localhost:12345");
-
-    final HostGroup hostGroup1 = createNiceMock(HostGroup.class);
-    final HostGroup hostGroup2 = createNiceMock(HostGroup.class);
-
-    expect(hostGroup1.getComponents()).andReturn(new ArrayList<String>() {{
-      add("NAMENODE");
-      add("HBASE_MASTER");
-      add("HIVE_SERVER");
-      add("ZOOKEEPER_SERVER");
-    }}).anyTimes();
-    expect(hostGroup1.getHostInfo()).andReturn(Collections.singletonList("h1")).anyTimes();
-
-    expect(hostGroup2.getComponents()).andReturn(Collections.singletonList("ZOOKEEPER_SERVER")).anyTimes();
-    expect(hostGroup2.getHostInfo()).andReturn(Collections.singletonList("h2")).anyTimes();
-
-    Map<String, HostGroup> hostGroups = new
-      HashMap<String, HostGroup>() {{
-        put("host_group_1", hostGroup1);
-        put("host_group_2", hostGroup2);
-      }};
-
-    AmbariManagementController managementController = createNiceMock(AmbariManagementController.class);
-
-    ClusterResourceProvider resourceProvider =
-      createMockBuilder(ClusterResourceProvider.class)
-        .withConstructor(Set.class, Map.class, AmbariManagementController.class)
-        .withArgs(new HashSet<String>(), new HashMap<Resource.Type, String>(), managementController)
-        .createMock();
-
-    replay(managementController, resourceProvider, hostGroup1, hostGroup2);
-
-    Map<String, Map<String, String>> mapConfigurations;
-    Field configField = ClusterResourceProvider.class.getDeclaredField("mapClusterConfigurations");
-    configField.setAccessible(true);
-    mapConfigurations = (Map<String, Map<String, String>>) configField.get(resourceProvider);
-
-    Map<String, PropertyUpdater> propertyUpdaterMap;
-    Field f = ClusterResourceProvider.class.getDeclaredField("propertyUpdaters");
-    f.setAccessible(true);
-    propertyUpdaterMap = (Map<String, PropertyUpdater>) f.get(resourceProvider);
-
-    Assert.assertNotNull(propertyUpdaterMap);
-
-    String newValue;
-
-    Map.Entry<String, String> entry = singleHostProperty1.entrySet().iterator().next();
-    newValue = propertyUpdaterMap.get(entry.getKey()).update(hostGroups, entry.getValue());
-    Assert.assertEquals("h1:50070", newValue);
-
-    entry = singleHostProperty2.entrySet().iterator().next();
-    newValue = propertyUpdaterMap.get(entry.getKey()).update(hostGroups, entry.getValue());
-    Assert.assertEquals("prefix.h1.suffix", newValue);
-
-    entry = multiHostProperty1.entrySet().iterator().next();
-    newValue = propertyUpdaterMap.get(entry.getKey()).update(hostGroups, entry.getValue());
-    Assert.assertTrue(CollectionUtils.isEqualCollection(
-      Arrays.asList("h1,h2".split(",")), Arrays.asList(newValue.split(","))
-    ));
-
-    entry = multiHostProperty2.entrySet().iterator().next();
-    newValue = propertyUpdaterMap.get(entry.getKey()).update(hostGroups, entry.getValue());
-    // no ordering guarantee
-    Assert.assertTrue(newValue.equals("['h1','h2']") || newValue.equals("['h2','h1']"));
-
-    entry = mProperty.entrySet().iterator().next();
-    newValue = propertyUpdaterMap.get(entry.getKey()).update(hostGroups, entry.getValue());
-    Assert.assertEquals("1025m", newValue);
-
-    Map<String, String> configs = new HashMap<String, String>();
-    configs.put("hive_database", "External MySQL Database");
-    mapConfigurations.put("hive-env", configs);
-    entry = databaseProperty.entrySet().iterator().next();
-    newValue = propertyUpdaterMap.get(entry.getKey()).update(hostGroups, entry.getValue());
-    Assert.assertEquals("localhost:12345", newValue);
-
-    verify(managementController, resourceProvider, hostGroup1, hostGroup2);
-  }
 
   @Test
   public void testGetResources() throws Exception{
     Resource.Type type = Resource.Type.Cluster;
 
     AmbariManagementController managementController = createMock(AmbariManagementController.class);
+    Clusters clusters = createMock(Clusters.class);
 
     Set<ClusterResponse> allResponse = new HashSet<ClusterResponse>();
     allResponse.add(new ClusterResponse(100L, "Cluster100", State.INSTALLED, null, null, null, null));
@@ -2653,12 +2579,22 @@ public class ClusterResourceProviderTest {
     idResponse.add(new ClusterResponse(103L, "Cluster103", State.INSTALLED, null, null, null, null));
 
     // set expectations
-    expect(managementController.getClusters(EasyMock.<Set<ClusterRequest>>anyObject())).andReturn(allResponse).once();
-    expect(managementController.getClusters(EasyMock.<Set<ClusterRequest>>anyObject())).andReturn(nameResponse).once();
-    expect(managementController.getClusters(EasyMock.<Set<ClusterRequest>>anyObject())).andReturn(idResponse).once();
+    Capture<Set<ClusterRequest>> captureClusterRequests = new Capture<Set<ClusterRequest>>();
+
+    expect(managementController.getClusters(capture(captureClusterRequests))).andReturn(allResponse).once();
+    expect(managementController.getClusters(capture(captureClusterRequests))).andReturn(nameResponse).once();
+    expect(managementController.getClusters(capture(captureClusterRequests))).andReturn(idResponse).once();
+
+    expect(managementController.getClusters()).andReturn(clusters).anyTimes();
+
+    expect(clusters.checkPermission("Cluster100", true)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission("Cluster101", true)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission("Cluster102", true)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission("Cluster103", true)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission("Cluster104", true)).andReturn(false).anyTimes();
 
     // replay
-    replay(managementController);
+    replay(managementController, clusters);
 
     ResourceProvider provider = AbstractControllerResourceProvider.getResourceProvider(
         type,
@@ -2677,7 +2613,7 @@ public class ClusterResourceProviderTest {
     // get all ... no predicate
     Set<Resource> resources = provider.getResources(request, null);
 
-    Assert.assertEquals(5, resources.size());
+    Assert.assertEquals(4, resources.size());
     for (Resource resource : resources) {
       Long id = (Long) resource.getPropertyValue(ClusterResourceProvider.CLUSTER_ID_PROPERTY_ID);
       String name = (String) resource.getPropertyValue(ClusterResourceProvider.CLUSTER_NAME_PROPERTY_ID);
@@ -2708,12 +2644,14 @@ public class ClusterResourceProviderTest {
         getPropertyValue(ClusterResourceProvider.CLUSTER_NAME_PROPERTY_ID));
 
     // verify
-    verify(managementController);
+    verify(managementController, clusters);
   }
 
   @Test
   public void testUpdateResources() throws Exception{
     Resource.Type type = Resource.Type.Cluster;
+
+    Clusters clusters = createMock(Clusters.class);
 
     AmbariManagementController managementController = createMock(AmbariManagementController.class);
     RequestStatusResponse response = createNiceMock(RequestStatusResponse.class);
@@ -2736,8 +2674,16 @@ public class ClusterResourceProviderTest {
 
     expect(managementController.getClusterUpdateResults(anyObject(ClusterRequest.class))).andReturn(null).anyTimes();
 
+    expect(managementController.getClusters()).andReturn(clusters).anyTimes();
+
+    expect(clusters.checkPermission("Cluster102", false)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission("Cluster102", true)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission("Cluster103", false)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission("Cluster103", true)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission(null, false)).andReturn(true).anyTimes();
+
     // replay
-    replay(managementController, response);
+    replay(managementController, response, clusters);
 
     ResourceProvider provider = AbstractControllerResourceProvider.getResourceProvider(
         type,
@@ -2774,12 +2720,13 @@ public class ClusterResourceProviderTest {
     Assert.assertEquals(predicate, lastEvent.getPredicate());
 
     // verify
-    verify(managementController, response);
+    verify(managementController, response, clusters);
   }
 
   @Test
   public void testUpdateWithConfiguration() throws Exception {
     AmbariManagementController managementController = createMock(AmbariManagementController.class);
+    Clusters clusters = createMock(Clusters.class);
     RequestStatusResponse response = createNiceMock(RequestStatusResponse.class);
 
     Set<ClusterResponse> nameResponse = new HashSet<ClusterResponse>();
@@ -2794,9 +2741,13 @@ public class ClusterResourceProviderTest {
         eq(mapRequestProps))).andReturn(response).times(1);
     expect(managementController.getClusterUpdateResults(anyObject(ClusterRequest.class))).andReturn(null).anyTimes();
 
+    expect(managementController.getClusters()).andReturn(clusters).anyTimes();
+
+    expect(clusters.checkPermission("Cluster100", true)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission("Cluster100", false)).andReturn(true).anyTimes();
 
     // replay
-    replay(managementController, response);
+    replay(managementController, response, clusters);
 
     Map<String, Object> properties = new LinkedHashMap<String, Object>();
 
@@ -2846,7 +2797,7 @@ public class ClusterResourceProviderTest {
     Assert.assertEquals(predicate, lastEvent.getPredicate());
 
     // verify
-    verify(managementController, response);
+    verify(managementController, response, clusters);
   }
 
   @Test
@@ -2854,6 +2805,7 @@ public class ClusterResourceProviderTest {
     Resource.Type type = Resource.Type.Cluster;
 
     AmbariManagementController managementController = createMock(AmbariManagementController.class);
+    Clusters clusters = createMock(Clusters.class);
     RequestStatusResponse response = createNiceMock(RequestStatusResponse.class);
 
     // set expectations
@@ -2862,8 +2814,13 @@ public class ClusterResourceProviderTest {
     managementController.deleteCluster(
         AbstractResourceProviderTest.Matcher.getClusterRequest(103L, null, null, null));
 
+    expect(managementController.getClusters()).andReturn(clusters).anyTimes();
+
+    expect(clusters.checkPermission("Cluster102", false)).andReturn(true).anyTimes();
+    expect(clusters.checkPermission(null, false)).andReturn(true).anyTimes();
+
     // replay
-    replay(managementController, response);
+    replay(managementController, response, clusters);
 
     ResourceProvider provider = AbstractControllerResourceProvider.getResourceProvider(
         type,
@@ -2893,8 +2850,472 @@ public class ClusterResourceProviderTest {
     Assert.assertNull(lastEvent.getRequest());
 
     // verify
-    verify(managementController, response);
+    verify(managementController, response, clusters);
   }
+
+  @Test
+  public void testSetMissingConfigurationsOozieIncluded() throws Exception {
+    EasyMockSupport mockSupport = new EasyMockSupport();
+
+    AmbariManagementController mockMgmtController =
+      mockSupport.createMock(AmbariManagementController.class);
+    ResourceProvider mockServiceProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockConfigGroupProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    AmbariManagementController mockManagementController =
+      mockSupport.createMock(AmbariManagementController.class);
+    StackServiceResponse mockStackServiceResponseOne =
+      mockSupport.createMock(StackServiceResponse.class);
+    StackServiceComponentResponse mockStackComponentResponse =
+      mockSupport.createMock(StackServiceComponentResponse.class);
+    AmbariMetaInfo mockAmbariMetaInfo =
+      mockSupport.createMock(AmbariMetaInfo.class);
+
+    expect(mockStackComponentResponse.getComponentName()).andReturn("OOZIE_SERVER");
+    expect(mockStackComponentResponse.getCardinality()).andReturn("1");
+    expect(mockStackComponentResponse.getAutoDeploy()).andReturn(new AutoDeployInfo());
+
+
+    expect(mockStackServiceResponseOne.getServiceName()).andReturn("OOZIE");
+    expect(mockManagementController.getStackServices(isA(Set.class))).andReturn(Collections.singleton(mockStackServiceResponseOne));
+    expect(mockManagementController.getStackComponents(isA(Set.class))).andReturn(Collections.singleton(mockStackComponentResponse));
+    expect(mockManagementController.getStackConfigurations(isA(Set.class))).andReturn(Collections.<StackConfigurationResponse>emptySet());
+
+    expect(mockAmbariMetaInfo.getComponentDependencies("HDP", "2.1", "OOZIE", "OOZIE_SERVER")).andReturn(Collections.<DependencyInfo>emptyList());
+
+    mockSupport.replayAll();
+
+
+    ClusterResourceProvider.init(null, mockAmbariMetaInfo, null);
+
+    BaseBlueprintProcessor.Stack stack =
+      new BaseBlueprintProcessor.Stack("HDP", "2.1", mockManagementController);
+
+    ClusterResourceProvider clusterResourceProvider =
+      new TestClusterResourceProvider(mockMgmtController, mockServiceProvider,
+        mockComponentProvider, mockHostProvider, mockHostComponentProvider, mockConfigGroupProvider);
+
+
+    HostGroupEntity hostGroup = new HostGroupEntity();
+    hostGroup.setComponents(Collections.<HostGroupComponentEntity>emptyList());
+    HostGroupConfigEntity configEntity = new HostGroupConfigEntity();
+    configEntity.setConfigData("");
+
+    hostGroup.setConfigurations(Collections.singletonList(configEntity));
+    BaseBlueprintProcessor.HostGroupImpl hostGroupImpl =
+      new BaseBlueprintProcessor.HostGroupImpl(hostGroup, stack, null);
+    hostGroupImpl.addComponent("OOZIE_SERVER");
+
+    // add empty map for core-site, to simulate this configuration entry
+    clusterResourceProvider.getClusterConfigurations().put("core-site", new HashMap<String, String>());
+    clusterResourceProvider.getClusterConfigurations().put("oozie-env", new HashMap<String, String>());
+    clusterResourceProvider.getClusterConfigurations().get("oozie-env").put("oozie_user", "oozie");
+
+    clusterResourceProvider.setMissingConfigurations(Collections.singletonMap("host_group_one", hostGroupImpl));
+
+    Map<String, String> mapCoreSiteConfig =
+      clusterResourceProvider.getClusterConfigurations().get("core-site");
+
+    assertNotNull("core-site map was null.", mapCoreSiteConfig);
+    assertEquals("Incorrect number of entries in the core-site config map",
+                 2, mapCoreSiteConfig.size());
+    assertEquals("Incorrect value for proxy hosts",
+                 "*", mapCoreSiteConfig.get("hadoop.proxyuser.oozie.hosts"));
+    assertEquals("Incorrect value for proxy hosts",
+      "users", mapCoreSiteConfig.get("hadoop.proxyuser.oozie.groups"));
+
+    mockSupport.verifyAll();
+  }
+
+
+  @Test
+  public void testSetMissingConfigurationsFalconIncluded() throws Exception {
+    EasyMockSupport mockSupport = new EasyMockSupport();
+
+    AmbariManagementController mockMgmtController =
+      mockSupport.createMock(AmbariManagementController.class);
+    ResourceProvider mockServiceProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockConfigGroupProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    AmbariManagementController mockManagementController =
+      mockSupport.createMock(AmbariManagementController.class);
+    StackServiceResponse mockStackServiceResponseOne =
+      mockSupport.createMock(StackServiceResponse.class);
+    StackServiceComponentResponse mockStackComponentResponse =
+      mockSupport.createMock(StackServiceComponentResponse.class);
+    AmbariMetaInfo mockAmbariMetaInfo =
+      mockSupport.createMock(AmbariMetaInfo.class);
+
+    expect(mockStackComponentResponse.getComponentName()).andReturn("FALCON_SERVER");
+    expect(mockStackComponentResponse.getCardinality()).andReturn("1");
+    expect(mockStackComponentResponse.getAutoDeploy()).andReturn(new AutoDeployInfo());
+
+
+    expect(mockStackServiceResponseOne.getServiceName()).andReturn("FALCON");
+    expect(mockManagementController.getStackServices(isA(Set.class))).andReturn(Collections.singleton(mockStackServiceResponseOne));
+    expect(mockManagementController.getStackComponents(isA(Set.class))).andReturn(Collections.singleton(mockStackComponentResponse));
+    expect(mockManagementController.getStackConfigurations(isA(Set.class))).andReturn(Collections.<StackConfigurationResponse>emptySet());
+
+    expect(mockAmbariMetaInfo.getComponentDependencies("HDP", "2.1", "FALCON", "FALCON_SERVER")).andReturn(Collections.<DependencyInfo>emptyList());
+
+    mockSupport.replayAll();
+
+    ClusterResourceProvider.init(null, mockAmbariMetaInfo, null);
+
+    BaseBlueprintProcessor.Stack stack =
+      new BaseBlueprintProcessor.Stack("HDP", "2.1", mockManagementController);
+
+    ClusterResourceProvider clusterResourceProvider =
+      new TestClusterResourceProvider(mockMgmtController, mockServiceProvider,
+        mockComponentProvider, mockHostProvider, mockHostComponentProvider, mockConfigGroupProvider);
+
+    HostGroupEntity hostGroup = new HostGroupEntity();
+    hostGroup.setComponents(Collections.<HostGroupComponentEntity>emptyList());
+    HostGroupConfigEntity configEntity = new HostGroupConfigEntity();
+    configEntity.setConfigData("");
+
+    hostGroup.setConfigurations(Collections.singletonList(configEntity));
+    BaseBlueprintProcessor.HostGroupImpl hostGroupImpl =
+      new BaseBlueprintProcessor.HostGroupImpl(hostGroup, stack, null);
+    hostGroupImpl.addComponent("FALCON_SERVER");
+
+    // add empty map for core-site, to simulate this configuration entry
+    clusterResourceProvider.getClusterConfigurations().put("core-site", new HashMap<String, String>());
+    clusterResourceProvider.getClusterConfigurations().put("falcon-env", new HashMap<String, String>());
+    clusterResourceProvider.getClusterConfigurations().get("falcon-env").put("falcon_user", "falcon");
+
+    clusterResourceProvider.setMissingConfigurations(Collections.singletonMap("host_group_one", hostGroupImpl));
+
+    Map<String, String> mapCoreSiteConfig =
+      clusterResourceProvider.getClusterConfigurations().get("core-site");
+
+    assertNotNull("core-site map was null.", mapCoreSiteConfig);
+    assertEquals("Incorrect number of entries in the core-site config map",
+      2, mapCoreSiteConfig.size());
+    assertEquals("Incorrect value for proxy hosts",
+      "*", mapCoreSiteConfig.get("hadoop.proxyuser.falcon.hosts"));
+    assertEquals("Incorrect value for proxy hosts",
+      "users", mapCoreSiteConfig.get("hadoop.proxyuser.falcon.groups"));
+
+    mockSupport.verifyAll();
+  }
+
+
+  @Test
+  public void testSetMissingConfigurationsOozieNotIncluded() throws Exception {
+    EasyMockSupport mockSupport = new EasyMockSupport();
+
+    AmbariManagementController mockMgmtController =
+      mockSupport.createMock(AmbariManagementController.class);
+    ResourceProvider mockServiceProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockConfigGroupProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    AmbariManagementController mockManagementController =
+      mockSupport.createMock(AmbariManagementController.class);
+    StackServiceResponse mockStackServiceResponseOne =
+      mockSupport.createMock(StackServiceResponse.class);
+    StackServiceComponentResponse mockStackComponentResponse =
+      mockSupport.createMock(StackServiceComponentResponse.class);
+    AmbariMetaInfo mockAmbariMetaInfo =
+      mockSupport.createMock(AmbariMetaInfo.class);
+
+    expect(mockStackComponentResponse.getComponentName()).andReturn("OOZIE_SERVER");
+    expect(mockStackComponentResponse.getCardinality()).andReturn("1");
+    expect(mockStackComponentResponse.getAutoDeploy()).andReturn(new AutoDeployInfo());
+
+
+    expect(mockStackServiceResponseOne.getServiceName()).andReturn("OOZIE");
+    expect(mockManagementController.getStackServices(isA(Set.class))).andReturn(Collections.singleton(mockStackServiceResponseOne));
+    expect(mockManagementController.getStackComponents(isA(Set.class))).andReturn(Collections.singleton(mockStackComponentResponse));
+    expect(mockManagementController.getStackConfigurations(isA(Set.class))).andReturn(Collections.<StackConfigurationResponse>emptySet());
+
+    expect(mockAmbariMetaInfo.getComponentDependencies("HDP", "2.1", "OOZIE", "OOZIE_SERVER")).andReturn(Collections.<DependencyInfo>emptyList());
+
+    mockSupport.replayAll();
+
+    ClusterResourceProvider.init(null, mockAmbariMetaInfo, null);
+
+    BaseBlueprintProcessor.Stack stack =
+      new BaseBlueprintProcessor.Stack("HDP", "2.1", mockManagementController);
+
+    ClusterResourceProvider clusterResourceProvider =
+      new TestClusterResourceProvider(mockMgmtController, mockServiceProvider,
+        mockComponentProvider, mockHostProvider, mockHostComponentProvider, mockConfigGroupProvider);
+
+
+    HostGroupEntity hostGroup = new HostGroupEntity();
+    hostGroup.setComponents(Collections.<HostGroupComponentEntity>emptyList());
+    HostGroupConfigEntity configEntity = new HostGroupConfigEntity();
+    configEntity.setConfigData("");
+
+    hostGroup.setConfigurations(Collections.singletonList(configEntity));
+    BaseBlueprintProcessor.HostGroupImpl hostGroupImpl =
+      new BaseBlueprintProcessor.HostGroupImpl(hostGroup, stack, null);
+    hostGroupImpl.addComponent("COMPONENT_ONE");
+
+    // add empty map for core-site, to simulate this configuration entry
+    clusterResourceProvider.getClusterConfigurations().put("core-site", new HashMap<String, String>());
+
+    clusterResourceProvider.setMissingConfigurations(Collections.singletonMap("host_group_one", hostGroupImpl));
+
+    Map<String, String> mapCoreSiteConfig =
+      clusterResourceProvider.getClusterConfigurations().get("core-site");
+
+    assertNotNull("core-site map was null.", mapCoreSiteConfig);
+    assertEquals("Incorrect number of entries in the core-site config map",
+                0, mapCoreSiteConfig.size());
+
+    mockSupport.verifyAll();
+
+  }
+
+
+  @Test
+  public void testSetMissingConfigurationsFalconNotIncluded() throws Exception {
+    EasyMockSupport mockSupport = new EasyMockSupport();
+
+    AmbariManagementController mockMgmtController =
+      mockSupport.createMock(AmbariManagementController.class);
+    ResourceProvider mockServiceProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockConfigGroupProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    AmbariManagementController mockManagementController =
+      mockSupport.createMock(AmbariManagementController.class);
+    StackServiceResponse mockStackServiceResponseOne =
+      mockSupport.createMock(StackServiceResponse.class);
+    StackServiceComponentResponse mockStackComponentResponse =
+      mockSupport.createMock(StackServiceComponentResponse.class);
+    AmbariMetaInfo mockAmbariMetaInfo =
+      mockSupport.createMock(AmbariMetaInfo.class);
+
+    expect(mockStackComponentResponse.getComponentName()).andReturn("FALCON_SERVER");
+    expect(mockStackComponentResponse.getCardinality()).andReturn("1");
+    expect(mockStackComponentResponse.getAutoDeploy()).andReturn(new AutoDeployInfo());
+
+
+    expect(mockStackServiceResponseOne.getServiceName()).andReturn("FALCON");
+    expect(mockManagementController.getStackServices(isA(Set.class))).andReturn(Collections.singleton(mockStackServiceResponseOne));
+    expect(mockManagementController.getStackComponents(isA(Set.class))).andReturn(Collections.singleton(mockStackComponentResponse));
+    expect(mockManagementController.getStackConfigurations(isA(Set.class))).andReturn(Collections.<StackConfigurationResponse>emptySet());
+
+    expect(mockAmbariMetaInfo.getComponentDependencies("HDP", "2.1", "FALCON", "FALCON_SERVER")).andReturn(Collections.<DependencyInfo>emptyList());
+
+    mockSupport.replayAll();
+
+    ClusterResourceProvider.init(null, mockAmbariMetaInfo, null);
+
+    BaseBlueprintProcessor.Stack stack =
+      new BaseBlueprintProcessor.Stack("HDP", "2.1", mockManagementController);
+
+    ClusterResourceProvider clusterResourceProvider =
+      new TestClusterResourceProvider(mockMgmtController, mockServiceProvider,
+        mockComponentProvider, mockHostProvider, mockHostComponentProvider, mockConfigGroupProvider);
+
+    HostGroupEntity hostGroup = new HostGroupEntity();
+    hostGroup.setComponents(Collections.<HostGroupComponentEntity>emptyList());
+    HostGroupConfigEntity configEntity = new HostGroupConfigEntity();
+    configEntity.setConfigData("");
+
+    hostGroup.setConfigurations(Collections.singletonList(configEntity));
+    BaseBlueprintProcessor.HostGroupImpl hostGroupImpl =
+      new BaseBlueprintProcessor.HostGroupImpl(hostGroup, stack, null);
+    // blueprint request will not include a reference to FALCON_SERVER
+    hostGroupImpl.addComponent("COMPONENT_ONE");
+
+    // add empty map for core-site, to simulate this configuration entry
+    clusterResourceProvider.getClusterConfigurations().put("core-site", new HashMap<String, String>());
+
+    clusterResourceProvider.setMissingConfigurations(Collections.singletonMap("host_group_one", hostGroupImpl));
+
+    Map<String, String> mapCoreSiteConfig =
+      clusterResourceProvider.getClusterConfigurations().get("core-site");
+
+    assertNotNull("core-site map was null.", mapCoreSiteConfig);
+    assertEquals("Incorrect number of entries in the core-site config map",
+      0, mapCoreSiteConfig.size());
+
+    mockSupport.verifyAll();
+
+  }
+
+
+  @Test
+  public void testSetMissingConfigurationsHiveNotIncluded() throws Exception {
+    EasyMockSupport mockSupport = new EasyMockSupport();
+
+    AmbariManagementController mockMgmtController =
+      mockSupport.createMock(AmbariManagementController.class);
+    ResourceProvider mockServiceProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockConfigGroupProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    AmbariManagementController mockManagementController =
+      mockSupport.createMock(AmbariManagementController.class);
+    StackServiceResponse mockStackServiceResponseOne =
+      mockSupport.createMock(StackServiceResponse.class);
+    StackServiceComponentResponse mockStackComponentResponse =
+      mockSupport.createMock(StackServiceComponentResponse.class);
+    AmbariMetaInfo mockAmbariMetaInfo =
+      mockSupport.createMock(AmbariMetaInfo.class);
+
+    expect(mockStackComponentResponse.getComponentName()).andReturn("HIVE_SERVER");
+    expect(mockStackComponentResponse.getCardinality()).andReturn("1");
+    expect(mockStackComponentResponse.getAutoDeploy()).andReturn(new AutoDeployInfo());
+
+    expect(mockStackServiceResponseOne.getServiceName()).andReturn("HIVE");
+    expect(mockManagementController.getStackServices(isA(Set.class))).andReturn(Collections.singleton(mockStackServiceResponseOne));
+    expect(mockManagementController.getStackComponents(isA(Set.class))).andReturn(Collections.singleton(mockStackComponentResponse));
+    expect(mockManagementController.getStackConfigurations(isA(Set.class))).andReturn(Collections.<StackConfigurationResponse>emptySet());
+
+    expect(mockAmbariMetaInfo.getComponentDependencies("HDP", "2.1", "HIVE", "HIVE_SERVER")).andReturn(Collections.<DependencyInfo>emptyList());
+
+    mockSupport.replayAll();
+
+    ClusterResourceProvider.init(null, mockAmbariMetaInfo, null);
+
+    BaseBlueprintProcessor.Stack stack =
+      new BaseBlueprintProcessor.Stack("HDP", "2.1", mockManagementController);
+
+    ClusterResourceProvider clusterResourceProvider =
+      new TestClusterResourceProvider(mockMgmtController, mockServiceProvider,
+        mockComponentProvider, mockHostProvider, mockHostComponentProvider, mockConfigGroupProvider);
+
+    HostGroupEntity hostGroup = new HostGroupEntity();
+    hostGroup.setComponents(Collections.<HostGroupComponentEntity>emptyList());
+    HostGroupConfigEntity configEntity = new HostGroupConfigEntity();
+    configEntity.setConfigData("");
+
+    hostGroup.setConfigurations(Collections.singletonList(configEntity));
+    BaseBlueprintProcessor.HostGroupImpl hostGroupImpl =
+      new BaseBlueprintProcessor.HostGroupImpl(hostGroup, stack, null);
+    // blueprint request will not include a reference to a HIVE component
+    hostGroupImpl.addComponent("COMPONENT_ONE");
+
+    // add empty map for core-site, to simulate this configuration entry
+    clusterResourceProvider.getClusterConfigurations().put("core-site", new HashMap<String, String>());
+
+    clusterResourceProvider.setMissingConfigurations(Collections.singletonMap("host_group_one", hostGroupImpl));
+
+    Map<String, String> mapCoreSiteConfig =
+      clusterResourceProvider.getClusterConfigurations().get("core-site");
+
+    assertNotNull("core-site map was null.", mapCoreSiteConfig);
+    assertEquals("Incorrect number of entries in the core-site config map",
+      0, mapCoreSiteConfig.size());
+
+    mockSupport.verifyAll();
+
+  }
+
+
+  @Test
+  public void testSetMissingConfigurationsHBaseNotIncluded() throws Exception {
+    EasyMockSupport mockSupport = new EasyMockSupport();
+
+    AmbariManagementController mockMgmtController =
+      mockSupport.createMock(AmbariManagementController.class);
+    ResourceProvider mockServiceProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockHostComponentProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    ResourceProvider mockConfigGroupProvider =
+      mockSupport.createMock(ResourceProvider.class);
+    AmbariManagementController mockManagementController =
+      mockSupport.createMock(AmbariManagementController.class);
+    StackServiceResponse mockStackServiceResponseOne =
+      mockSupport.createMock(StackServiceResponse.class);
+    StackServiceComponentResponse mockStackComponentResponse =
+      mockSupport.createMock(StackServiceComponentResponse.class);
+    AmbariMetaInfo mockAmbariMetaInfo =
+      mockSupport.createMock(AmbariMetaInfo.class);
+
+    expect(mockStackComponentResponse.getComponentName()).andReturn("HBASE_SERVER");
+    expect(mockStackComponentResponse.getCardinality()).andReturn("1");
+    expect(mockStackComponentResponse.getAutoDeploy()).andReturn(new AutoDeployInfo());
+
+    expect(mockStackServiceResponseOne.getServiceName()).andReturn("HBASE");
+    expect(mockManagementController.getStackServices(isA(Set.class))).andReturn(Collections.singleton(mockStackServiceResponseOne));
+    expect(mockManagementController.getStackComponents(isA(Set.class))).andReturn(Collections.singleton(mockStackComponentResponse));
+    expect(mockManagementController.getStackConfigurations(isA(Set.class))).andReturn(Collections.<StackConfigurationResponse>emptySet());
+
+    expect(mockAmbariMetaInfo.getComponentDependencies("HDP", "2.1", "HBASE", "HBASE_SERVER")).andReturn(Collections.<DependencyInfo>emptyList());
+
+    mockSupport.replayAll();
+
+    ClusterResourceProvider.init(null, mockAmbariMetaInfo, null);
+
+    BaseBlueprintProcessor.Stack stack =
+      new BaseBlueprintProcessor.Stack("HDP", "2.1", mockManagementController);
+
+    ClusterResourceProvider clusterResourceProvider =
+      new TestClusterResourceProvider(mockMgmtController, mockServiceProvider,
+        mockComponentProvider, mockHostProvider, mockHostComponentProvider, mockConfigGroupProvider);
+
+    HostGroupEntity hostGroup = new HostGroupEntity();
+    hostGroup.setComponents(Collections.<HostGroupComponentEntity>emptyList());
+    HostGroupConfigEntity configEntity = new HostGroupConfigEntity();
+    configEntity.setConfigData("");
+
+    hostGroup.setConfigurations(Collections.singletonList(configEntity));
+    BaseBlueprintProcessor.HostGroupImpl hostGroupImpl =
+      new BaseBlueprintProcessor.HostGroupImpl(hostGroup, stack, null);
+    // blueprint request will not include a reference to an HBASE component
+    hostGroupImpl.addComponent("COMPONENT_ONE");
+
+    // add empty map for core-site, to simulate this configuration entry
+    clusterResourceProvider.getClusterConfigurations().put("core-site", new HashMap<String, String>());
+
+    clusterResourceProvider.setMissingConfigurations(Collections.singletonMap("host_group_one", hostGroupImpl));
+
+    Map<String, String> mapCoreSiteConfig =
+      clusterResourceProvider.getClusterConfigurations().get("core-site");
+
+    assertNotNull("core-site map was null.", mapCoreSiteConfig);
+    assertEquals("Incorrect number of entries in the core-site config map",
+      0, mapCoreSiteConfig.size());
+
+    mockSupport.verifyAll();
+
+  }
+
 
   private class TestClusterResourceProvider extends ClusterResourceProvider {
 

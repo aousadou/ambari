@@ -17,6 +17,8 @@
  */
 package org.apache.ambari.server.controller.internal;
 
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
 import org.apache.ambari.server.AmbariException;
 import org.apache.ambari.server.ClusterNotFoundException;
 import org.apache.ambari.server.ConfigGroupNotFoundException;
@@ -44,6 +46,7 @@ import org.apache.ambari.server.state.ConfigImpl;
 import org.apache.ambari.server.state.Host;
 import org.apache.ambari.server.state.configgroup.ConfigGroup;
 import org.apache.ambari.server.state.configgroup.ConfigGroupFactory;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,6 +74,8 @@ public class ConfigGroupResourceProvider extends
     .getPropertyId("ConfigGroup", "tag");
   protected static final String CONFIGGROUP_DESC_PROPERTY_ID = PropertyHelper
     .getPropertyId("ConfigGroup", "description");
+  protected static final String CONFIGGROUP_SCV_NOTE_ID = PropertyHelper
+      .getPropertyId("ConfigGroup", "service_config_version_note");
   protected static final String CONFIGGROUP_HOSTNAME_PROPERTY_ID =
     PropertyHelper.getPropertyId(null, "host_name");
   public static final String CONFIGGROUP_HOSTS_PROPERTY_ID = PropertyHelper
@@ -456,6 +461,12 @@ public class ConfigGroupResourceProvider extends
         request.getTag(), request.getDescription(),
         request.getConfigs(), hosts);
 
+      String serviceName = null;
+      if (request.getConfigs() != null && !request.getConfigs().isEmpty()) {
+        serviceName = cluster.getServiceForConfigTypes(request.getConfigs().keySet());
+      }
+      configGroup.setServiceName(serviceName);
+
       // Persist before add, since id is auto-generated
       configLogger.info("Persisting new Config group"
         + ", clusterName = " + cluster.getClusterName()
@@ -465,6 +476,12 @@ public class ConfigGroupResourceProvider extends
 
       configGroup.persist();
       cluster.addConfigGroup(configGroup);
+      if (serviceName != null) {
+        cluster.createServiceConfigVersion(serviceName, getManagementController().getAuthName(), null, configGroup);
+      } else {
+        LOG.warn("Could not determine service name for config group {}, service config version not created",
+            configGroup.getId());
+      }
 
       ConfigGroupResponse response = new ConfigGroupResponse(configGroup
         .getId(), configGroup.getClusterName(), configGroup.getName(),
@@ -509,6 +526,16 @@ public class ConfigGroupResourceProvider extends
                                  + ", clusterName = " + request.getClusterName()
                                  + ", groupId = " + request.getId());
       }
+      String serviceName = configGroup.getServiceName();
+      String requestServiceName = cluster.getServiceForConfigTypes(request.getConfigs().keySet());
+      if (serviceName != null && requestServiceName !=null && !StringUtils.equals(serviceName, requestServiceName)) {
+        throw new IllegalArgumentException("Config group " + configGroup.getId() +
+            " is mapped to service " + serviceName + ", " +
+            "but request contain configs from service " + requestServiceName);
+      } else if (serviceName == null && requestServiceName != null) {
+        configGroup.setServiceName(requestServiceName);
+        serviceName = requestServiceName;
+      }
 
       // Update hosts
       Map<String, Host> hosts = new HashMap<String, Host>();
@@ -534,13 +561,19 @@ public class ConfigGroupResourceProvider extends
       configGroup.setDescription(request.getDescription());
       configGroup.setTag(request.getTag());
 
-      configLogger.info("Persisting updated Config group, "
+      configLogger.info("Persisting updated Config group"
         + ", clusterName = " + configGroup.getClusterName()
         + ", id = " + configGroup.getId()
         + ", tag = " + configGroup.getTag()
         + ", user = " + getManagementController().getAuthName());
 
       configGroup.persist();
+      if (serviceName != null) {
+        cluster.createServiceConfigVersion(serviceName, getManagementController().getAuthName(), null, configGroup);
+      } else {
+        LOG.warn("Could not determine service name for config group {}, service config version not created",
+            configGroup.getId());
+      }
     }
 
     getManagementController().getConfigHelper().invalidateStaleConfigsCache();
@@ -563,6 +596,8 @@ public class ConfigGroupResourceProvider extends
       (String) properties.get(CONFIGGROUP_DESC_PROPERTY_ID),
       null,
       null);
+
+    request.setServiceConfigVersionNote((String) properties.get(CONFIGGROUP_SCV_NOTE_ID));
 
     Map<String, Config> configurations = new HashMap<String, Config>();
     Set<String> hosts = new HashSet<String>();

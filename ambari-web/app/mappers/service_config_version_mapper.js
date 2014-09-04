@@ -23,11 +23,13 @@ App.serviceConfigVersionsMapper = App.QuickDataMapper.create({
   config: {
     service_name: 'service_name',
     service_id: 'service_name',
-    version: "serviceconfigversion",
+    version: "service_config_version",
     create_time: 'createtime',
-    applied_time: 'appliedtime',
+    group_id: 'group_id',
+    group_name: 'group_name',
     author: 'user',
-    notes: 'notes',
+    notes: 'service_config_version_note',
+    is_current: 'is_current',
     index: 'index'
   },
   map: function (json) {
@@ -53,6 +55,7 @@ App.serviceConfigVersionsMapper = App.QuickDataMapper.create({
       if (!isNaN(itemTotal)) {
         App.router.set('mainConfigHistoryController.filteredCount', itemTotal);
       }
+      App.store.commit();
       App.store.loadMany(this.get('model'), result);
     }
   }

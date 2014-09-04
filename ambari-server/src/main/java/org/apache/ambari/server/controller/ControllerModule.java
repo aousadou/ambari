@@ -46,6 +46,8 @@ import org.apache.ambari.server.orm.DBAccessorImpl;
 import org.apache.ambari.server.orm.PersistenceType;
 import org.apache.ambari.server.scheduler.ExecutionScheduler;
 import org.apache.ambari.server.scheduler.ExecutionSchedulerImpl;
+import org.apache.ambari.server.security.SecurityHelper;
+import org.apache.ambari.server.security.SecurityHelperImpl;
 import org.apache.ambari.server.serveraction.ServerActionManager;
 import org.apache.ambari.server.serveraction.ServerActionManagerImpl;
 import org.apache.ambari.server.state.Cluster;
@@ -74,6 +76,7 @@ import org.apache.ambari.server.state.scheduler.RequestExecution;
 import org.apache.ambari.server.state.scheduler.RequestExecutionFactory;
 import org.apache.ambari.server.state.scheduler.RequestExecutionImpl;
 import org.apache.ambari.server.state.svccomphost.ServiceComponentHostImpl;
+import org.apache.ambari.server.view.ViewInstanceHandlerList;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.password.StandardPasswordEncoder;
 
@@ -183,7 +186,7 @@ public class ControllerModule extends AbstractModule {
     // This time is added to summary timeout time of all tasks in stage
     // So it's an "additional time", given to stage to finish execution before
     // it is considered as timed out
-    bindConstant().annotatedWith(Names.named("actionTimeout")).to(120000L);
+    bindConstant().annotatedWith(Names.named("actionTimeout")).to(600000L);
 
     bindConstant().annotatedWith(Names.named("dbInitNeeded")).to(dbInitNeeded);
     bindConstant().annotatedWith(Names.named("statusCheckInterval")).to(5000L);
@@ -199,6 +202,7 @@ public class ControllerModule extends AbstractModule {
     bind(ServerActionManager.class).to(ServerActionManagerImpl.class);
     bind(ExecutionScheduler.class).to(ExecutionSchedulerImpl.class);
     bind(DBAccessor.class).to(DBAccessorImpl.class);
+    bind(ViewInstanceHandlerList.class).to(AmbariHandlerList.class);
 
     requestStaticInjection(ExecutionCommandWrapper.class);
   }
@@ -276,6 +280,6 @@ public class ControllerModule extends AbstractModule {
     install(new FactoryModuleBuilder().build(RequestFactory.class));
 
     bind(HostRoleCommandFactory.class).to(HostRoleCommandFactoryImpl.class);
+    bind(SecurityHelper.class).toInstance(SecurityHelperImpl.getInstance());
   }
-
 }

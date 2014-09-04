@@ -20,6 +20,7 @@ limitations under the License.
 
 from resource_management import *
 import status_params
+import os
 
 # server configurations
 config = Script.get_config()
@@ -66,6 +67,7 @@ smoke_test_path = format("{tmp_dir}/hiveserver2Smoke.sh")
 smoke_user_keytab = config['configurations']['hadoop-env']['smokeuser_keytab']
 
 _authentication = config['configurations']['core-site']['hadoop.security.authentication']
+fs_root = config['configurations']['core-site']['fs.defaultFS']
 security_enabled = ( not is_empty(_authentication) and _authentication == 'kerberos')
 
 kinit_path_local = functions.get_kinit_path(["/usr/bin", "/usr/kerberos/bin", "/usr/sbin"])
@@ -77,6 +79,10 @@ hive_dbroot = config['configurations']['hive-env']['hive_dbroot']
 hive_log_dir = config['configurations']['hive-env']['hive_log_dir']
 hive_pid_dir = status_params.hive_pid_dir
 hive_pid = status_params.hive_pid
+#Default conf dir for client
+hive_config_dir = hive_conf_dir
+if 'role' in config and config['role'] in ["HIVE_SERVER", "HIVE_METASTORE"]:
+  hive_config_dir = hive_server_conf_dir
 
 #hive-site
 hive_database_name = config['configurations']['hive-env']['hive_database_name']
@@ -94,7 +100,7 @@ driver_curl_target = format("{java_share_dir}/{jdbc_jar_name}")
 
 hdfs_user =  config['configurations']['hadoop-env']['hdfs_user']
 user_group = config['configurations']['hadoop-env']['user_group']
-artifact_dir = "/tmp/HDP-artifacts/"
+artifact_dir = format("{tmp_dir}/AMBARI-artifacts/")
 
 target = format("{hive_lib}/{jdbc_jar_name}")
 
@@ -167,6 +173,7 @@ hostname = config["hostname"]
 hadoop_conf_dir = "/etc/hadoop/conf"
 hdfs_user_keytab = config['configurations']['hadoop-env']['hdfs_user_keytab']
 hdfs_user = config['configurations']['hadoop-env']['hdfs_user']
+hdfs_principal_name = config['configurations']['hadoop-env']['hdfs_principal_name']
 kinit_path_local = functions.get_kinit_path(["/usr/bin", "/usr/kerberos/bin", "/usr/sbin"])
 
 # Tez libraries
@@ -175,7 +182,7 @@ tez_local_api_jars = '/usr/lib/tez/tez*.jar'
 tez_local_lib_jars = '/usr/lib/tez/lib/*.jar'
 tez_user = config['configurations']['tez-env']['tez_user']
 
-if System.get_instance().os_family == "debian":
+if System.get_instance().os_family == "ubuntu":
   mysql_configname = '/etc/mysql/my.cnf'
 else:
   mysql_configname = '/etc/my.cnf'
@@ -183,6 +190,15 @@ else:
 
 # Hive security
 hive_authorization_enabled = config['configurations']['hive-site']['hive.security.authorization.enabled']
+
+mysql_jdbc_driver_jar = "/usr/share/java/mysql-connector-java.jar"
+
+# There are other packages that contain /usr/share/java/mysql-connector-java.jar (like libmysql-java),
+# trying to install mysql-connector-java upon them can cause packages to conflict.
+if os.path.exists(mysql_jdbc_driver_jar):
+  hive_exclude_packages = ['mysql-connector-java']
+else:  
+  hive_exclude_packages = []
 
 import functools
 #create partial functions with common arguments for every HdfsDirectory call

@@ -74,6 +74,10 @@ hive_dbroot = config['configurations']['hive-env']['hive_dbroot']
 hive_log_dir = config['configurations']['hive-env']['hive_log_dir']
 hive_pid_dir = status_params.hive_pid_dir
 hive_pid = status_params.hive_pid
+#Default conf dir for client
+hive_config_dir = hive_conf_dir
+if 'role' in config and config['role'] in ["HIVE_SERVER", "HIVE_METASTORE"]:
+  hive_config_dir = hive_server_conf_dir
 
 #hive-site
 hive_database_name = config['configurations']['hive-env']['hive_database_name']
@@ -91,7 +95,7 @@ driver_curl_target = format("{java_share_dir}/{jdbc_jar_name}")
 
 hdfs_user =  config['configurations']['hadoop-env']['hdfs_user']
 user_group = config['configurations']['hadoop-env']['user_group']
-artifact_dir = "/tmp/HDP-artifacts/"
+artifact_dir = format("{tmp_dir}/AMBARI-artifacts/")
 
 target = format("{hive_lib}/{jdbc_jar_name}")
 
@@ -155,6 +159,7 @@ hostname = config["hostname"]
 hadoop_conf_dir = "/etc/hadoop/conf"
 hdfs_user_keytab = config['configurations']['hadoop-env']['hdfs_user_keytab']
 hdfs_user = config['configurations']['hadoop-env']['hdfs_user']
+hdfs_principal_name = config['configurations']['hadoop-env']['hdfs_principal_name']
 kinit_path_local = functions.get_kinit_path(["/usr/bin", "/usr/kerberos/bin", "/usr/sbin"])
 import functools
 #create partial functions with common arguments for every HdfsDirectory call

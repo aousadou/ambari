@@ -57,7 +57,7 @@ public class ExecutionCommand extends AgentCommand {
   private Map<String, Map<String, Map<String, String>>> configurationAttributes;
   private Map<String, Map<String, String>> configurationTags;
   private Set<String> forceRefreshConfigTags = new HashSet<String>();
-  private Map<String, String> commandParams;
+  private Map<String, String> commandParams = new HashMap<String, String>();
   private String serviceName;
   private String componentName;
 
@@ -303,6 +303,8 @@ public class ExecutionCommand extends AgentCommand {
     String AMBARI_DB_RCA_PASSWORD = "ambari_db_rca_password";
     String COMPONENT_CATEGORY = "component_category";
     String REFRESH_ADITIONAL_COMPONENT_TAGS = "forceRefreshConfigTags";
+    String USER_LIST = "user_list";
+    String GROUP_LIST = "group_list";
 
     String SERVICE_CHECK = "SERVICE_CHECK"; // TODO: is it standart command? maybe add it to RoleCommand enum?
     String CUSTOM_COMMAND = "custom_command";

@@ -18,15 +18,18 @@
 
 package org.apache.ambari.server.controller.internal;
 
-import org.apache.ambari.server.controller.spi.Request;
 import org.apache.ambari.server.controller.spi.Resource;
 import org.apache.ambari.server.controller.utilities.PropertyHelper;
 import org.apache.ambari.server.orm.dao.GroupDAO;
+import org.apache.ambari.server.orm.dao.MemberDAO;
 import org.apache.ambari.server.orm.dao.PermissionDAO;
 import org.apache.ambari.server.orm.dao.PrincipalDAO;
 import org.apache.ambari.server.orm.dao.PrivilegeDAO;
 import org.apache.ambari.server.orm.dao.ResourceDAO;
+import org.apache.ambari.server.orm.dao.ResourceTypeDAO;
 import org.apache.ambari.server.orm.dao.UserDAO;
+import org.apache.ambari.server.orm.dao.ViewDAO;
+import org.apache.ambari.server.orm.dao.ViewInstanceDAO;
 import org.apache.ambari.server.orm.entities.GroupEntity;
 import org.apache.ambari.server.orm.entities.PermissionEntity;
 import org.apache.ambari.server.orm.entities.PrincipalEntity;
@@ -38,9 +41,9 @@ import org.apache.ambari.server.orm.entities.ViewEntity;
 import org.apache.ambari.server.orm.entities.ViewEntityTest;
 import org.apache.ambari.server.orm.entities.ViewInstanceEntity;
 import org.apache.ambari.server.orm.entities.ViewInstanceEntityTest;
+import org.apache.ambari.server.security.SecurityHelper;
 import org.apache.ambari.server.view.ViewRegistry;
 import org.apache.ambari.server.view.ViewRegistryTest;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -51,6 +54,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.createNiceMock;
 import static org.easymock.EasyMock.createStrictMock;
 import static org.easymock.EasyMock.expect;
@@ -68,6 +72,11 @@ public class ViewPrivilegeResourceProviderTest {
   private final static PrincipalDAO principalDAO = createStrictMock(PrincipalDAO.class);
   private final static PermissionDAO permissionDAO = createStrictMock(PermissionDAO.class);
   private final static ResourceDAO resourceDAO = createStrictMock(ResourceDAO.class);
+  private static final ViewDAO viewDAO = createMock(ViewDAO.class);
+  private static final ViewInstanceDAO viewInstanceDAO = createNiceMock(ViewInstanceDAO.class);
+  private static final MemberDAO memberDAO = createNiceMock(MemberDAO.class);
+  private static final ResourceTypeDAO resourceTypeDAO = createNiceMock(ResourceTypeDAO.class);
+  private static final SecurityHelper securityHelper = createNiceMock(SecurityHelper.class);
 
   @BeforeClass
   public static void initClass() {
@@ -76,13 +85,10 @@ public class ViewPrivilegeResourceProviderTest {
 
   @Before
   public void resetGlobalMocks() {
-    ViewRegistryTest.clear();
-    reset(privilegeDAO, userDAO, groupDAO, principalDAO, permissionDAO, resourceDAO);
-  }
 
-  @AfterClass
-  public static void afterClass() {
-    ViewRegistryTest.clear();
+    ViewRegistry.initInstance(ViewRegistryTest.getRegistry(viewDAO, viewInstanceDAO, userDAO,
+        memberDAO, privilegeDAO, resourceDAO, resourceTypeDAO, securityHelper));
+    reset(privilegeDAO, userDAO, groupDAO, principalDAO, permissionDAO, resourceDAO);
   }
 
   @Test
@@ -129,6 +135,8 @@ public class ViewPrivilegeResourceProviderTest {
     expect(principalEntity.getPrincipalType()).andReturn(principalTypeEntity).anyTimes();
     expect(principalTypeEntity.getName()).andReturn("USER").anyTimes();
 
+    expect(permissionDAO.findById(PermissionEntity.VIEW_USE_PERMISSION)).andReturn(permissionEntity);
+
     expect(userDAO.findUsersByPrincipal(principalEntities)).andReturn(userEntities);
     expect(groupDAO.findGroupsByPrincipal(principalEntities)).andReturn(Collections.<GroupEntity>emptyList());
 
@@ -152,16 +160,7 @@ public class ViewPrivilegeResourceProviderTest {
 
   @Test
   public void testUpdateResources() throws Exception {
-    PrivilegeResourceProvider provider = new ViewPrivilegeResourceProvider();
-
-    Request request = createNiceMock(Request.class);
-
-    try {
-      provider.updateResources(request, null);
-      Assert.fail("expected UnsupportedOperationException");
-    } catch (UnsupportedOperationException e) {
-      // expected
-    }
+    // see AmbariPrivilegeResourceProvider#testUpdateResources
   }
 }
 

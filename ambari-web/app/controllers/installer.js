@@ -37,6 +37,16 @@ App.InstallerController = App.WizardController.extend({
     configGroups: [],
     slaveGroupProperties: null,
     stacks: null,
+    clients:[],
+    /**
+     * recommendations for host groups loaded from server
+     */
+    recommendations: null,
+    /**
+     * recommendationsHostGroups - current component assignment after 5 and 6 steps
+     * (uses for host groups validation and to load recommended configs)
+     */
+    recommendationsHostGroups: null,
     controllerName: 'installerController'
   }),
 
@@ -63,7 +73,10 @@ App.InstallerController = App.WizardController.extend({
     'stacksVersions',
     'currentStep',
     'serviceInfo',
-    'hostInfo'
+    'hostInfo',
+    'recommendations',
+    'recommendationsHostGroups',
+    'recommendationsConfigs'
   ],
 
   init: function () {
@@ -329,7 +342,7 @@ App.InstallerController = App.WizardController.extend({
             os.repositories.forEach(function (repo) {
               var defaultBaseUrl = repo.Repositories.default_base_url || repo.Repositories.base_url;
               var latestBaseUrl = repo.Repositories.latest_base_url || defaultBaseUrl;
-              if (!App.supports.ubuntu && os.OperatingSystems.os_type == 'debian12') return; // @todo: remove after Ubuntu support confirmation
+              if (!App.supports.ubuntu && os.OperatingSystems.os_type == 'ubuntu12') return; // @todo: remove after Ubuntu support confirmation
               oses.push({
                 osType: os.OperatingSystems.os_type,
                 baseUrl: latestBaseUrl,
@@ -464,6 +477,18 @@ App.InstallerController = App.WizardController.extend({
       });
     }
     this.set("content.masterComponentHosts", masterComponentHosts);
+  },
+
+  loadRecommendations: function() {
+    this.set("content.recommendations", this.getDBProperty('recommendations'));
+  },
+
+  loadCurrentHostGroups: function() {
+    this.set("content.recommendationsHostGroups", this.getDBProperty('recommendationsHostGroups'));
+  },
+
+  loadRecommendationsConfigs: function() {
+    App.router.set("wizardStep7Controller.recommendationsConfigs", this.getDBProperty('recommendationsConfigs'));
   },
 
   /**
@@ -684,6 +709,7 @@ App.InstallerController = App.WizardController.extend({
         callback: function () {
           this.loadMasterComponentHosts();
           this.loadConfirmedHosts();
+          this.loadRecommendations();
         }
       }
     ],
@@ -693,6 +719,7 @@ App.InstallerController = App.WizardController.extend({
         callback: function () {
           this.loadSlaveComponentHosts();
           this.loadClients();
+          this.loadRecommendations();
         }
       }
     ],
@@ -702,6 +729,8 @@ App.InstallerController = App.WizardController.extend({
         callback: function () {
           this.loadServiceConfigGroups();
           this.loadServiceConfigProperties();
+          this.loadCurrentHostGroups();
+          this.loadRecommendationsConfigs();
         }
       }
     ]
@@ -732,13 +761,6 @@ App.InstallerController = App.WizardController.extend({
       var step = this.get('isStepDisabled').findProperty('step', i);
       step.set('value', true);
     }
-  },
-
-  /**
-   * Clear loaded recommendations
-   */
-  clearRecommendations: function() {
-    this.set('recommendations', undefined)
   }
 });
 

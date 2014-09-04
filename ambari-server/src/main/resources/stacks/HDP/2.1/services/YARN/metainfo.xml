@@ -21,13 +21,15 @@
   <services>
     <service>
       <name>YARN</name>
+      <displayName>YARN</displayName>
       <comment>Apache Hadoop NextGen MapReduce (YARN)</comment>
       <version>2.4.0.2.1</version>
       <components>
 
         <component>
           <name>APP_TIMELINE_SERVER</name>
-          <category>SLAVE</category>
+          <displayName>App Timeline Server</displayName>
+          <category>MASTER</category>
           <cardinality>0-1</cardinality>
           <commandScript>
             <script>scripts/application_timeline_server.py</script>
@@ -39,6 +41,7 @@
        <component>
          <name>RESOURCEMANAGER</name>
          <category>MASTER</category>
+         <cardinality>1-2</cardinality>
           <configuration-dependencies>
             <config-type>capacity-scheduler</config-type>
           </configuration-dependencies>

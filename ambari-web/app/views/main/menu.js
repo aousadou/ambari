@@ -27,45 +27,46 @@ App.MainMenuView = Em.CollectionView.extend({
   classNames:['nav', 'top-nav-menu'],
 
   views: function() {
-    return App.router.get('clusterController.ambariViews');
-  }.property('App.router.clusterController.ambariViews'),
+    return App.router.get('mainViewsController.ambariViews');
+  }.property('App.router.mainViewsController.ambariViews'),
 
-  content:function(){
+  content: function(){
     var result = [];
     if (App.router.get('loggedIn')) {
 
       if (App.router.get('clusterController.isLoaded')) {
 
-        result.push(
-          { label:Em.I18n.t('menu.item.dashboard'), routing:'dashboard', active:'active'},
-          { label:Em.I18n.t('menu.item.services'), routing:'services'},
-          { label:Em.I18n.t('menu.item.hosts'), routing:'hosts'}
-        );
+        if (App.get('clusterName')) {
 
-        if (App.supports.mirroring && App.Service.find().findProperty('serviceName', 'FALCON')) {
-          result.push({ label:Em.I18n.t('menu.item.mirroring'), routing:'mirroring'});
+          result.push(
+            { label:Em.I18n.t('menu.item.dashboard'), routing:'dashboard', active:'active'},
+            { label:Em.I18n.t('menu.item.services'), routing:'services'},
+            { label:Em.I18n.t('menu.item.hosts'), routing:'hosts'}
+          );
+
+          if (App.supports.mirroring && App.Service.find().findProperty('serviceName', 'FALCON')) {
+            result.push({ label:Em.I18n.t('menu.item.mirroring'), routing:'mirroring'});
+          }
+
+          if (!App.get('isHadoop2Stack')) {
+            result.push({ label:Em.I18n.t('menu.item.jobs'), routing:'apps'});
+          }
+
+          if (App.get('isAdmin')) {
+            result.push({ label:Em.I18n.t('menu.item.admin'), routing:'admin'});
+          }
+
         }
-
-        if (!App.get('isHadoop2Stack')) {
-          result.push({ label:Em.I18n.t('menu.item.jobs'), routing:'apps'});
-        } else if( App.router.get('mainAdminController.isAccessAvailable') && App.supports.jobs
-          && (App.router.get('mainAdminAccessController.showJobs') || App.get('isAdmin'))) {
-          result.push({ label:Em.I18n.t('menu.item.jobs'), routing:'jobs'});
-        }
-
-        if (App.get('isAdmin')) {
-          result.push({ label:Em.I18n.t('menu.item.admin'), routing:'admin'});
-        }
-
       }
 
-      if (App.supports.views) {
-        result.push({ label:Em.I18n.t('menu.item.views'), routing:'views', isView:true, views: this.get('views')});
+      if (App.get('supports.views')) {
+        result.push({ label:Em.I18n.t('menu.item.views'), routing:'views.index', isView:true, views: this.get('views').filterProperty('visible')});
       }
 
     }
     return result;
-  }.property('App.router.loggedIn', 'App.router.clusterController.isLoaded', 'App.supports.views', 'App.supports.mirroring', 'App.supports.secureCluster', 'App.supports.highAvailability', 'App.supports.jobs'),
+  }.property('App.router.loggedIn', 'App.router.clusterController.isLoaded', 'App.supports.views', 'App.supports.mirroring',
+      'App.supports.secureCluster', 'App.supports.highAvailability', 'views.length'),
 
     /**
      *    Adds observer on lastSetURL and calls navigation sync procedure
@@ -78,7 +79,7 @@ App.MainMenuView = Em.CollectionView.extend({
    *    Syncs navigation menu with requested URL
    */
   renderOnRoute: function () {
-    if (App.router.get('clusterController.isLoaded')) {
+    if (App.get('clusterName') && App.router.get('clusterController.isLoaded')) {
       var last_url = App.router.location.lastSetURL || location.href.replace(/^[^#]*#/, '');
       if (last_url.substr(1, 4) !== 'main' || !this._childViews) {
         return;
@@ -118,8 +119,17 @@ App.MainMenuView = Em.CollectionView.extend({
       return this.get('content').routing == 'services';
     }.property(''),
     isViewsItem: function () {
-      return this.get('content').routing == 'views';
+      return this.get('content').routing.contains('views');
     }.property(''),
+    goToSection: function (event) {
+      if (event.context === 'hosts') {
+        App.router.set('mainHostController.showFilterConditionsFirstLoad', false);
+      } else if (event.context === 'views') {
+        App.router.route('views');
+        return;
+      }
+      App.router.route('main/' + event.context);
+    },
     goToCategory: function (event) {
       var itemName = this.get('content').routing;
       // route to correct category of current menu item
@@ -132,18 +142,17 @@ App.MainMenuView = Em.CollectionView.extend({
       var categories = [];
       // create dropdown categories for each menu item
       if (itemName == 'admin') {
-        categories = [{
-          name: 'user',
-          url: 'adminUser',
-          label: Em.I18n.t('common.users')
-        }];
-        if (App.get('isHadoop2Stack') && App.supports.highAvailability) {
-          categories.push({
-            name: 'highAvailability',
-            url: 'adminHighAvailability',
-            label: Em.I18n.t('admin.highAvailability')
-          });
-        }
+        categories = [];
+        categories.push({
+          name: 'repositories',
+          url: 'adminRepositories',
+          label: Em.I18n.t('common.repositories')
+        });
+        categories.push({
+          name: 'serviceAccounts',
+          url: 'adminServiceAccounts',
+          label: Em.I18n.t('common.serviceAccounts')
+        });
         if (App.supports.secureCluster) {
           categories.push({
             name: 'security',
@@ -151,26 +160,8 @@ App.MainMenuView = Em.CollectionView.extend({
             label: Em.I18n.t('common.security')
           });
         }
-        categories.push({
-          name: 'cluster',
-          url: 'adminCluster',
-          label: Em.I18n.t('common.cluster')
-        });
-        categories.push({
-          name: 'misc',
-          url: 'adminMisc',
-          label: Em.I18n.t('common.misc')
-        });
-        if (App.router.get('mainAdminController.isAccessAvailable')) {
-          categories.push({
-            name: 'access',
-            url: 'adminAccess',
-            label: Em.I18n.t('common.access')
-          });
-        }
       }
       return categories;
-
     }.property('')
   })
 });

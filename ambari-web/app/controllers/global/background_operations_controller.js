@@ -33,6 +33,11 @@ App.BackgroundOperationsController = Em.Controller.extend({
    */
   services:[],
   serviceTimestamp: null,
+
+  /**
+   * Number of operation to load
+   */
+  operationsCount: 10,
   /**
    * Possible levels:
    * REQUESTS_LIST
@@ -90,7 +95,7 @@ App.BackgroundOperationsController = Em.Controller.extend({
    */
   getQueryParams: function () {
     var levelInfo = this.get('levelInfo');
-    var count = App.db.getBGOOperationsCount();
+    var count = this.get('operationsCount');
     var result = {
       name: 'background_operations.get_most_recent',
       successCallback: 'callBackForMostRecent',
@@ -172,6 +177,12 @@ App.BackgroundOperationsController = Em.Controller.extend({
     task.Tasks.status = data.Tasks.status;
     task.Tasks.stdout = data.Tasks.stdout;
     task.Tasks.stderr = data.Tasks.stderr;
+
+    // Put some command information to task object
+    task.Tasks.command = data.Tasks.command;
+    task.Tasks.custom_command_name = data.Tasks.custom_command_name;
+    task.Tasks.structured_out = data.Tasks.structured_out;
+
     task.Tasks.output_log = data.Tasks.output_log;
     task.Tasks.error_log = data.Tasks.error_log;
     this.set('serviceTimestamp', App.dateTime());
@@ -184,7 +195,7 @@ App.BackgroundOperationsController = Em.Controller.extend({
   callBackForMostRecent: function (data) {
     var runningServices = 0;
     var currentRequestIds = [];
-    var countIssued = App.db.getBGOOperationsCount();
+    var countIssued = this.get('operationsCount');
     var countGot = data.itemTotal;
    
     data.items.forEach(function (request) {
@@ -219,7 +230,7 @@ App.BackgroundOperationsController = Em.Controller.extend({
         });
         this.get("services").unshift(rq);
         //To sort DESC by request id
-        this.set("services", this.get("services").sort( function(a,b) { return b.get('id') - a.get('id'); })) ;
+        this.set("services", this.get("services").sort( function(a,b) { return b.get('id') - a.get('id'); }));
       }
       runningServices += ~~isRunning;
     }, this);
@@ -337,6 +348,14 @@ App.BackgroundOperationsController = Em.Controller.extend({
         self.set ('popupView.isNotShowBgChecked', !initValue);
       }
     });
+  },
+
+  /**
+   * Called on logout
+   */
+  clear: function () {
+    // set operations count to default value
+    this.set('operationsCount', 10);
   }
 
 });

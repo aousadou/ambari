@@ -36,7 +36,7 @@ import javax.persistence.TableGenerator;
 @Table(name = "adminprivilege")
 @Entity
 @TableGenerator(name = "privilege_id_generator",
-    table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "value"
+    table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "sequence_value"
     , pkColumnValue = "privilege_id_seq"
     , initialValue = 1
     , allocationSize = 1
@@ -173,7 +173,7 @@ public class PrivilegeEntity {
 
   @Override
   public int hashCode() {
-    int result = id.hashCode();
+    int result = id != null ? id.hashCode() : 0;
     result = 31 * result + (permission != null ? permission.hashCode() : 0);
     result = 31 * result + (resource != null ? resource.hashCode() : 0);
     result = 31 * result + (principal != null ? principal.hashCode() : 0);

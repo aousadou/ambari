@@ -21,6 +21,7 @@
   <services>
     <service>
       <name>STORM</name>
+      <displayName>Storm</displayName>
       <comment>Apache Hadoop Stream processing framework</comment>
       <version>0.9.1.2.1</version>
       <components>
@@ -109,7 +110,7 @@
 
       <configuration-dependencies>
         <config-type>storm-site</config-type>
-        <config-type>global</config-type>
+        <config-type>tez-env</config-type>
       </configuration-dependencies>
     </service>
   </services>

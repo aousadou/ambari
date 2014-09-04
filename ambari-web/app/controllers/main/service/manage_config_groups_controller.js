@@ -274,7 +274,7 @@ App.ManageConfigGroupsController = Em.Controller.extend({
     var availableHosts = this.get('selectedConfigGroup.availableHosts');
     var popupDescription = {
       header: Em.I18n.t('hosts.selectHostsDialog.title'),
-      dialogMessage: Em.I18n.t('hosts.selectHostsDialog.message').format(this.get('displayName'))
+      dialogMessage: Em.I18n.t('hosts.selectHostsDialog.message').format(this.get('selectedConfigGroup.displayName'))
     };
     hostsManagement.launchHostsSelectionDialog(availableHosts, [], false, this.get('componentsForFilter'), this.addHostsCallback.bind(this), popupDescription);
   },
@@ -337,7 +337,7 @@ App.ManageConfigGroupsController = Em.Controller.extend({
     return App.StackServiceComponent.find().filterProperty('serviceName', this.get('serviceName')).map(function (component) {
       return Em.Object.create({
         displayName: component.get('displayName'),
-        componentName: component.get('isClient') ? 'CLIENT' : component.get('componentName'),
+        componentName: component.get('componentName'),
         selected: false
       });
     });

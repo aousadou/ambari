@@ -14,12 +14,14 @@
         "jdk_name": "jdk-7u45-linux-x64.tar.gz", 
         "ambari_db_rca_username": "mapred", 
         "java_home": "/usr/jdk64/jdk1.7.0_45",
-        "db_name": "ambari"
+        "db_name": "ambari",
+        "group_list": "[\"hadoop\",\"nobody\",\"users\",\"nagios\"]",
+        "user_list": "[\"hive\",\"oozie\",\"nobody\",\"nagios\",\"ambari-qa\",\"flume\",\"hdfs\",\"storm\",\"mapred\",\"hbase\",\"tez\",\"zookeeper\",\"falcon\",\"sqoop\",\"yarn\",\"hcat\"]"
     }, 
     "commandType": "EXECUTION_COMMAND", 
     "roleParams": {}, 
-    "serviceName": "OOZIE", 
-    "role": "OOZIE_SERVICE_CHECK", 
+    "serviceName": "HIVE",
+    "role": "HIVE_SERVER",
     "commandParams": {
         "command_timeout": "300", 
         "service_package_folder": "OOZIE",
@@ -27,9 +29,9 @@
         "script": "scripts/service_check.py",
         "excluded_hosts": "host1,host2",
         "mark_draining_only" : "false",
-        "xml_configs_list":"[{\"hdfs-site.xml\":\"hdfs-site\"}]",
-        "env_configs_list":"[{\"hadoop-env.sh\":\"hadoop-env\"}]"
-
+        "xml_configs_list":[{"hdfs-site.xml":"hdfs-site"}],
+        "env_configs_list":[{"hadoop-env.sh":"hadoop-env"},{"log4j.properties":"hdfs-log4j,yarn-log4j"}],
+        "output_file":"HDFS_CLIENT-configs.tar.gz"
     },
     "taskId": 152, 
     "public_hostname": "c6401.ambari.apache.org", 
@@ -420,7 +422,8 @@
             "yarn_heapsize": "1024", 
             "yarn_user": "yarn", 
             "resourcemanager_heapsize": "1024", 
-            "yarn_log_dir_prefix": "/var/log/hadoop-yarn"
+            "yarn_log_dir_prefix": "/var/log/hadoop-yarn",
+            "min_user_id": "1000"
         }, 
         "hadoop-env": {
             "security_enabled": "false", 
@@ -541,7 +544,8 @@
             "content": "\nJAVA_HOME={{java64_home}}\nHADOOP_HOME=${HADOOP_HOME:-{{hadoop_home}}}\n\nif [ -d \"/usr/lib/tez\" ]; then\n  PIG_OPTS=\"$PIG_OPTS -Dmapreduce.framework.name=yarn\"\nfi"
         }, 
         "sqoop-env": {
-            "content": "\n# Set Hadoop-specific environment variables here.\n\n#Set path to where bin/hadoop is available\n#Set path to where bin/hadoop is available\nexport HADOOP_HOME=${HADOOP_HOME:-/usr/lib/hadoop}\n\n#set the path to where bin/hbase is available\nexport HBASE_HOME=${HBASE_HOME:-/usr/lib/hbase}\n\n#Set the path to where bin/hive is available\nexport HIVE_HOME=${HIVE_HOME:-/usr/lib/hive}\n\n#Set the path for where zookeper config dir is\nexport ZOOCFGDIR=${ZOOCFGDIR:-/etc/zookeeper/conf}\n\n# add libthrift in hive to sqoop class path first so hive imports work\nexport SQOOP_USER_CLASSPATH=\"`ls ${HIVE_HOME}/lib/libthrift-*.jar 2> /dev/null`:${SQOOP_USER_CLASSPATH}\""
+            "content": "\n# Set Hadoop-specific environment variables here.\n\n#Set path to where bin/hadoop is available\n#Set path to where bin/hadoop is available\nexport HADOOP_HOME=${HADOOP_HOME:-/usr/lib/hadoop}\n\n#set the path to where bin/hbase is available\nexport HBASE_HOME=${HBASE_HOME:-/usr/lib/hbase}\n\n#Set the path to where bin/hive is available\nexport HIVE_HOME=${HIVE_HOME:-/usr/lib/hive}\n\n#Set the path for where zookeper config dir is\nexport ZOOCFGDIR=${ZOOCFGDIR:-/etc/zookeeper/conf}\n\n# add libthrift in hive to sqoop class path first so hive imports work\nexport SQOOP_USER_CLASSPATH=\"`ls ${HIVE_HOME}/lib/libthrift-*.jar 2> /dev/null`:${SQOOP_USER_CLASSPATH}\"",
+            "sqoop_user": "sqoop"
         }, 
         "hdfs-log4j": {
             "content": "log4jproperties\nline2"
@@ -565,7 +569,7 @@
             "content": "log4jproperties\nline2"
         },
         "pig-properties": {
-            "pig-content": "pigproperties\nline2"
+            "content": "pigproperties\nline2"
         },        
         "oozie-log4j": {
             "content": "log4jproperties\nline2"

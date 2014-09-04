@@ -61,8 +61,10 @@ import org.apache.ambari.server.orm.entities.ClusterEntity;
 import org.apache.ambari.server.orm.entities.ClusterServiceEntity;
 import org.apache.ambari.server.orm.entities.ClusterStateEntity;
 import org.apache.ambari.server.orm.entities.ConfigGroupEntity;
+import org.apache.ambari.server.orm.entities.PermissionEntity;
+import org.apache.ambari.server.orm.entities.PrivilegeEntity;
 import org.apache.ambari.server.orm.entities.RequestScheduleEntity;
-import org.apache.ambari.server.orm.entities.ServiceConfigApplicationEntity;
+import org.apache.ambari.server.orm.entities.ResourceEntity;
 import org.apache.ambari.server.orm.entities.ServiceConfigEntity;
 import org.apache.ambari.server.state.*;
 import org.apache.ambari.server.state.configgroup.ConfigGroup;
@@ -83,11 +85,14 @@ import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.assistedinject.Assisted;
 import com.google.inject.persist.Transactional;
+import org.apache.ambari.server.ConfigGroupNotFoundException;
 
 public class ClusterImpl implements Cluster {
 
   private static final Logger LOG =
     LoggerFactory.getLogger(ClusterImpl.class);
+  private static final Logger configChangeLog =
+    LoggerFactory.getLogger("configchange");
 
   @Inject
   private Clusters clusters;
@@ -207,7 +212,7 @@ public class ClusterImpl implements Cluster {
   }
 
 
-  public void loadServiceConfigTypes() throws AmbariException {
+  private void loadServiceConfigTypes() throws AmbariException {
     try {
       serviceConfigTypes = collectServiceConfigTypesMapping();
     } catch (AmbariException e) {
@@ -231,13 +236,18 @@ public class ClusterImpl implements Cluster {
       LOG.error("Service config versioning disabled due to exception: ", e);
       return serviceConfigTypes;
     }
-    for (String serviceName : serviceInfoMap.keySet()) {
+    for (Entry<String, ServiceInfo> entry : serviceInfoMap.entrySet()) {
+      String serviceName = entry.getKey();
+      ServiceInfo serviceInfo = entry.getValue();
       //collect config types for service
       Set<PropertyInfo> properties = ambariMetaInfo.getProperties(desiredStackVersion.getStackName(), desiredStackVersion.getStackVersion(), serviceName);
       for (PropertyInfo property : properties) {
         int extIndex = property.getFilename().indexOf(AmbariMetaInfo.SERVICE_CONFIG_FILE_NAME_POSTFIX);
         String configType = property.getFilename().substring(0, extIndex);
-        serviceConfigTypes.put(serviceName, configType);
+        if (serviceInfo.getExcludedConfigTypes() == null ||
+          !serviceInfo.getExcludedConfigTypes().contains(configType)) {
+          serviceConfigTypes.put(serviceName, configType);
+        }
       }
     }
 
@@ -538,7 +548,7 @@ public class ClusterImpl implements Cluster {
       try {
         ConfigGroup configGroup = clusterConfigGroups.get(id);
         if (configGroup == null) {
-          throw new AmbariException("Config group does not exist, id = " + id);
+          throw new ConfigGroupNotFoundException(getClusterName(), id.toString());
         }
         LOG.debug("Deleting Config group"
           + ", clusterName = " + getClusterName()
@@ -1326,7 +1336,12 @@ public class ClusterImpl implements Cluster {
   }
 
   @Override
-  public ServiceConfigVersionResponse addDesiredConfig(String user, Config config) {
+  public ServiceConfigVersionResponse addDesiredConfig(String user, Set<Config> configs) {
+    return addDesiredConfig(user, configs, null);
+  }
+
+  @Override
+  public ServiceConfigVersionResponse addDesiredConfig(String user, Set<Config> configs, String serviceConfigVersionNote) {
     if (null == user)
       throw new NullPointerException("User must be specified.");
 
@@ -1334,15 +1349,28 @@ public class ClusterImpl implements Cluster {
     try {
       readWriteLock.writeLock().lock();
       try {
-        Config currentDesired = getDesiredConfigByType(config.getType());
-
-        // do not set if it is already the current
-        if (null != currentDesired && currentDesired.getTag().equals(config.getTag())) {
+        if (configs == null) {
           return null;
         }
 
+        Iterator<Config> configIterator = configs.iterator();
+
+        while (configIterator.hasNext()) {
+          Config config = configIterator.next();
+          if (config == null) {
+            configIterator.remove();
+            continue;
+          }
+          Config currentDesired = getDesiredConfigByType(config.getType());
+
+          // do not set if it is already the current
+          if (null != currentDesired && currentDesired.getTag().equals(config.getTag())) {
+            configIterator.remove();
+          }
+        }
+
         ServiceConfigVersionResponse serviceConfigVersionResponse =
-            applyConfig(config.getType(), config.getTag(), user);
+            applyConfigs(configs, user, serviceConfigVersionNote);
 
         configHelper.invalidateStaleConfigsCache();
         return serviceConfigVersionResponse;
@@ -1399,8 +1427,94 @@ public class ClusterImpl implements Cluster {
     }
   }
 
+
   @Override
-  public boolean setServiceConfigVersion(String serviceName, Long version, String user) throws AmbariException {
+  public ServiceConfigVersionResponse createServiceConfigVersion(String serviceName, String user, String note,
+                                                                 ConfigGroup configGroup) {
+
+    //create next service config version
+    ServiceConfigEntity serviceConfigEntity = new ServiceConfigEntity();
+    serviceConfigEntity.setServiceName(serviceName);
+    serviceConfigEntity.setClusterEntity(clusterEntity);
+    serviceConfigEntity.setVersion(configVersionHelper.getNextVersion(serviceName));
+    serviceConfigEntity.setUser(user);
+    serviceConfigEntity.setNote(note);
+
+    if (configGroup != null) {
+      serviceConfigEntity.setGroupId(configGroup.getId());
+      Collection<Config> configs = configGroup.getConfigurations().values();
+      List<ClusterConfigEntity> configEntities = new ArrayList<ClusterConfigEntity>(configs.size());
+      for (Config config : configs) {
+        configEntities.add(clusterDAO.findConfig(getClusterId(), config.getType(), config.getTag()));
+      }
+      serviceConfigEntity.setClusterConfigEntities(configEntities);
+
+      serviceConfigEntity.setHostNames(new ArrayList<String>(configGroup.getHosts().keySet()));
+
+    } else {
+      List<ClusterConfigEntity> configEntities = getClusterConfigEntitiesByService(serviceName);
+      serviceConfigEntity.setClusterConfigEntities(configEntities);
+    }
+
+    serviceConfigDAO.create(serviceConfigEntity);
+
+    configChangeLog.info("Cluster '{}' changed by: '{}'; service_name='{}' config_group='{}' config_group_id='{}' " +
+      "version='{}'", getClusterName(), user, serviceName,
+      configGroup==null?"default":configGroup.getName(),
+      configGroup==null?"-1":configGroup.getId(),
+      serviceConfigEntity.getVersion());
+
+    ServiceConfigVersionResponse response = new ServiceConfigVersionResponse();
+    response.setUserName(user);
+    response.setClusterName(getClusterName());
+    response.setVersion(serviceConfigEntity.getVersion());
+    response.setServiceName(serviceConfigEntity.getServiceName());
+    response.setCreateTime(serviceConfigEntity.getCreateTimestamp());
+    response.setUserName(serviceConfigEntity.getUser());
+    response.setNote(serviceConfigEntity.getNote());
+    response.setGroupId(serviceConfigEntity.getGroupId());
+    response.setHosts(serviceConfigEntity.getHostNames());
+    response.setGroupName(configGroup != null ? configGroup.getName() : null);
+
+    return response;
+  }
+
+  @Override
+  public String getServiceForConfigTypes(Collection<String> configTypes) {
+    //debug
+    LOG.info("Looking for service for config types {}", configTypes);
+    String serviceName = null;
+    for (String configType : configTypes) {
+      for (Entry<String, String> entry : serviceConfigTypes.entries()) {
+        if (StringUtils.equals(entry.getValue(), configType)) {
+          if (serviceName != null) {
+            if (entry.getKey()!=null && !StringUtils.equals(serviceName, entry.getKey())) {
+              throw new IllegalArgumentException("Config type {} belongs to {} service, " +
+                "but config group qualified for {}");
+            }
+          } else {
+            serviceName = entry.getKey();
+          }
+        }
+      }
+    }
+    LOG.info("Service {} returning", serviceName);
+    return serviceName;
+  }
+
+  public String getServiceByConfigType(String configType) {
+    for (Entry<String, String> entry : serviceConfigTypes.entries()) {
+      String serviceName = entry.getKey();
+      String type = entry.getValue();
+      if (StringUtils.equals(type, configType)) {
+        return serviceName;
+      }
+    }
+    return null;
+  }
+
+  @Override
+  public ServiceConfigVersionResponse setServiceConfigVersion(String serviceName, Long version, String user, String note) throws AmbariException {
     if (null == user)
       throw new NullPointerException("User must be specified.");
 
@@ -1408,9 +1522,9 @@ public class ClusterImpl implements Cluster {
     try {
       readWriteLock.writeLock().lock();
       try {
-        applyServiceConfigVersion(serviceName, version, user);
-
-        return true;
+        ServiceConfigVersionResponse serviceConfigVersionResponse = applyServiceConfigVersion(serviceName, version, user, note);
+        configHelper.invalidateStaleConfigsCache();
+        return serviceConfigVersionResponse;
       } finally {
         readWriteLock.writeLock().unlock();
       }
@@ -1420,18 +1534,21 @@ public class ClusterImpl implements Cluster {
   }
 
   @Override
-  public Map<String, ServiceConfigVersionResponse> getActiveServiceConfigVersions() {
+  public Map<String, Collection<ServiceConfigVersionResponse>> getActiveServiceConfigVersions() {
     clusterGlobalLock.readLock().lock();
     try {
       readWriteLock.readLock().lock();
       try {
-        Map<String, ServiceConfigVersionResponse> result = new HashMap<String, ServiceConfigVersionResponse>();
+        Map<String, Collection<ServiceConfigVersionResponse>> map = new HashMap<String, Collection<ServiceConfigVersionResponse>>();
 
         Set<ServiceConfigVersionResponse> responses = getActiveServiceConfigVersionSet();
         for (ServiceConfigVersionResponse response : responses) {
-          result.put(response.getServiceName(), response);
+          if (map.get(response.getServiceName()) == null) {
+            map.put(response.getServiceName(), new ArrayList<ServiceConfigVersionResponse>());
+          }
+          map.get(response.getServiceName()).add(response);
         }
-        return result;
+        return map;
       } finally {
         readWriteLock.readLock().unlock();
       }
@@ -1448,26 +1565,22 @@ public class ClusterImpl implements Cluster {
       readWriteLock.readLock().lock();
       try {
         List<ServiceConfigVersionResponse> serviceConfigVersionResponses = new ArrayList<ServiceConfigVersionResponse>();
-        for (ServiceConfigApplicationEntity applicationEntity : serviceConfigDAO.getServiceConfigApplications(getClusterId())) {
-          ServiceConfigVersionResponse serviceConfigVersionResponse = new ServiceConfigVersionResponse();
+        Set<Long> activeIds = getActiveServiceConfigVersionIds();
 
-          ServiceConfigEntity serviceConfigEntity = applicationEntity.getServiceConfigEntity();
+        for (ServiceConfigEntity serviceConfigEntity : serviceConfigDAO.getServiceConfigs(getClusterId())) {
+          ServiceConfigVersionResponse serviceConfigVersionResponse =
+            convertToServiceConfigVersionResponse(serviceConfigEntity);
 
-
-          serviceConfigVersionResponse.setClusterName(getClusterName());
-          serviceConfigVersionResponse.setServiceName(serviceConfigEntity.getServiceName());
-          serviceConfigVersionResponse.setVersion(serviceConfigEntity.getVersion());
-          serviceConfigVersionResponse.setCreateTime(serviceConfigEntity.getCreateTimestamp());
-          serviceConfigVersionResponse.setApplyTime(applicationEntity.getApplyTimestamp());
-          serviceConfigVersionResponse.setUserName(applicationEntity.getUser());
+          serviceConfigVersionResponse.setHosts(serviceConfigEntity.getHostNames());
           serviceConfigVersionResponse.setConfigurations(new ArrayList<ConfigurationResponse>());
+          serviceConfigVersionResponse.setIsCurrent(activeIds.contains(serviceConfigEntity.getServiceConfigId()));
 
           List<ClusterConfigEntity> clusterConfigEntities = serviceConfigEntity.getClusterConfigEntities();
           for (ClusterConfigEntity clusterConfigEntity : clusterConfigEntities) {
             Config config = allConfigs.get(clusterConfigEntity.getType()).get(clusterConfigEntity.getTag());
             serviceConfigVersionResponse.getConfigurations().add(new ConfigurationResponse(getClusterName(),
-                config.getType(), config.getTag(), config.getVersion(), config.getProperties(),
-                config.getPropertiesAttributes()));
+              config.getType(), config.getTag(), config.getVersion(), config.getProperties(),
+              config.getPropertiesAttributes()));
           }
 
           serviceConfigVersionResponses.add(serviceConfigVersionResponse);
@@ -1482,69 +1595,146 @@ public class ClusterImpl implements Cluster {
     }
   }
 
-  @RequiresSession
-  Set<ServiceConfigVersionResponse> getActiveServiceConfigVersionSet() {
+  private Set<ServiceConfigVersionResponse> getActiveServiceConfigVersionSet() {
     Set<ServiceConfigVersionResponse> responses = new HashSet<ServiceConfigVersionResponse>();
-    List<ServiceConfigApplicationEntity> lastApplications = serviceConfigDAO.getLastApplications(getClusterId());
-    for (ServiceConfigApplicationEntity lastApplication : lastApplications) {
-      responses.add(convertToServiceConfigVersionResponse(lastApplication));
+    List<ServiceConfigEntity> activeServiceConfigVersions = getActiveServiceConfigVersionEntities();
+
+    for (ServiceConfigEntity lastServiceConfig : activeServiceConfigVersions) {
+      ServiceConfigVersionResponse response = convertToServiceConfigVersionResponse(lastServiceConfig);
+      response.setIsCurrent(true); //mark these as current, as they are
+      responses.add(response);
     }
     return responses;
   }
 
-  @RequiresSession
-  ServiceConfigVersionResponse getActiveServiceConfigVersion(String serviceName) {
-    ServiceConfigApplicationEntity lastApplication = serviceConfigDAO.getLastApplication(getClusterId(), serviceName);
-    if (lastApplication == null) {
-      LOG.debug("No active service config version found for service {}", serviceName);
-      return null;
+  private Set<Long> getActiveServiceConfigVersionIds() {
+    Set<Long> idSet = new HashSet<Long>();
+    for (ServiceConfigEntity entity : getActiveServiceConfigVersionEntities()) {
+      idSet.add(entity.getServiceConfigId());
     }
-    return convertToServiceConfigVersionResponse(lastApplication);
+    return idSet;
+  }
+
+  private List<ServiceConfigEntity> getActiveServiceConfigVersionEntities() {
+
+    List<ServiceConfigEntity> activeServiceConfigVersions = new ArrayList<ServiceConfigEntity>();
+    //for services
+    activeServiceConfigVersions.addAll(serviceConfigDAO.getLastServiceConfigs(getClusterId()));
+    //for config groups
+    if (clusterConfigGroups != null) {
+      activeServiceConfigVersions.addAll(
+        serviceConfigDAO.getLastServiceConfigVersionsForGroups(clusterConfigGroups.keySet()));
+    }
+
+    return activeServiceConfigVersions;
   }
 
   @RequiresSession
-  ServiceConfigVersionResponse convertToServiceConfigVersionResponse(ServiceConfigApplicationEntity applicationEntity) {
-    ServiceConfigVersionResponse serviceConfigVersionResponse = new ServiceConfigVersionResponse();
+  ServiceConfigVersionResponse getActiveServiceConfigVersion(String serviceName) {
+    ServiceConfigEntity lastServiceConfig = serviceConfigDAO.getLastServiceConfig(getClusterId(), serviceName);
+    if (lastServiceConfig == null) {
+      LOG.debug("No service config version found for service {}", serviceName);
+      return null;
+    }
+    return convertToServiceConfigVersionResponse(lastServiceConfig);
+  }
 
-    ServiceConfigEntity serviceConfigEntity = applicationEntity.getServiceConfigEntity();
+  @RequiresSession
+  ServiceConfigVersionResponse convertToServiceConfigVersionResponse(ServiceConfigEntity serviceConfigEntity) {
+    ServiceConfigVersionResponse serviceConfigVersionResponse = new ServiceConfigVersionResponse();
 
     serviceConfigVersionResponse.setClusterName(getClusterName());
     serviceConfigVersionResponse.setServiceName(serviceConfigEntity.getServiceName());
     serviceConfigVersionResponse.setVersion(serviceConfigEntity.getVersion());
-    serviceConfigVersionResponse.setCreateTime(serviceConfigEntity.getCreateTimestamp());
-    serviceConfigVersionResponse.setApplyTime(applicationEntity.getApplyTimestamp());
-    serviceConfigVersionResponse.setUserName(applicationEntity.getUser());
+    serviceConfigVersionResponse.setCreateTime(serviceConfigEntity.getCreateTimestamp());    
+    serviceConfigVersionResponse.setUserName(serviceConfigEntity.getUser());
+    serviceConfigVersionResponse.setNote(serviceConfigEntity.getNote());
+
+    Long groupId = serviceConfigEntity.getGroupId();
+
+    if (groupId != null) {
+      serviceConfigVersionResponse.setGroupId(groupId);
+      ConfigGroup configGroup = null;
+      if (clusterConfigGroups != null) {
+        configGroup = clusterConfigGroups.get(groupId);
+      }
+
+      if (configGroup != null) {
+        serviceConfigVersionResponse.setGroupName(configGroup.getName());
+      } else {
+        serviceConfigVersionResponse.setGroupName("deleted");
+      }
+    } else {
+      serviceConfigVersionResponse.setGroupId(-1L); // -1 if no group
+      serviceConfigVersionResponse.setGroupName("default");
+    }
+
     return serviceConfigVersionResponse;
   }
 
   @Transactional
-  void applyServiceConfigVersion(String serviceName, Long serviceConfigVersion, String user) throws AmbariException {
+  ServiceConfigVersionResponse applyServiceConfigVersion(String serviceName, Long serviceConfigVersion, String user,
+                                 String serviceConfigVersionNote) throws AmbariException {
     ServiceConfigEntity serviceConfigEntity = serviceConfigDAO.findByServiceAndVersion(serviceName, serviceConfigVersion);
     if (serviceConfigEntity == null) {
       throw new ObjectNotFoundException("Service config version with serviceName={} and version={} not found");
     }
 
     //disable all configs related to service
-    Collection<String> configTypes = serviceConfigTypes.get(serviceName);
-    for (ClusterConfigMappingEntity entity : clusterEntity.getConfigMappingEntities()) {
-      if (configTypes.contains(entity.getType()) && entity.isSelected() > 0) {
-        entity.setSelected(0);
+    if (serviceConfigEntity.getGroupId() == null) {
+      Collection<String> configTypes = serviceConfigTypes.get(serviceName);
+      for (ClusterConfigMappingEntity entity : clusterEntity.getConfigMappingEntities()) {
+        if (configTypes.contains(entity.getType()) && entity.isSelected() > 0) {
+          entity.setSelected(0);
+        }
+      }
+      clusterDAO.merge(clusterEntity);
+
+      for (ClusterConfigEntity configEntity : serviceConfigEntity.getClusterConfigEntities()) {
+        selectConfig(configEntity.getType(), configEntity.getTag(), user);
+      }
+    } else {
+      Long configGroupId = serviceConfigEntity.getGroupId();
+      ConfigGroup configGroup = clusterConfigGroups.get(configGroupId);
+      if (configGroup != null) {
+        Map<String, Config> groupDesiredConfigs = new HashMap<String, Config>();
+        for (ClusterConfigEntity entity : serviceConfigEntity.getClusterConfigEntities()) {
+          Config config = allConfigs.get(entity.getType()).get(entity.getTag());
+          groupDesiredConfigs.put(config.getType(), config);
+        }
+        configGroup.setConfigurations(groupDesiredConfigs);
+
+        Map<String, Host> groupDesiredHosts = new HashMap<String, Host>();
+        for (String hostname : serviceConfigEntity.getHostNames()) {
+          Host host = clusters.getHost(hostname);
+          if (host != null) {
+            groupDesiredHosts.put(hostname, host);
+          } else {
+            LOG.warn("Host {} doesn't exist anymore, skipping", hostname);
+          }
+        }
+        configGroup.setHosts(groupDesiredHosts);
+        configGroup.persist();
+      } else {
+        throw new IllegalArgumentException("Config group {} doesn't exist");
       }
     }
-    clusterDAO.merge(clusterEntity);
 
-    for (ClusterConfigEntity configEntity : serviceConfigEntity.getClusterConfigEntities()) {
-      selectConfig(configEntity.getType(), configEntity.getTag(), user);
-    }
+    ServiceConfigEntity serviceConfigEntityClone = new ServiceConfigEntity();
+    serviceConfigEntityClone.setCreateTimestamp(System.currentTimeMillis());
+    serviceConfigEntityClone.setUser(user);
+    serviceConfigEntityClone.setServiceName(serviceName);
+    serviceConfigEntityClone.setClusterEntity(clusterEntity);
+    serviceConfigEntityClone.setClusterConfigEntities(serviceConfigEntity.getClusterConfigEntities());
+    serviceConfigEntityClone.setClusterId(serviceConfigEntity.getClusterId());
+    serviceConfigEntityClone.setHostNames(serviceConfigEntity.getHostNames());
+    serviceConfigEntityClone.setGroupId(serviceConfigEntity.getGroupId());
+    serviceConfigEntityClone.setNote(serviceConfigVersionNote);
+    serviceConfigEntityClone.setVersion(configVersionHelper.getNextVersion(serviceName));
 
-    ServiceConfigApplicationEntity applicationEntity = new ServiceConfigApplicationEntity();
-    applicationEntity.setApplyTimestamp(System.currentTimeMillis());
-    applicationEntity.setServiceConfigEntity(serviceConfigEntity);
-    applicationEntity.setUser(user);
+    serviceConfigDAO.create(serviceConfigEntityClone);
 
-    serviceConfigEntity.getServiceConfigApplicationEntities().add(applicationEntity);
-
-    serviceConfigDAO.merge(serviceConfigEntity);
+    return convertToServiceConfigVersionResponse(serviceConfigEntityClone);
   }
 
   @Transactional
@@ -1573,16 +1763,23 @@ public class ClusterImpl implements Cluster {
   }
 
   @Transactional
-  ServiceConfigVersionResponse applyConfig(String type, String tag, String user) {
-
-    selectConfig(type, tag, user);
+  ServiceConfigVersionResponse applyConfigs(Set<Config> configs, String user, String serviceConfigVersionNote) {
 
     String serviceName = null;
-    //find service name for config type
-    for (Entry<String, String> entry : serviceConfigTypes.entries()) {
-      if (StringUtils.equals(entry.getValue(), type)) {
-        serviceName = entry.getKey();
-        break;
+    for (Config config: configs) {
+
+      selectConfig(config.getType(), config.getTag(), user);
+      //find service name for config type
+      for (Entry<String, String> entry : serviceConfigTypes.entries()) {
+        if (StringUtils.equals(entry.getValue(), config.getType())) {
+          if (serviceName != null && !serviceName.equals(entry.getKey())) {
+            LOG.error("Updating configs for multiple services by a " +
+              "single API request isn't supported, config version not created");
+            return null;
+          }
+          serviceName = entry.getKey();
+          break;
+        }
       }
     }
 
@@ -1590,28 +1787,19 @@ public class ClusterImpl implements Cluster {
       LOG.error("No service found for config type '{}', service config version not created");
       return null;
     } else {
-      return createServiceConfigVersion(serviceName, user);
+      return createServiceConfigVersion(serviceName, user, serviceConfigVersionNote);
     }
 
   }
 
-  private ServiceConfigVersionResponse createServiceConfigVersion(String serviceName, String user) {
+  private ServiceConfigVersionResponse createServiceConfigVersion(String serviceName, String user,
+                                                                  String serviceConfigVersionNote) {
     //create next service config version
-    ServiceConfigEntity serviceConfigEntity = new ServiceConfigEntity();
-    serviceConfigEntity.setServiceName(serviceName);
-    serviceConfigEntity.setClusterEntity(clusterEntity);
-    serviceConfigEntity.setVersion(configVersionHelper.getNextVersion(serviceName));
+    return createServiceConfigVersion(serviceName, user, serviceConfigVersionNote, null);
+  }
 
-    //set first default application
-    serviceConfigEntity.setServiceConfigApplicationEntities(new ArrayList<ServiceConfigApplicationEntity>());
-    ServiceConfigApplicationEntity serviceConfigApplicationEntity = new ServiceConfigApplicationEntity();
-    serviceConfigApplicationEntity.setApplyTimestamp(serviceConfigEntity.getCreateTimestamp());
-    serviceConfigApplicationEntity.setServiceConfigEntity(serviceConfigEntity);
-    serviceConfigApplicationEntity.setUser(user);
-    serviceConfigEntity.getServiceConfigApplicationEntities().add(serviceConfigApplicationEntity);
-
+  private List<ClusterConfigEntity> getClusterConfigEntitiesByService(String serviceName) {
     List<ClusterConfigEntity> configEntities = new ArrayList<ClusterConfigEntity>();
-    serviceConfigEntity.setClusterConfigEntities(configEntities);
 
     //add configs from this service
     Collection<String> configTypes = serviceConfigTypes.get(serviceName);
@@ -1627,17 +1815,7 @@ public class ClusterImpl implements Cluster {
         }
       }
     }
-
-    serviceConfigDAO.create(serviceConfigEntity);
-
-    ServiceConfigVersionResponse response = new ServiceConfigVersionResponse();
-    response.setUserName(user);
-    response.setClusterName(getClusterName());
-    response.setVersion(serviceConfigEntity.getVersion());
-    response.setServiceName(serviceConfigEntity.getServiceName());
-    response.setCreateTime(serviceConfigEntity.getCreateTimestamp());
-    response.setApplyTime(serviceConfigApplicationEntity.getApplyTimestamp());
-    return response;
+    return configEntities;
   }
 
   @Override
@@ -1745,7 +1923,7 @@ public class ClusterImpl implements Cluster {
           ServiceComponentHost serviceComponentHost = serviceComponent.getServiceComponentHost(event.getHostName());
           serviceComponentHost.handleEvent(event);
         } catch (AmbariException e) {
-          LOG.error("ServiceComponentHost lookup exception ", e);
+          LOG.error("ServiceComponentHost lookup exception ", e.getMessage());
           failedEvents.add(event);
         } catch (InvalidStateTransitionException e) {
           LOG.error("Invalid transition ", e);
@@ -1888,5 +2066,21 @@ public class ClusterImpl implements Cluster {
     } finally {
       readLock.unlock();
     }
+  }
+
+  @Override
+  public boolean checkPermission(PrivilegeEntity privilegeEntity, boolean readOnly) {
+    ResourceEntity resourceEntity = clusterEntity.getResource();
+    if (resourceEntity != null) {
+      Integer permissionId = privilegeEntity.getPermission().getId();
+      // CLUSTER.READ or CLUSTER.OPERATE for the given cluster resource.
+      if (privilegeEntity.getResource().equals(resourceEntity)) {
+        if ((readOnly && permissionId.equals(PermissionEntity.CLUSTER_READ_PERMISSION)) ||
+            permissionId.equals(PermissionEntity.CLUSTER_OPERATE_PERMISSION)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }

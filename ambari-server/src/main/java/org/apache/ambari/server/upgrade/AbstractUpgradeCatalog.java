@@ -22,9 +22,7 @@ import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.Provider;
 import com.google.inject.persist.Transactional;
-
 import org.apache.ambari.server.AmbariException;
-import org.apache.ambari.server.api.services.AmbariMetaInfo;
 import org.apache.ambari.server.configuration.Configuration;
 import org.apache.ambari.server.controller.AmbariManagementController;
 import org.apache.ambari.server.controller.ConfigurationRequest;
@@ -34,15 +32,13 @@ import org.apache.ambari.server.orm.entities.MetainfoEntity;
 import org.apache.ambari.server.state.Cluster;
 import org.apache.ambari.server.state.Clusters;
 import org.apache.ambari.server.state.Config;
-import org.apache.ambari.server.state.DesiredConfig;
 import org.apache.ambari.server.utils.VersionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.persistence.EntityManager;
-
 import java.sql.SQLException;
-import java.text.MessageFormat;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -218,8 +214,8 @@ public abstract class AbstractUpgradeCatalog implements UpgradeCatalog {
               mergeProperties(oldConfigProperties, properties, updateIfExists);
 
             if (!Maps.difference(oldConfigProperties, mergedProperties).areEqual()) {
-              LOG.info("Applying configuration with tag '%s' to " +
-                "cluster '%s'", newTag, cluster.getClusterName());
+              LOG.info("Applying configuration with tag '{}' to " +
+                "cluster '{}'", newTag, cluster.getClusterName());
 
               ConfigurationRequest cr = new ConfigurationRequest();
               cr.setClusterName(cluster.getClusterName());
@@ -232,7 +228,7 @@ public abstract class AbstractUpgradeCatalog implements UpgradeCatalog {
               if (baseConfig != null) {
                 String authName = "ambari-upgrade";
 
-                if (cluster.addDesiredConfig(authName, baseConfig) != null) {
+                if (cluster.addDesiredConfig(authName, Collections.singleton(baseConfig)) != null) {
                   String oldConfigString = (oldConfig != null) ? " from='" + oldConfig.getTag() + "'" : "";
                   LOG.info("cluster '" + cluster.getClusterName() + "' "
                     + "changed by: '" + authName + "'; "

@@ -20,9 +20,6 @@ package org.apache.ambari.server.controller.internal;
 
 import org.apache.ambari.server.controller.AmbariManagementController;
 import org.apache.ambari.server.controller.ResourceProviderFactory;
-import org.apache.ambari.server.controller.predicate.ArrayPredicate;
-import org.apache.ambari.server.controller.predicate.EqualsPredicate;
-import org.apache.ambari.server.controller.spi.Predicate;
 import org.apache.ambari.server.controller.spi.Resource;
 import org.apache.ambari.server.controller.spi.ResourceProvider;
 import org.apache.ambari.server.controller.utilities.ClusterControllerHelper;
@@ -130,6 +127,8 @@ public abstract class AbstractControllerResourceProvider extends AbstractResourc
         return new StackConfigurationResourceProvider(propertyIds, keyPropertyIds, managementController);
       case OperatingSystem:
         return new OperatingSystemResourceProvider(propertyIds, keyPropertyIds, managementController);
+      case StackLevelConfiguration:
+        return new StackLevelConfigurationResourceProvider(propertyIds, keyPropertyIds, managementController);
       case Repository:
         return new RepositoryResourceProvider(propertyIds, keyPropertyIds, managementController);
       case RootService:
@@ -154,6 +153,8 @@ public abstract class AbstractControllerResourceProvider extends AbstractResourc
         return new AlertDefinitionResourceProvider(propertyIds, keyPropertyIds, managementController);
       case Controller:
         return new ControllerResourceProvider(propertyIds, keyPropertyIds, managementController);
+      case ClientConfig:
+        return new ClientConfigResourceProvider(propertyIds, keyPropertyIds, managementController);
       default:
         throw new IllegalArgumentException("Unknown type " + type);
     }
@@ -171,34 +172,4 @@ public abstract class AbstractControllerResourceProvider extends AbstractResourc
         ensureResourceProvider(type);
   }
 
-  /**
-   * Extracting given query_parameter value from the predicate
-   * @param queryParameterId  query parameter id
-   * @param predicate         predicate
-   * @return the query parameter
-   */
-  protected static Object getQueryParameterValue(String queryParameterId, Predicate predicate) {
-
-    Object result = null;
-
-    if (predicate instanceof ArrayPredicate) {
-      ArrayPredicate arrayPredicate  = (ArrayPredicate) predicate;
-      for (Predicate predicateItem : arrayPredicate.getPredicates()) {
-          if (predicateItem instanceof EqualsPredicate) {
-            EqualsPredicate equalsPredicate =
-                (EqualsPredicate) predicateItem;
-            if (queryParameterId.equals(equalsPredicate.getPropertyId())) {
-              return equalsPredicate.getValue();
-            }
-          } else {
-            result = getQueryParameterValue(queryParameterId, predicateItem);
-            if (result != null) {
-              return result;
-          }
-        }
-      }
-
-    }
-    return result;
-  }
 }

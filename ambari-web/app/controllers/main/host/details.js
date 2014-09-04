@@ -143,8 +143,8 @@ App.MainHostDetailsController = Em.Controller.extend({
    * @method stopComponentSuccessCallback
    */
   sendComponentCommandSuccessCallback: function (data, opt, params) {
-    var running = (params.HostRoles.state ===  App.HostComponentStatus.stopped) ? App.HostComponentStatus.stopping : App.HostComponentStatus.starting;
-    console.log('Send request for '+running+' successfully');
+    var running = (params.HostRoles.state === App.HostComponentStatus.stopped) ? App.HostComponentStatus.stopping : App.HostComponentStatus.starting;
+    console.log('Send request for ' + running + ' successfully');
     params.component.set('workStatus', running);
     if (App.get('testMode')) {
       this.mimicWorkStatusChange(params.component, running, params.HostRoles.state);
@@ -170,7 +170,7 @@ App.MainHostDetailsController = Em.Controller.extend({
    * @param transitionalState
    * @param finalState
    */
-  mimicWorkStatusChange: function(entity, transitionalState, finalState) {
+  mimicWorkStatusChange: function (entity, transitionalState, finalState) {
     if (Em.isArray(entity)) {
       entity.forEach(function (item) {
         item.set('workStatus', transitionalState);
@@ -378,9 +378,10 @@ App.MainHostDetailsController = Em.Controller.extend({
    * if true security is enabled otherwise disabled
    * @return {Boolean}
    */
-  getSecurityStatus: function () {
-    return App.router.get('mainAdminSecurityController').getUpdatedSecurityStatus();
-  },
+  securityEnabled: function () {
+    return App.router.get('mainAdminSecurityController.securityEnabled');
+  }.property('App.router.mainAdminSecurityController.securityEnabled'),
+
 
   /**
    * Send command to server to install selected host component
@@ -392,15 +393,13 @@ App.MainHostDetailsController = Em.Controller.extend({
     var component = event.context;
     var componentName = component.get('componentName');
 
-    var securityEnabled = this.getSecurityStatus();
-
     if (componentName === 'ZOOKEEPER_SERVER') {
       return App.showConfirmationPopup(function () {
         self.primary(component);
       }, Em.I18n.t('hosts.host.addComponent.addZooKeeper'));
     }
     else {
-      if (securityEnabled && componentName !== 'CLIENTS') {
+      if (this.get('securityEnabled') && componentName !== 'CLIENTS') {
         return App.showConfirmationPopup(function () {
           self.primary(component);
         }, Em.I18n.t('hosts.host.addComponent.securityNote').format(componentName, self.get('content.hostName')));
@@ -623,6 +622,9 @@ App.MainHostDetailsController = Em.Controller.extend({
     if (services.someProperty('serviceName', 'STORM')) {
       urlParams.push('(type=storm-site&tag=' + data.Clusters.desired_configs['storm-site'].tag + ')');
     }
+    if (App.get('isRMHaEnabled')) {
+      urlParams.push('(type=yarn-site&tag=' + data.Clusters.desired_configs['yarn-site'].tag + ')');
+    }
     return urlParams;
   },
 
@@ -648,12 +650,14 @@ App.MainHostDetailsController = Em.Controller.extend({
         sender: this,
         data: {
           siteName: site,
-          properties: configs[site]
+          properties: configs[site],
+          service_config_version_note: Em.I18n.t('hosts.host.zooKeeper.configs.save.note')
         }
       });
     }
   },
   /**
+   *
    * Set new values for some configs (based on available ZooKeeper Servers)
    * @param configs {object}
    * @param zksWithPort {string}
@@ -661,7 +665,7 @@ App.MainHostDetailsController = Em.Controller.extend({
    * @return {Boolean}
    */
   setZKConfigs: function (configs, zksWithPort, zks) {
-    if(typeof configs !== 'object' || !Array.isArray(zks)) return false;
+    if (typeof configs !== 'object' || !Array.isArray(zks)) return false;
     if (App.get('isHaEnabled')) {
       configs['core-site']['ha.zookeeper.quorum'] = zksWithPort;
     }
@@ -673,6 +677,9 @@ App.MainHostDetailsController = Em.Controller.extend({
     }
     if (configs['storm-site']) {
       configs['storm-site']['storm.zookeeper.servers'] = JSON.stringify(zks).replace(/"/g, "'");
+    }
+    if (App.get('isRMHaEnabled')) {
+      configs['yarn-site']['yarn.resourcemanager.zk-address'] = zks.join(',');
     }
     return true;
   },
@@ -878,7 +885,7 @@ App.MainHostDetailsController = Em.Controller.extend({
    * @param {string} hostNames - list of host when run from bulk operations or current host
    */
 
-  warnBeforeDecommission: function(hostNames) {
+  warnBeforeDecommission: function (hostNames) {
     if (this.get('content.hostComponents').findProperty('componentName', 'HBASE_REGIONSERVER').get('passiveState') == "OFF") {
       this.showHbaseActiveWarning();
     } else {
@@ -891,10 +898,10 @@ App.MainHostDetailsController = Em.Controller.extend({
    * @method showHbaseActiveWarning
    * @return {App.ModalPopup}
    */
-  showHbaseActiveWarning: function() {
+  showHbaseActiveWarning: function () {
     return App.ModalPopup.show({
       header: Em.I18n.t('common.warning'),
-      message: function(){
+      message: function () {
         return Em.I18n.t('hostPopup.reccomendation.beforeDecommission').format(App.format.components["HBASE_REGIONSERVER"]);
       }.property(),
       bodyClass: Ember.View.extend({
@@ -974,8 +981,17 @@ App.MainHostDetailsController = Em.Controller.extend({
                   "slave_type": slaveType,
                   "excluded_hosts": hostNames,
                   "mark_draining_only": "true"
+                },
+                'operation_level': {
+                  level: "HOST_COMPONENT",
+                  cluster_name: App.get('clusterName'),
+                  host_name: hostNames,
+                  service_name: serviceName
                 }
-              }
+              },
+              "Requests/resource_filters": [
+                {"service_name": serviceName, "component_name": componentName}
+              ]
             }
           }
         ]
@@ -1548,12 +1564,21 @@ App.MainHostDetailsController = Em.Controller.extend({
     }
   },
 
-  toggleMaintenanceMode: function(event) {
+  toggleMaintenanceMode: function (event) {
     var self = this;
     var state = event.context.get('passiveState') === "ON" ? "OFF" : "ON";
-    var message = Em.I18n.t('passiveState.turn' + state.toCapital() +'For').format(event.context.get('displayName'));
+    var message = Em.I18n.t('passiveState.turn' + state.toCapital() + 'For').format(event.context.get('displayName'));
     return App.showConfirmationPopup(function () {
       self.updateComponentPassiveState(event.context, state, message);
     });
+  },
+
+  downloadClientConfigs: function (event) {
+    componentsUtils.downloadClientConfigs.call(this, {
+      hostName: event.context.get('hostName'),
+      componentName: event.context.get('componentName'),
+      displayName: event.context.get('displayName')
+    });
   }
+
 });

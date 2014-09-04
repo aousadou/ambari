@@ -24,11 +24,13 @@ Em.I18n.translations = {
   'no': 'No',
 
   'common' : {
+    'add': 'Add',
     'show': 'Show',
     'actions': 'Actions',
     'cancel': 'Cancel',
     'name': "Name",
     'back': "Back",
+    'delete': 'Delete',
     'value': "Value",
     'next': "Next",
     'quickLinks': "Quick Links",
@@ -43,7 +45,8 @@ Em.I18n.translations = {
     'status': 'Status',
     'started': 'Started',
     'finished': 'Finished',
-    'diagnostics': 'Diagnostics'
+    'diagnostics': 'Diagnostics',
+    'description': 'Description'
   },
 
   'popup.confirmation.commonHeader': 'Confirmation',
@@ -58,9 +61,16 @@ Em.I18n.translations = {
   'tableView.filters.clearSelection': 'clear selection All',
   'tableView.filters.noItems' : 'There are no items to show',
 
+  'configs.add_property': 'Add Property',
+  'configs.add_property.invalid_name': 'Config name should consists only of letters, numbers, \'-\', \'_\', \'.\' and first character should be a letter.',
+  'configs.add_property.name_exists': 'Config name already exists',
+
   'slider.apps.title': 'Slider Apps',
   'slider.apps.create': 'Create App',
   'sliderApps.filters.info': '{0} of {1} sliders showing',
+
+  'sliderApp.summary.go_to_nagios': 'Go to Nagios',
+  'sliderApp.summary.go_to_ganglia': 'Go to Ganglia',
 
   'wizard.name': 'Create Slider App',
   'wizard.step1.name': 'Select Type',

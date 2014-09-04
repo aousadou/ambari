@@ -28,17 +28,21 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.apache.ambari.server.api.resources.ResourceInstance;
+import org.apache.ambari.server.api.services.AmbariMetaInfo;
 import org.apache.ambari.server.api.services.BaseService;
 import org.apache.ambari.server.api.services.LocalUriInfo;
 import org.apache.ambari.server.api.services.Request;
 import org.apache.ambari.server.api.services.StacksService.StackUriInfo;
 import org.apache.ambari.server.api.services.stackadvisor.StackAdvisorException;
 import org.apache.ambari.server.api.services.stackadvisor.StackAdvisorRequest;
+import org.apache.ambari.server.api.services.stackadvisor.StackAdvisorResponse;
 import org.apache.ambari.server.api.services.stackadvisor.StackAdvisorRunner;
 import org.apache.ambari.server.controller.spi.Resource;
 import org.apache.commons.collections.CollectionUtils;
@@ -48,11 +52,14 @@ import org.apache.commons.logging.LogFactory;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.SerializationConfig;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.ObjectNode;
+import org.codehaus.jackson.node.TextNode;
 
 /**
  * Parent for all commands.
  */
-public abstract class StackAdvisorCommand<T> extends BaseService {
+public abstract class StackAdvisorCommand<T extends StackAdvisorResponse> extends BaseService {
 
   /**
    * Type of response object provided by extending classes when
@@ -69,6 +76,12 @@ public abstract class StackAdvisorCommand<T> extends BaseService {
       + ",services/StackServices/service_name,services/StackServices/service_version"
       + ",services/components/StackServiceComponents,services/components/dependencies,services/components/auto_deploy"
       + "&services/StackServices/service_name.in(%s)";
+  private static final String SERVICES_PROPETRY = "services";
+  private static final String SERVICES_COMPONENTS_PROPETRY = "components";
+  private static final String COMPONENT_INFO_PROPETRY = "StackServiceComponents";
+  private static final String COMPONENT_NAME_PROPERTY = "component_name";
+  private static final String COMPONENT_HOSTNAMES_PROPETRY = "hostnames";
+  private static final String CONFIGURATIONS_PROPETRY = "configurations";
 
   private File recommendationsDir;
   private String stackAdvisorScript;
@@ -79,9 +92,11 @@ public abstract class StackAdvisorCommand<T> extends BaseService {
 
   protected ObjectMapper mapper;
 
+  private final AmbariMetaInfo metaInfo;
+
   @SuppressWarnings("unchecked")
   public StackAdvisorCommand(File recommendationsDir, String stackAdvisorScript, int requestId,
-      StackAdvisorRunner saRunner) {
+      StackAdvisorRunner saRunner, AmbariMetaInfo metaInfo) {
     this.type = (Class<T>) ((ParameterizedType) getClass().getGenericSuperclass())
         .getActualTypeArguments()[0];
 
@@ -92,6 +107,7 @@ public abstract class StackAdvisorCommand<T> extends BaseService {
     this.stackAdvisorScript = stackAdvisorScript;
     this.requestId = requestId;
     this.saRunner = saRunner;
+    this.metaInfo = metaInfo;
   }
 
   protected abstract StackAdvisorCommandType getCommandType();
@@ -99,7 +115,7 @@ public abstract class StackAdvisorCommand<T> extends BaseService {
   /**
    * Simple holder for 'hosts.json' and 'services.json' data.
    */
-  protected class StackAdvisorData {
+  public static class StackAdvisorData {
     protected String hostsJSON;
     protected String servicesJSON;
 
@@ -119,7 +135,80 @@ public abstract class StackAdvisorCommand<T> extends BaseService {
 
   protected abstract void validate(StackAdvisorRequest request) throws StackAdvisorException;
 
-  protected abstract StackAdvisorData adjust(StackAdvisorData data, StackAdvisorRequest request);
+  protected StackAdvisorData adjust(StackAdvisorData data, StackAdvisorRequest request) {
+    try {
+      ObjectNode root = (ObjectNode) this.mapper.readTree(data.servicesJSON);
+
+      populateStackHierarchy(root);
+      populateComponentHostsMap(root, request.getComponentHostsMap());
+      populateConfigurations(root, request.getConfigurations());
+
+      data.servicesJSON = mapper.writeValueAsString(root);
+    } catch (Exception e) {
+      // should not happen
+      String message = "Error parsing services.json file content: " + e.getMessage();
+      LOG.warn(message, e);
+      throw new WebApplicationException(Response.status(Status.BAD_REQUEST).entity(message).build());
+    }
+
+    return data;
+  }
+
+  private void populateConfigurations(ObjectNode root,
+      Map<String, Map<String, Map<String, String>>> configurations) {
+    ObjectNode configurationsNode = root.putObject(CONFIGURATIONS_PROPETRY);
+    for (String siteName : configurations.keySet()) {
+      ObjectNode siteNode = configurationsNode.putObject(siteName);
+
+      Map<String, Map<String, String>> siteMap = configurations.get(siteName);
+      for (String properties : siteMap.keySet()) {
+        ObjectNode propertiesNode = siteNode.putObject(properties);
+
+        Map<String, String> propertiesMap = siteMap.get(properties);
+        for (String propertyName : propertiesMap.keySet()) {
+          String propertyValue = propertiesMap.get(propertyName);
+          propertiesNode.put(propertyName, propertyValue);
+        }
+      }
+    }
+  }
+
+  protected void populateStackHierarchy(ObjectNode root) {
+    ObjectNode version = (ObjectNode) root.get("Versions");
+    TextNode stackName = (TextNode) version.get("stack_name");
+    TextNode stackVersion = (TextNode) version.get("stack_version");
+    ObjectNode stackHierarchy = version.putObject("stack_hierarchy");
+    stackHierarchy.put("stack_name", stackName);
+    ArrayNode parents = stackHierarchy.putArray("stack_versions");
+    for (String parentVersion : metaInfo.getStackParentVersions(stackName.asText(), stackVersion.asText())) {
+      parents.add(parentVersion);
+    }
+  }
+
+  private void populateComponentHostsMap(ObjectNode root, Map<String, Set<String>> componentHostsMap) {
+    ArrayNode services = (ArrayNode) root.get(SERVICES_PROPETRY);
+    Iterator<JsonNode> servicesIter = services.getElements();
+
+    while (servicesIter.hasNext()) {
+      JsonNode service = servicesIter.next();
+      ArrayNode components = (ArrayNode) service.get(SERVICES_COMPONENTS_PROPETRY);
+      Iterator<JsonNode> componentsIter = components.getElements();
+
+      while (componentsIter.hasNext()) {
+        JsonNode component = componentsIter.next();
+        ObjectNode componentInfo = (ObjectNode) component.get(COMPONENT_INFO_PROPETRY);
+        String componentName = componentInfo.get(COMPONENT_NAME_PROPERTY).getTextValue();
+
+        Set<String> componentHosts = componentHostsMap.get(componentName);
+        ArrayNode hostnames = componentInfo.putArray(COMPONENT_HOSTNAMES_PROPETRY);
+        if (null != componentHosts) {
+          for (String hostName : componentHosts) {
+            hostnames.add(hostName);
+          }
+        }
+      }
+    }
+  }
 
   public synchronized T invoke(StackAdvisorRequest request) throws StackAdvisorException {
     validate(request);
@@ -144,12 +233,20 @@ public abstract class StackAdvisorCommand<T> extends BaseService {
 
       String result = FileUtils.readFileToString(new File(requestDirectory, getResultFileName()));
 
-      return this.mapper.readValue(result, this.type);
+      T response = this.mapper.readValue(result, this.type);
+      return updateResponse(request, setRequestId(response));
     } catch (Exception e) {
       String message = "Error occured during stack advisor command invocation";
       LOG.warn(message, e);
       throw new StackAdvisorException(message, e);
     }
+  }
+
+  protected abstract T updateResponse(StackAdvisorRequest request, T response);
+
+  private T setRequestId(T response) {
+    response.setId(requestId);
+    return response;
   }
 
   /**
@@ -172,7 +269,7 @@ public abstract class StackAdvisorCommand<T> extends BaseService {
     }
   }
 
-  private String getHostsInformation(StackAdvisorRequest request) throws StackAdvisorException {
+  String getHostsInformation(StackAdvisorRequest request) throws StackAdvisorException {
     String hostsURI = String.format(GET_HOSTS_INFO_URI, request.getHostsCommaSeparated());
 
     Response response = handleRequest(null, null, new LocalUriInfo(hostsURI), Request.Type.GET,
@@ -223,7 +320,7 @@ public abstract class StackAdvisorCommand<T> extends BaseService {
     }
   }
 
-  private String getServicesInformation(StackAdvisorRequest request) throws StackAdvisorException {
+  String getServicesInformation(StackAdvisorRequest request) throws StackAdvisorException {
     String stackName = request.getStackName();
     String stackVersion = request.getStackVersion();
     String servicesURI = String.format(GET_SERVICES_INFO_URI, stackName, stackVersion,

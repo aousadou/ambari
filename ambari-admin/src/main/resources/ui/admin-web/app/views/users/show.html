@@ -15,89 +15,112 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 -->
-<div ng-show="user.user_name">
+    
+<div ng-show="user" class="user-edit-panel">
   <div class="clearfix">
-    <h3 class="pull-left">{{user.user_name}}</h3>
-    <div class="pull-right top-buffer">
-      <button class="btn btn-danger" ng-click="deleteUser()">Delete User</button>
+    <ol class="breadcrumb pull-left">
+      <li><a href="#/users">Users</a></li>
+      <li class="active"><span class="glyphicon glyphicon-flash" ng-show="user.admin"></span>{{user.user_name}}</li>
+    </ol>
+    <div class="pull-right top-margin-4">
+      <div ng-switch="isCurrentUser || user.ldap_user">
+        <button class="btn deleteuser-btn disabled btn-default" ng-switch-when="true" tooltip="Cannot Delete User">Delete User</button>
+        <button class="btn deleteuser-btn btn-danger" ng-switch-when="false" ng-click="deleteUser()">Delete User</button>
+      </div>
     </div>
   </div>
   <hr>
   <form class="form-horizontal" role="form" >
     <div class="form-group">
-      <label for="" class="col-sm-2 control-label">Type:</label>
+      <label for="" class="col-sm-2 control-label">Type</label>
       <div class="col-sm-10">
-        <label for="" class="control-label">Local</label>
+        <label for="" class="control-label">{{user.ldap_user ? 'LDAP' : 'Local'}}</label>
       </div>
     </div>
     <div class="form-group">
       <label for="" class="col-sm-2 control-label">Status</label>
       <div class="col-sm-10">
-        <div class="btn" ng-class="user.active ? 'btn-success' : 'btn-danger'">
-          <span ng-show="user.active">Active</span>
-          <span ng-show="!user.active">Inactive</span>
-        </div>
-        <a href ng-click="toggleUserActive()">Make User {{user.active ? 'Inactive' : 'Active'}}</a>
+        <toggle-switch on-change="toggleUserActive()" disabled-tooltip="Cannot Change Status" ng-disabled="isCurrentUser" model="user.active" on-label="Active" off-label="Inactive" class="switch-primary userstatus" data-off-color="danger"></toggle-switch>
       </div>
     </div>
     <div class="form-group">
-      <label for="password" class="col-sm-2 control-label">Password:</label>
+      <label for="" class="col-sm-2 control-label"><span class="glyphicon glyphicon-flash"></span> Ambari Admin</label>
       <div class="col-sm-10">
-        <a href ng-click="openChangePwdDialog()" class="btn btn-default">Change Password</a>
+        <toggle-switch on-change="toggleUserAdmin()" disabled-tooltip="Cannot Change Admin" ng-disabled="isCurrentUser" model="user.admin" on-label="Yes" off-label="No" class="switch-primary userstatus" data-off-color="danger"></toggle-switch>
       </div>
     </div>
     <div class="form-group">
-      <label for="groups" class="col-sm-2 control-label">Groups:</label>
+      <label for="password" class="col-sm-2 control-label">Password</label>
+      <div class="col-sm-10">
+        <div ng-switch="user.ldap_user">
+          <button class="btn deleteuser-btn disabled btn-default" ng-switch-when="true" tooltip="Cannot Change Password">Change Password</button>
+          <a href ng-click="openChangePwdDialog()" ng-switch-when="false" class="btn btn-default changepassword">Change Password</a>
+        </div>
+          
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="groups" class="col-sm-2 control-label">{{user.ldap_user ? 'LDAP Group Membership' : 'Local Group Membership'}}</label>
       <div class="col-sm-10">
         <div class="row" ng-hide="isGroupEditing">
           <div class="col-sm-10">
             <div class="well">
-              <a href ng-repeat="group in user.user_groups">{{group}}{{$last ? '' : ', '}}</a>
+              <span ng-repeat="group in user.groups">
+                <a href="#/groups/{{group}}/edit" >{{group}}</a>
+                {{$last ? '' : ', '}}
+              </span>
             </div>
           </div>
           <div class="col-sm-2">
-            <a href ng-click="enableGroupEditing()"><span class="glyphicon glyphicon-cog"></span> Edit</a>
+            <a href ng-click="enableGroupEditing()" ng-hide="user.ldap_user"><span class="glyphicon glyphicon-pencil"></span> Edit</a>
           </div>
         </div>
         <div class="row" ng-show="isGroupEditing">
           <div class="col-sm-12">
-            <textarea name="groups" id="" cols="30" rows="5" class="form-control bottom-margin" ng-model="editingGroupsList"></textarea>
-            <a href class="btn btn-primary pull-right" ng-click="updateGroups()">Update</a>
+            <textarea name="groups" id="" cols="30" rows="5" class="form-control bottom-margin usergroups" ng-model="editingGroupsList"></textarea>
+            <a href class="btn btn-primary pull-right left-margin updategroups" ng-click="updateGroups()">Save</a>
+            <button class="btn btn-default pull-right cancel-groups-update" ng-click="cancelUpdate()">Cancel</button>
           </div>
             
         </div>
       </div>
         
     </div>
-    <div class="form-group">
-      <label for="" class="col-sm-2 control-label">Clusters</label>
+    <div class="form-group" >
+      <label for="" class="col-sm-2 control-label">Privileges</label>
       <div class="col-sm-10">
-        <div class="control-label text-left">
-          <a href="#">My Cluster</a> OPERATOR
-        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Resource</th>
+              <th>Permissions</th>
+            </tr>
+          </thead>
+          <tbody ng-hide="user.admin">
+            <tr ng-repeat="(name, privilege) in privileges.clusters">
+              <td>
+                <span class="glyphicon glyphicon-cloud"></span> 
+                <a href="#/clusters/{{name}}/manageAccess">{{name}}</a>
+              </td>
+              <td>
+                {{privilege}}
+              </td>
+            </tr>
+            <tr ng-repeat="(name, privilege) in privileges.views">
+              <td>
+                <span class="glyphicon glyphicon-th"></span> 
+                <a href="#/views/{{privilege.view_name}}/versions/{{privilege.version}}/instances/{{name}}/edit">{{name}}</a>
+              </td>
+              <td>
+                {{privilege.privileges}}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="alert alert-info" ng-show="!privileges && !user.admin">This user does not have any privileges.</div>
+        <div class="alert alert-info" ng-show="user.admin">This user is an Ambari Admin and has all privileges.</div>
       </div>
     </div>
-    <div class="form-group">
-      <label for="" class="col-sm-2 control-label">Views</label>
-      <div class="col-sm-10 padding-top-7">
-        <div ng-repeat="view in user.views" class="row">
-          <div class="col-sm-4">
-            <a href="#">Some limk to some view</a>
-          </div>
-          <div class="col-sm-5">
-            USE, EDIT_SCRIPT
-          </div>
-        </div>
-        <div class="row">
-          <div class="col-sm-4">
-            <a href="#">Some limk to some view</a>
-          </div>
-          <div class="col-sm-5">
-            USE, EDIT_SCRIPT
-          </div>
-        </div>
-      </div>
-    </div>    
   </form>
 </div>
   

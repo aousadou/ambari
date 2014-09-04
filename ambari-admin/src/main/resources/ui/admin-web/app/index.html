@@ -19,14 +19,16 @@
 <html class="no-js">
   <head>
     <meta charset="utf-8">
-    <title>AdminConsole</title>
+    <title>Ambari</title>
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="/img/logo.png" type="image/x-icon">
     <!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
 
     <!-- build:css styles/vendor.css -->
     <!-- bower:css -->
     <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.css" />
+    <link rel="stylesheet" href="bower_components/angular-bootstrap-toggle-switch/style/bootstrap3/angular-toggle-switch-bootstrap-3.css" />
     <!-- endbower -->
     <!-- endbuild -->
 
@@ -40,30 +42,32 @@
       <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
 
-    <header class="navbar navbar-static-top navbar-inverse">
-      <div class="navbar-inner">
-        <div class="container">
-          <div class="navbar-header">
-            <a href="#/" class="navbar-brand">Ambari Admin Console</a>
-          </div>  
-          <ul class="nav navbar-nav navbar-right">
-            <li>
-              <div class="btn-group" dropdown is-open="status.isopen">
-              <button type="button" class="btn btn-default dropdown-toggle navbar-btn" ng-disabled="disabled">
-                  Admin <span class="caret"></span>
-                </button>
-                <ul class="dropdown-menu" role="menu">
-                  <li><a href="#">About</a></li>
-                  <li class="divider"></li>
-                  <li><a href="#">Sign Out</a></li>
-                </ul>
-              </div>
-            </li>
-          </ul>
-        </div>        
-      </div>
-        
-    </header>
+    <div id="top-nav" ng-controller="MainCtrl">
+      <header class="navbar navbar-static-top navbar-inverse">
+        <div class="navbar-inner">
+          <div class="container">
+            <a href="#/" class="logo"><img src="/img/logo-white.png" alt="Apache Ambari" title="Apache Ambari"></a>
+            <a href="#/" class="brand" title="Apache Ambari">Ambari</a>
+            <ul class="nav navbar-nav navbar-right">
+              <li>
+                <div class="btn-group" dropdown is-open="status.isopen">
+                <button type="button" class="btn btn-default dropdown-toggle navbar-btn" ng-disabled="disabled">
+                    {{currentUser}} <span class="caret"></span>
+                  </button>
+                  <ul class="dropdown-menu" role="menu">
+                    <li><a href ng-click="about()">About</a></li>
+                    <li class="divider"></li>
+                    <li><a href ng-click="signOut()">Sign Out</a></li>
+                  </ul>
+                </div>
+              </li>
+            </ul>
+          </div>        
+        </div>
+      </header>
+    </div>
+      
+
     <div class="container">
       <div class="row">
         <div class="col-sm-3">
@@ -85,6 +89,7 @@
     <script src="bower_components/angular-bootstrap/ui-bootstrap-tpls.js"></script>
     <script src="bower_components/lodash/dist/lodash.compat.js"></script>
     <script src="bower_components/restangular/dist/restangular.js"></script>
+    <script src="bower_components/angular-bootstrap-toggle-switch/angular-toggle-switch.min.js"></script>
     <!-- endbower -->
     <!-- endbuild -->
 
@@ -108,7 +113,6 @@
     <script src="scripts/routes.js"></script>
     <script src="scripts/controllers/mainCtrl.js"></script>
     <script src="scripts/controllers/NavbarCtrl.js"></script>
-    <script src="scripts/controllers/LDAPModalCtrl.js"></script>
     <script src="scripts/controllers/users/UsersCreateCtrl.js"></script>
     <script src="scripts/controllers/users/UsersListCtrl.js"></script>
     <script src="scripts/controllers/users/UsersShowCtrl.js"></script>
@@ -121,11 +125,18 @@
     <script src="scripts/controllers/clusters/ClustersManageAccessCtrl.js"></script>
     <script src="scripts/directives/linkToDir.js"></script>
     <script src="scripts/directives/PasswordVerify.js"></script>
+    <script src="scripts/directives/disabledTooltip.js"></script>
     <script src="scripts/services/User.js"></script>
     <script src="scripts/services/Group.js"></script>
     <script src="scripts/services/View.js"></script>
     <script src="scripts/services/ldap.js"></script>
     <script src="scripts/services/Cluster.js"></script>
+    <script src="scripts/services/uiAlert.js"></script>
+    <script src="scripts/services/PermissionLoader.js"></script>
+    <script src="scripts/services/PermissionsSaver.js"></script>
+    <script src="scripts/services/ConfirmationModal.js"></script>
+    <script src="scripts/services/Auth.js"></script>
+    <script src="scripts/services/GetDifference.js"></script>
     <!-- endbuild -->
 </body>
 </html>

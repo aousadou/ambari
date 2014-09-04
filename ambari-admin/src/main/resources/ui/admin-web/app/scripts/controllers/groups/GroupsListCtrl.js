@@ -18,31 +18,58 @@
 'use strict';
 
 angular.module('ambariAdminConsole')
-.controller('GroupsListCtrl',['$scope', 'Group', '$modal', function($scope, Group, $modal) {
-	$scope.groups = [];
+.controller('GroupsListCtrl',['$scope', 'Group', '$modal', 'ConfirmationModal', '$rootScope', function($scope, Group, $modal, ConfirmationModal, $rootScope) {
+  $scope.groups = [];
 
-	Group.all().then(function(groups) {
-		$scope.groups = groups;	
-	})
-	.catch(function(data) {
-		console.error('Get groups list error');
-	});
+  $scope.groupsPerPage = 10;
+  $scope.currentPage = 1;
+  $scope.totalGroups = 1;
+  $scope.currentNameFilter = '';
+  $scope.maxVisiblePages=20;
 
-	$scope.deleteGroup = function(group) {
-		group.destroy().then(function() {
-			$scope.groups.splice( $scope.groups.indexOf(group), 1);
-		});
-	};
-
-	$scope.syncLDAP = function() {
-    var modaInstance = $modal.open({
-      templateUrl: 'views/ldapModal.html',
-      controller: 'LDAPModalCtrl',
-      resolve:{
-        resourceType: function() {
-          return 'groups';
-        }
-      }
-    });
+  $scope.pageChanged = function() {
+    loadGroups();
   };
+  $scope.groupsPerPageChanges = function() {
+    loadGroups();
+  };
+
+  $scope.resetPagination = function() {
+    $scope.currentPage = 1;
+    loadGroups();
+  };
+
+  function loadGroups(){
+    Group.all({
+      currentPage: $scope.currentPage, 
+      groupsPerPage: $scope.groupsPerPage, 
+      searchString: $scope.currentNameFilter,
+      ldap_group: $scope.currentTypeFilter.value
+    }).then(function(groups) {
+      $scope.totalGroups = groups.itemTotal;
+      $scope.groups = groups;
+    })
+    .catch(function(data) {
+      console.error('Get groups list error');
+    });
+  }
+
+  $scope.typeFilterOptions = [
+    {label:'All', value:'*'},
+    {label:'Local', value: false},
+    {label:'LDAP', value:true}
+  ];
+  $scope.currentTypeFilter = $scope.typeFilterOptions[0];
+  
+  loadGroups();
+
+  $rootScope.$watch(function(scope) {
+    return scope.LDAPSynced;
+  }, function(LDAPSynced) {
+    if(LDAPSynced === true){
+      $rootScope.LDAPSynced = false;
+      loadGroups();
+    }
+  });
+
 }]);

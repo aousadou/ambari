@@ -32,6 +32,7 @@ describe('App.WizardStep4Controller', function () {
 
   var generateSelectedServicesContent = function(selectedServiceNames) {
     var allServices = services.slice(0);
+    modelSetup.setupStackServiceComponent();
     if (selectedServiceNames.contains('GLUSTERFS')) allServices.push('GLUSTERFS');
     allServices = allServices.map(function(serviceName) {
       return [Ember.Object.create({
@@ -42,7 +43,7 @@ describe('App.WizardStep4Controller', function () {
         isPrimaryDFS: serviceName == 'HDFS',
         isDFS: ['HDFS','GLUSTERFS'].contains(serviceName),
         isMonitoringService: ['NAGIOS','GANGLIA'].contains(serviceName),
-        dependentServices: App.StackService.dependency['HDP-2'][serviceName],
+        requiredServices: App.StackService.find(serviceName).get('requiredServices'),
         displayNameOnSelectServicePage: App.format.role(serviceName),
         coSelectedServices: function() {
           return App.StackService.coSelected[this.get('serviceName')] || [];
@@ -116,41 +117,17 @@ describe('App.WizardStep4Controller', function () {
     });
   });
 
-  describe('#noDFSs()', function () {
-    it('should return true if HDFS is not selected and GLUSTERFS is absent', function () {
-      controller.findProperty('serviceName', 'HDFS').set('isSelected', false);
-      expect(controller.noDFSs()).to.equal(true);
-    });
-    it('should return false if HDFS is selected and GLUSTERFS is absent', function () {
-      controller.findProperty('serviceName', 'HDFS').set('isSelected', true);
-      expect(controller.noDFSs()).to.equal(false);
-    });
-    it('should return true if HDFS is not selected and GLUSTERFS is not selected, but present', function () {
-      controller.pushObject(Ember.Object.create({
-        'serviceName':'GLUSTERFS', 'isSelected': false, 'canBeSelected': true, 'isInstalled': false, 'isDisabled': false, 'isDFS': true
-      }));
-      controller.findProperty('serviceName', 'HDFS').set('isSelected', false);
-      expect(controller.noDFSs()).to.equal(true);
-    });
-    it('should return false if HDFS is not selected and GLUSTERFS is selected', function () {
-      controller.findProperty('serviceName', 'GLUSTERFS').set('isSelected', true);
-      expect(controller.noDFSs()).to.equal(false);
-    });
-  });
-
   describe('#multipleDFSs()', function () {
     it('should return true if HDFS is selected and GLUSTERFS is selected', function () {
-      controller.findProperty('serviceName', 'HDFS').set('isSelected', true);
-      controller.findProperty('serviceName', 'GLUSTERFS').set('isSelected', true);
+      controller.set('content', generateSelectedServicesContent(['HDFS', 'GLUSTERFS']));
       expect(controller.multipleDFSs()).to.equal(true);
     });
     it('should return false if HDFS is not selected and GLUSTERFS is selected', function () {
-      controller.findProperty('serviceName', 'HDFS').set('isSelected', false);
+      controller.set('content', generateSelectedServicesContent(['GLUSTERFS']));
       expect(controller.multipleDFSs()).to.equal(false);
     });
     it('should return false if HDFS is selected and GLUSTERFS is not selected', function () {
-      controller.findProperty('serviceName', 'HDFS').set('isSelected', true);
-      controller.findProperty('serviceName', 'GLUSTERFS').set('isSelected', false);
+      controller.set('content', generateSelectedServicesContent(['HDFS']));
       expect(controller.multipleDFSs()).to.equal(false);
     });
   });
@@ -295,7 +272,7 @@ describe('App.WizardStep4Controller', function () {
       },
       {
         services: ['ZOOKEEPER'],
-        errorsExpected: ['fsCheck', 'monitoringCheck']
+        errorsExpected: ['monitoringCheck']
       },
       {
         services: ['HDFS'],
@@ -345,8 +322,8 @@ describe('App.WizardStep4Controller', function () {
       },
       {
         services: ['ZOOKEEPER'],
-        confirmPopupCount: 2,
-        errorsExpected: ['fsCheck', 'monitoringCheck']
+        confirmPopupCount: 1,
+        errorsExpected: ['monitoringCheck']
       },
       {
         services: ['HDFS', 'GLUSTERFS', 'ZOOKEEPER', 'HIVE'],
@@ -492,6 +469,41 @@ describe('App.WizardStep4Controller', function () {
         expect(App.router.send.calledOnce).to.equal(test.userCanProceed);
       });
 
+    })
+  });
+
+  describe('#dependencies', function() {
+    var tests = [
+      {
+        services: ['HDFS'],
+        dependencies: ['ZOOKEEPER'] 
+      },
+      {
+        services: ['STORM'],
+        dependencies: ['ZOOKEEPER'] 
+      }
+    ];
+    tests.forEach(function(test) {
+      var message = '{0} dependency should be {1}'.format(test.services.join(','), test.dependencies.join(','));
+      it(message, function() {
+        
+        controller.clear();
+        controller.set('content', generateSelectedServicesContent(test.services));
+        
+        var dependentServicesTest = [];
+        
+        test.services.forEach(function(serviceName) {
+          var service = controller.filterProperty('serviceName', serviceName);
+          service.forEach(function(item) {
+            var dependencies = item.get('requiredServices');
+            if(!!dependencies) {
+              dependentServicesTest = dependentServicesTest.concat(dependencies);
+            }
+          });
+        });
+
+        expect(dependentServicesTest).to.be.eql(test.dependencies);
+      });
     })
   });
 

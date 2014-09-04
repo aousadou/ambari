@@ -66,7 +66,7 @@ angular.module('ambariAdminConsole')
   views: {
     list: {
       url: '/views',
-      templateUrl: 'views/ambariViews/list.html',
+      templateUrl: 'views/ambariViews/listTable.html',
       controller: 'ViewsListCtrl',
     },
     edit: {
@@ -75,9 +75,9 @@ angular.module('ambariAdminConsole')
       controller: 'ViewsEditCtrl'
     },
     create: {
-      url: '/views/new',
+      url: '/views/:viewId/versions/:version/new',
       templateUrl: 'views/ambariViews/create.html',
-      controller: 'ViewsCreateCtrl'
+      controller: 'CreateViewInstanceCtrl'
     }
   },
   clusters:{

@@ -29,9 +29,9 @@ describe('App.MainHostDetailsController', function () {
 
   beforeEach(function() {
     controller = App.MainHostDetailsController.create({
-      getSecurityStatus: function () {
+      securityEnabled: function () {
         return this.get('mockSecurityStatus');
-      },
+      }.property(),
       mockSecurityStatus: false
     });
   });
@@ -336,21 +336,6 @@ describe('App.MainHostDetailsController', function () {
         displayName: 'comp1'
       });
       controller.primary(component);
-      expect(App.ajax.send.calledOnce).to.be.true;
-    });
-  });
-
-  describe('#addNewComponentSuccessCallback()', function () {
-
-    beforeEach(function () {
-      sinon.stub(App.ajax, "send", Em.K);
-    });
-    afterEach(function () {
-      App.ajax.send.restore();
-    });
-
-    it('Query should be sent', function () {
-      controller.addNewComponentSuccessCallback({}, {}, {component: Em.Object.create()});
       expect(App.ajax.send.calledOnce).to.be.true;
     });
   });
@@ -1369,4 +1354,28 @@ describe('App.MainHostDetailsController', function () {
       })])).to.be.true;
     });
   });
+
+  describe('#downloadClientConfigs()', function () {
+
+    beforeEach(function () {
+      sinon.stub($, 'fileDownload', function() {
+        return {
+          fail: function() { return false; }
+        }
+      });
+    });
+    afterEach(function () {
+      $.fileDownload.restore();
+    });
+
+    it('should launch $.fileDownload method', function () {
+      controller.downloadClientConfigs({
+        context: Em.Object.create({
+          componentName: 'name'
+        })
+      });
+      expect($.fileDownload.calledOnce).to.be.true;
+    });
+  });
+
 });

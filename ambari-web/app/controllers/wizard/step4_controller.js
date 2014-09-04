@@ -88,15 +88,6 @@ App.WizardStep4Controller = Em.ArrayController.extend({
   },
 
   /**
-   * Check whether we should turn on <code>HDFS or GLUSTERFS</code> service
-   * @return {bool}
-   * @method noDFSs
-   */
-  noDFSs: function () {
-    return  !this.filterProperty('isDFS',true).someProperty('isSelected',true);
-  },
-
-  /**
    * Check if multiple distributed file systems were selected
    * @return {bool}
    * @method multipleDFSs
@@ -131,9 +122,9 @@ App.WizardStep4Controller = Em.ArrayController.extend({
    */
   submit: function () {
     if (!this.get('isSubmitDisabled')) {
+      this.setGroupedServices();
       if (this.validate()) {
         this.set('errorStack', []);
-        this.setGroupedServices();
         App.router.send('next');
       }
     }
@@ -241,14 +232,7 @@ App.WizardStep4Controller = Em.ArrayController.extend({
     var primaryDFS = this.findProperty('isPrimaryDFS',true);
     var primaryDfsDisplayName = primaryDFS.get('displayNameOnSelectServicePage');
     var primaryDfsServiceName = primaryDFS.get('serviceName');
-     if (this.noDFSs()) {
-       this.addValidationError({
-         id: 'fsCheck',
-         callback: this.needToAddServicePopup,
-         callbackParams: [{serviceName: primaryDfsServiceName, selected: true},'fsCheck', primaryDfsDisplayName]
-       });
-     }
-     else if (this.multipleDFSs()) {
+     if (this.multipleDFSs()) {
        var dfsServices = this.filterProperty('isDFS',true).filterProperty('isSelected',true).mapProperty('serviceName');
        var services = dfsServices.map(function (item){
          return  {
@@ -270,27 +254,33 @@ App.WizardStep4Controller = Em.ArrayController.extend({
    * @method serviceDependencyValidation
    */
   serviceDependencyValidation: function() {
-    var notSelectedServices = this.filterProperty('isSelected',false);
-    notSelectedServices.forEach(function(service){
-      var showWarningPopup;
-      var dependentServices =  service.get('dependentServices');
-      if (!!dependentServices) {
-        showWarningPopup = false;
-        dependentServices.forEach(function(_dependentService){
-          var dependentService = this.findProperty('serviceName', _dependentService);
-          if (dependentService && dependentService.get('isSelected') === true) {
-            showWarningPopup = true;
+    var selectedServices = this.filterProperty('isSelected',true);
+    var missingDependencies = [];
+    var missingDependenciesDisplayName = [];
+    selectedServices.forEach(function(service){
+      var requiredServices =  service.get('requiredServices');
+      if (!!requiredServices && requiredServices.length) {
+        requiredServices.forEach(function(_requiredService){
+          var requiredService = this.findProperty('serviceName', _requiredService);
+          if (requiredService && requiredService.get('isSelected') === false) {
+            if(missingDependencies.indexOf(_requiredService) == -1 ) {
+              missingDependencies.push(_requiredService);
+              missingDependenciesDisplayName.push(requiredService.get('displayNameOnSelectServicePage'));
+            }
           }
         },this);
-        if (showWarningPopup) {
-          this.addValidationError({
-            id: 'serviceCheck_' + service.get('serviceName'),
-            callback: this.needToAddServicePopup,
-            callbackParams: [{serviceName: service.get('serviceName'), selected: true}, 'serviceCheck', service.get('displayNameOnSelectServicePage')]
-          });
-        }
       }
     },this);
+    
+    if (missingDependencies.length > 0) {
+      for(var i = 0; i < missingDependencies.length; i++) {
+        this.addValidationError({
+          id: 'serviceCheck_' + missingDependencies[i],
+          callback: this.needToAddServicePopup,
+          callbackParams: [{serviceName: missingDependencies[i], selected: true}, 'serviceCheck', missingDependenciesDisplayName[i]]
+        });
+      }
+    }
   },
 
   /**
@@ -303,7 +293,9 @@ App.WizardStep4Controller = Em.ArrayController.extend({
       var coSelectedServices = service.get('coSelectedServices');
       coSelectedServices.forEach(function(groupedServiceName) {
         var groupedService = this.findProperty('serviceName', groupedServiceName);
-        groupedService.set('isSelected',service.get('isSelected'));
+        if (groupedService.get('isSelected') !== service.get('isSelected')) {
+          groupedService.set('isSelected',service.get('isSelected'));
+        }
       },this);
     },this);
   },

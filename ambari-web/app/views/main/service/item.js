@@ -84,7 +84,7 @@ App.MainServiceItemView = Em.View.extend({
         action: 'enableRMHighAvailability',
         label: Em.I18n.t('admin.rm_highAvailability.button.enable'),
         cssClass: 'icon-arrow-up',
-        isHidden: !App.get('supports.resourceManagerHighAvailability') || App.get('isRMHaEnabled') || !App.get('isHadoop21Stack')
+        isHidden: !App.get('supports.resourceManagerHighAvailability') || App.get('isRMHaEnabled')
       },
       MOVE_COMPONENT: {
         action: 'reassignMaster',
@@ -93,21 +93,44 @@ App.MainServiceItemView = Em.View.extend({
         cssClass: 'icon-share-alt',
         disabled: false
       },
-      ADD_HBASE_MASTER_COMPONENT: {
-        action: 'addHbaseMaster',
-        cssClass: 'icon-plus',
-        'label': '{0} {1}'.format(Em.I18n.t('add'), Em.I18n.t('dashboard.services.hbase.masterServer')),
-        disabled: this.get('controller.isAddHBaseMasterDisabled'),
-        tooltip: this.get('controller.addHBaseMasterDisabledTooltip')
+      REBALANCE_HDFS: {
+        action: 'rebalanceHdfsNodes',
+        context: Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes.context'),
+        label: Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes'),
+        cssClass: 'icon-refresh',
+        disabled: false
       },
-      ADD_ZOO_KEEPER_SERVER_COMPONENT: {
-        action: 'addZooKeeperServer',
-        cssClass: 'icon-plus',
-        'label': '{0} {1}'.format(Em.I18n.t('add'), Em.I18n.t('dashboard.services.zookeeper.server')),
-        disabled: this.get('controller.isAddZooKeeperServerDisabled'),
-        tooltip: this.get('controller.addZooKeeperServerDisabledTooltip')
+      DOWNLOAD_CLIENT_CONFIGS: {
+        action: 'downloadClientConfigs',
+        label: Em.I18n.t('services.service.actions.downloadClientConfigs'),
+        cssClass: 'icon-download-alt',
+        isHidden: !(App.get('supports.downloadClientConfigs') && this.get('controller.content.hostComponents').findProperty('isClient')),
+        disabled: false
       }
     }
+  },
+
+   addActionMap: function() {
+     return [
+      {
+        cssClass: 'icon-plus',
+        'label': '{0} {1}'.format(Em.I18n.t('add'), Em.I18n.t('dashboard.services.hbase.masterServer')),
+        service: 'HBASE',
+        component: 'HBASE_MASTER'
+      },
+      {
+        cssClass: 'icon-plus',
+        'label': '{0} {1}'.format(Em.I18n.t('add'), Em.I18n.t('dashboard.services.zookeeper.server')),
+        service: 'ZOOKEEPER',
+        component: 'ZOOKEEPER_SERVER'
+      },
+      {
+        cssClass: 'icon-plus',
+        'label': '{0} {1}'.format(Em.I18n.t('add'), Em.I18n.t('dashboard.services.flume.agentLabel')),
+        service: 'FLUME',
+        component: 'FLUME_HANDLER'
+      }
+    ]
   },
   /**
    * Create option for MOVE_COMPONENT or ROLLING_RESTART task.
@@ -127,13 +150,13 @@ App.MainServiceItemView = Em.View.extend({
     var allMasters = service.get('hostComponents').filterProperty('isMaster').mapProperty('componentName').uniq();
     var allSlaves = service.get('hostComponents').filterProperty('isSlave').mapProperty('componentName').uniq();
     var actionMap = this.actionMap();
+    var serviceCheckSupported = App.get('services.supportsServiceCheck').contains(service.get('serviceName'));
 
     if (this.get('controller.isClientsOnlyService')) {
-      options.push(actionMap.RUN_SMOKE_TEST);
-      options.push(actionMap.REFRESH_CONFIGS);
-      if (this.get('serviceName') === 'TEZ') {
-        options = options.without(actionMap.RUN_SMOKE_TEST);
+      if (serviceCheckSupported) {
+        options.push(actionMap.RUN_SMOKE_TEST);
       }
+      options.push(actionMap.REFRESH_CONFIGS);
     } else {
       if (this.get('serviceName') === 'FLUME') {
         options.push(actionMap.REFRESH_CONFIGS);
@@ -168,18 +191,22 @@ App.MainServiceItemView = Em.View.extend({
             break;
         }
       }
-
-      options.push(actionMap.RUN_SMOKE_TEST);
+      if (serviceCheckSupported) {
+        options.push(actionMap.RUN_SMOKE_TEST);
+      }
       options.push(actionMap.TOGGLE_PASSIVE);
-
       var serviceName = service.get('serviceName');
-      if (serviceName === 'HBASE') {
-        options.push(actionMap.ADD_HBASE_MASTER_COMPONENT);
+      if (serviceName === 'HDFS') {
+        options.push(actionMap.REBALANCE_HDFS);
       }
-      if (serviceName === 'ZOOKEEPER') {
-        options.push(actionMap.ADD_ZOO_KEEPER_SERVER_COMPONENT);
-      }
+      self.addActionMap().filterProperty('service', serviceName).forEach(function(item) {
+        item.action = 'add' + item.component;
+        item.disabled = self.get('controller.isAddDisabled-' + item.component);
+        item.tooltip = self.get('controller.addDisabledTooltip' + item.component);
+        options.push(item);
+      });
     }
+    options.push(actionMap.DOWNLOAD_CLIENT_CONFIGS);
     return options;
   }.property('controller.content', 'controller.isStopDisabled','controller.isClientsOnlyService', 'controller.content.isRestartRequired', 'isPassive'),
 

@@ -29,7 +29,7 @@ import java.util.Set;
     @NamedQuery(name = "ldapUserByName", query = "SELECT user FROM UserEntity user where lower(user.userName)=:username AND user.ldapUser=true")
 })
 @TableGenerator(name = "user_id_generator",
-    table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "value"
+    table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "sequence_value"
     , pkColumnValue = "user_id_seq"
     , initialValue = 2
     , allocationSize = 1
@@ -58,9 +58,6 @@ public class UserEntity {
 
   @Column(name = "active")
   private Integer active = 1;
-
-  @ManyToMany(mappedBy = "userEntities")
-  private Set<RoleEntity> roleEntities;
 
   @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
   private Set<MemberEntity> memberEntities;
@@ -116,14 +113,6 @@ public class UserEntity {
 
   public void setCreateTime(Date createTime) {
     this.createTime = createTime;
-  }
-
-  public Set<RoleEntity> getRoleEntities() {
-    return roleEntities;
-  }
-
-  public void setRoleEntities(Set<RoleEntity> roleEntities) {
-    this.roleEntities = roleEntities;
   }
 
   public Set<MemberEntity> getMemberEntities() {

@@ -138,21 +138,17 @@ public class Configuration {
   public static final String LDAP_USER_OBJECT_CLASS_KEY =
       "authentication.ldap.userObjectClass";
   public static final String LDAP_GROUP_BASE_KEY =
-      "authorization.ldap.groupBase";
+      "authentication.ldap.groupBase";
   public static final String LDAP_GROUP_OBJECT_CLASS_KEY =
-      "authorization.ldap.groupObjectClass";
+      "authentication.ldap.groupObjectClass";
   public static final String LDAP_GROUP_NAMING_ATTR_KEY =
-      "authorization.ldap.groupNamingAttr";
+      "authentication.ldap.groupNamingAttr";
   public static final String LDAP_GROUP_MEMEBERSHIP_ATTR_KEY =
-      "authorization.ldap.groupMembershipAttr";
+      "authentication.ldap.groupMembershipAttr";
   public static final String LDAP_ADMIN_GROUP_MAPPING_RULES_KEY =
       "authorization.ldap.adminGroupMappingRules";
   public static final String LDAP_GROUP_SEARCH_FILTER_KEY =
       "authorization.ldap.groupSearchFilter";
-  public static final String USER_ROLE_NAME_KEY =
-      "authorization.userRoleName";
-  public static final String ADMIN_ROLE_NAME_KEY =
-      "authorization.adminRoleName";
   public static final String SERVER_EC_CACHE_SIZE = "server.ecCacheSize";
   public static final String SERVER_STALE_CONFIG_CACHE_ENABLED_KEY =
     "server.cache.isStale.enabled";
@@ -289,7 +285,7 @@ public class Configuration {
   private static final String SERVER_CONNECTION_MAX_IDLE_TIME =
       "server.connection.max.idle.millis";
 
-  private static final String UBUNTU_OS = "debian12";
+  private static final String UBUNTU_OS = "ubuntu12";
 
   /**
    * Default for repo validation suffixes.
@@ -349,10 +345,6 @@ public class Configuration {
         PASSPHRASE_ENV_KEY, PASSPHRASE_ENV_DEFAULT));
     configsMap.put(PASSPHRASE_KEY, System.getenv(configsMap.get(
         PASSPHRASE_ENV_KEY)));
-    configsMap.put(USER_ROLE_NAME_KEY, properties.getProperty(
-        USER_ROLE_NAME_KEY, USER_ROLE_NAME_DEFAULT));
-    configsMap.put(ADMIN_ROLE_NAME_KEY, properties.getProperty(
-        ADMIN_ROLE_NAME_KEY, ADMIN_ROLE_NAME_DEFAULT));
     configsMap.put(RESOURCES_DIR_KEY, properties.getProperty(
         RESOURCES_DIR_KEY, RESOURCES_DIR_DEFAULT));
     configsMap.put(SRVR_CRT_PASS_LEN_KEY, properties.getProperty(

@@ -18,47 +18,71 @@
 'use strict';
 
 angular.module('ambariAdminConsole')
-.controller('UsersListCtrl',['$scope', 'User', '$modal', function($scope, User, $modal) {
+.controller('UsersListCtrl',['$scope', 'User', '$modal', '$rootScope', function($scope, User, $modal, $rootScope) {
   $scope.users = [];
-  User.list().then(function(data) {
-    $scope.users = data.items;
-  });
+  $scope.usersPerPage = 10;
+  $scope.currentPage = 1;
+  $scope.totalUsers = 1;
+  $scope.currentNameFilter = '';
+  $scope.maxVisiblePages=20;
 
-  $scope.actvieFilterOptions = ['All', 'Active', 'Inactive'];
-  $scope.currentActiveFilter = 'All';
-  $scope.activeFilter = function(user) {
-    var af = $scope.currentActiveFilter;
-    if (af === 'All') {
-      return user;
-    } else if(af === 'Active' && user.Users.active){
-      return user;
-    } else if(af === 'Inactive' && !user.Users.active){
-      return user;
-    }
+  $scope.pageChanged = function() {
+    $scope.loadUsers();
+  };
+  $scope.usersPerPageChanges = function() {
+    $scope.resetPagination();
   };
 
-  $scope.typeFilterOptions = ['All', 'Local', 'LDAP'];
-  $scope.currentTypeFilter = 'All';
-  $scope.typeFilter = function(user) {
-    var tf = $scope.currentTypeFilter;
-    if (tf === 'All') {
-      return user;
-    } else if(tf === 'Local' && !user.Users.ldap_user){
-      return user;
-    } else if(tf === 'LDAP' && user.Users.ldap_user){
-      return user;
-    }
-  };
-
-  $scope.syncLDAP = function() {
-    var modaInstance = $modal.open({
-      templateUrl: 'views/ldapModal.html',
-      controller: 'LDAPModalCtrl',
-      resolve:{
-        resourceType: function() {
-          return 'users';
-        }
-      }
+  $scope.loadUsers = function(){
+    User.list({
+      currentPage: $scope.currentPage, 
+      usersPerPage: $scope.usersPerPage, 
+      searchString: $scope.currentNameFilter,
+      ldap_user: $scope.currentTypeFilter.value,
+      active: $scope.currentActiveFilter.value,
+      admin: $scope.adminFilter
+    }).then(function(data) {
+      $scope.totalUsers = data.data.itemTotal;
+      $scope.users = data.data.items;
     });
   };
+
+  $scope.resetPagination = function() {
+    $scope.currentPage = 1;
+    $scope.loadUsers();
+  };
+
+  $scope.actvieFilterOptions = [
+    {label: 'All', value: '*'}, 
+    {label: 'Active', value: true}, 
+    {label:'Inactive', value:false}
+  ];
+  $scope.currentActiveFilter = $scope.actvieFilterOptions[0];
+  
+
+  $scope.typeFilterOptions = [
+    {label:'All', value:'*'},
+    {label:'Local', value:false},
+    {label:'LDAP', value:true}
+  ];
+  $scope.currentTypeFilter = $scope.typeFilterOptions[0];
+
+  $scope.adminFilter = false;
+  $scope.toggleAdminFilter = function() {
+    $scope.adminFilter = !$scope.adminFilter;
+    $scope.resetPagination();
+    $scope.loadUsers();
+  };
+
+
+  $scope.loadUsers();
+
+  $rootScope.$watch(function(scope) {
+    return scope.LDAPSynced;
+  }, function(LDAPSynced) {
+    if(LDAPSynced === true){
+      $rootScope.LDAPSynced = false;
+      $scope.loadUsers();
+    }
+  });
 }]);

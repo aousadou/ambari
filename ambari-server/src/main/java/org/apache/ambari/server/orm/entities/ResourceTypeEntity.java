@@ -26,7 +26,7 @@ import javax.persistence.*;
 @Table(name = "adminresourcetype")
 @Entity
 @TableGenerator(name = "resource_type_id_generator",
-    table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "value"
+    table = "ambari_sequences", pkColumnName = "sequence_name", valueColumnName = "sequence_value"
     , pkColumnValue = "resource_type_id_seq"
     , initialValue = 4
     , allocationSize = 1
@@ -120,5 +120,11 @@ public class ResourceTypeEntity {
     result = 31 * result + (name != null ? name.hashCode() : 0);
     return result;
   }
+
+  @Override
+  public String toString() {
+    return "ResourceTypeEntity [id=" + id + ", name=" + name + "]";
+  }
+
 }
 

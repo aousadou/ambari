@@ -18,11 +18,12 @@
 'use strict';
 
 angular.module('ambariAdminConsole')
-.factory('User', ['Restangular', function(Restangular) {
+.factory('User', ['Restangular', '$http', 'Settings', function(Restangular, $http, Settings) {
   Restangular.addResponseInterceptor(function(data, operation, what, url, response, deferred) {
     var extractedData;
     if(operation === 'getList'){
       extractedData = data.items;
+      extractedData.itemTotal = data.itemTotal;
     } else {
       extractedData = data;
     }
@@ -33,10 +34,17 @@ angular.module('ambariAdminConsole')
   var Users = Restangular.all('users');
 
   return {
-    list: function(cb) {
-      return Users.customGET('', {
-        fields: 'Users/ldap_user,Users/active'
-      });
+    list: function(params) {
+      return $http.get(
+        Settings.baseUrl + '/users/?' 
+        + 'Users/user_name.matches(.*'+params.searchString+'.*)'
+        + '&fields=*'
+        + '&from=' + (params.currentPage-1)*params.usersPerPage
+        + '&page_size=' + params.usersPerPage
+        + (params.ldap_user === '*' ? '' : '&Users/ldap_user=' + params.ldap_user)
+        + (params.active === '*' ? '' : '&Users/active=' + params.active)
+        + (params.admin ? '&Users/admin=true' : '')
+      );
     },
     get: function(userId) {
       return Restangular.one('users', userId).get();
@@ -47,16 +55,30 @@ angular.module('ambariAdminConsole')
     setActive: function(userId, isActive) {
       return Restangular.one('users', userId).customPUT({'Users/active':isActive});
     },
+    setAdmin: function(userId, isAdmin) {
+      return Restangular.one('users', userId).customPUT({'Users/admin':isAdmin});
+    },
     setPassword: function(user, password, currentUserPassword) {
-
-      return Restangular.one('users', user.user_name).customPUT({
-        'Users/password': password,
-        'Users/old_password': currentUserPassword,
-        'Users/roles': user.roles[0] || 'user'
+      return $http({
+        method: 'PUT',
+        url: Settings.baseUrl + '/users/' + user.user_name,
+        data: {
+          'Users/password': password,
+          'Users/old_password': currentUserPassword
+        }
       });
     },
     delete: function(userId) {
       return Restangular.one('users', userId).remove();
+    },
+    getPrivilegies : function(userId) {
+      return $http.get(Settings.baseUrl + '/privileges', {
+        params:{
+          'PrivilegeInfo/principal_type': 'USER',
+          'PrivilegeInfo/principal_name': userId,
+          'fields': '*'
+        }
+      });
     }
   };
 }]);

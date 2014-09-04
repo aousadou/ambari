@@ -141,6 +141,10 @@ public class ResourceInstanceFactoryImpl implements ResourceInstanceFactory {
       case StackVersion:
         resourceDefinition = new StackVersionResourceDefinition();
         break;
+        
+      case StackLevelConfiguration:
+        resourceDefinition = new StackLevelConfigurationResourceDefinition();
+        break;
 
       case StackService:
         resourceDefinition = new StackServiceResourceDefinition();
@@ -270,6 +274,11 @@ public class ResourceInstanceFactoryImpl implements ResourceInstanceFactory {
       case Controller:
         resourceDefinition = new ControllerResourceDefinition(
             ControllerType.getByName(mapIds.get(Resource.Type.Controller)));
+        break;
+
+      case ClientConfig:
+        resourceDefinition = new ClientConfigResourceDefinition();
+        break;
 
       default:
         throw new IllegalArgumentException("Unsupported resource type: " + type);

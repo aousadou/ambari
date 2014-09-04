@@ -119,10 +119,11 @@ module.exports =
       "defaultValue": "hdfs",
       "description": "This is the principal name for HDFS user",
       "displayType": "principal",
-      "isVisible": true,
+      "isVisible": false,
       "isOverridable": false,
       "isReconfigurable": false,
       "serviceName": "GENERAL",
+      "filename": "hadoop-env.xml",
       "category": "AMBARI"
     },
     {
@@ -133,7 +134,7 @@ module.exports =
       "defaultValue": "/etc/security/keytabs/hdfs.headless.keytab",
       "description": "Path to keytab file for HDFS user",
       "displayType": "directory",
-      "isVisible": true,
+      "isVisible": false,
       "isOverridable": false,
       "serviceName": "GENERAL",
       "filename": "hadoop-env.xml",

@@ -19,6 +19,7 @@ package org.apache.ambari.server.state;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -45,6 +46,7 @@ import org.apache.ambari.server.controller.AmbariManagementController;
 import org.apache.ambari.server.controller.ConfigurationRequest;
 import org.apache.ambari.server.orm.dao.ClusterDAO;
 import org.apache.ambari.server.orm.entities.ClusterConfigEntity;
+import org.apache.ambari.server.state.PropertyInfo.PropertyType;
 import org.apache.ambari.server.upgrade.UpgradeCatalog170;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -225,11 +227,7 @@ public class ConfigHelper {
         for (Entry<String, String> overrideEntry : tags.entrySet()) {
           Config overrideConfig = cluster.getConfig(type,
               overrideEntry.getValue());
-
-          // TODO clarify correct behavior for attributes overriding
-          if (overrideConfig != null) {
-            cloneAttributesMap(overrideConfig.getPropertiesAttributes(), attributesMap);
-          }
+          overrideAttributes(overrideConfig, attributesMap);
         }
         if (attributesMap != null) {
           attributes.put(type, attributesMap);
@@ -268,6 +266,36 @@ public class ConfigHelper {
     }
 
     return finalConfig;
+  }
+
+  /**
+   * Merge override attributes with original ones.
+   * If overrideConfig#getPropertiesAttributes does not contain occurrence of override for any of
+   * properties from overrideConfig#getProperties then persisted attribute should be removed.
+   */
+  public Map<String, Map<String, String>> overrideAttributes(Config overrideConfig,
+                                                             Map<String, Map<String, String>> persistedAttributes) {
+    if (overrideConfig != null && persistedAttributes != null) {
+      Map<String, Map<String, String>> overrideAttributes = overrideConfig.getPropertiesAttributes();
+      if (overrideAttributes != null) {
+        cloneAttributesMap(overrideAttributes, persistedAttributes);
+        Map<String, String> overrideProperties = overrideConfig.getProperties();
+        if (overrideProperties != null) {
+          Set<String> overriddenProperties = overrideProperties.keySet();
+          for (String overriddenProperty : overriddenProperties) {
+            for (Entry<String, Map<String, String>> persistedAttribute : persistedAttributes.entrySet()) {
+              String attributeName = persistedAttribute.getKey();
+              Map<String, String> persistedAttributeValues = persistedAttribute.getValue();
+              Map<String, String> overrideAttributeValues = overrideAttributes.get(attributeName);
+              if (overrideAttributeValues == null || !overrideAttributeValues.containsKey(overriddenProperty)) {
+                persistedAttributeValues.remove(overriddenProperty);
+              }
+            }
+          }
+        }
+      }
+    }
+    return persistedAttributes;
   }
 
   public void cloneAttributesMap(Map<String, Map<String, String>> sourceAttributesMap,
@@ -387,14 +415,14 @@ public class ConfigHelper {
    * @param stackId
    * @param propertyName
    */
-  public Set<String> findConfigTypesByPropertyName(StackId stackId, String propertyName) throws AmbariException {
+  public Set<String> findConfigTypesByPropertyName(StackId stackId, String propertyName, String clusterName) throws AmbariException {
     StackInfo stack = ambariMetaInfo.getStackInfo(stackId.getStackName(),
         stackId.getStackVersion());
     
     Set<String> result = new HashSet<String>();
-    
-    for(ServiceInfo serviceInfo:stack.getServices()) {
-      Set<PropertyInfo> stackProperties = ambariMetaInfo.getProperties(stack.getName(), stack.getVersion(), serviceInfo.getName());
+
+    for(Service service : clusters.getCluster(clusterName).getServices().values()) {
+      Set<PropertyInfo> stackProperties = ambariMetaInfo.getProperties(stack.getName(), stack.getVersion(), service.getName());
       
       for (PropertyInfo stackProperty : stackProperties) {
         if(stackProperty.getName().equals(propertyName)) {
@@ -405,6 +433,33 @@ public class ConfigHelper {
         }
       }
       
+    }
+    
+    return result;
+  }
+  
+  public Set<String> getPropertyValuesWithPropertyType(StackId stackId, PropertyType propertyType, Cluster cluster) throws AmbariException {
+    StackInfo stack = ambariMetaInfo.getStackInfo(stackId.getStackName(),
+        stackId.getStackVersion());
+    
+    Set<String> result = new HashSet<String>();
+
+    for(Service service : cluster.getServices().values()) {
+      Set<PropertyInfo> stackProperties = ambariMetaInfo.getProperties(stack.getName(), stack.getVersion(), service.getName());
+      
+      for (PropertyInfo stackProperty : stackProperties) {
+        if(stackProperty.getPropertyTypes().contains(propertyType)) {
+          result.add(stackProperty.getValue());
+        }
+      }
+    }
+    
+    Set<PropertyInfo> stackProperties = ambariMetaInfo.getStackProperties(stack.getName(), stack.getVersion());
+    
+    for (PropertyInfo stackProperty : stackProperties) {
+      if(stackProperty.getPropertyTypes().contains(propertyType)) {
+        result.add(stackProperty.getValue());
+      }
     }
     
     return result;
@@ -451,7 +506,7 @@ public class ConfigHelper {
     Config baseConfig = cluster.getConfig(cr.getType(), cr.getVersionTag());
     
     if (baseConfig != null) {
-      cluster.addDesiredConfig(authName, baseConfig);
+      cluster.addDesiredConfig(authName, Collections.singleton(baseConfig));
     }
   }
   
@@ -461,7 +516,7 @@ public class ConfigHelper {
    *
    * @param configurations  map of configurations keyed by type
    */
-  public void moveDeprecatedGlobals(StackId stackId, Map<String, Map<String, String>> configurations) {
+  public void moveDeprecatedGlobals(StackId stackId, Map<String, Map<String, String>> configurations, String clusterName) {
     Map<String, String> globalConfigurations = new HashMap<String, String>();
     
     if(configurations.get(Configuration.GLOBAL_CONFIG_TAG) == null ||
@@ -481,7 +536,7 @@ public class ConfigHelper {
       
       Set<String> newConfigTypes = null;
       try{
-        newConfigTypes = this.findConfigTypesByPropertyName(stackId, propertyName);
+        newConfigTypes = this.findConfigTypesByPropertyName(stackId, propertyName, clusterName);
       } catch(AmbariException e) {
         LOG.error("Exception while getting configurations from the stacks", e);
         return;
@@ -537,7 +592,7 @@ public class ConfigHelper {
     
     ServiceInfo serviceInfo = ambariMetaInfo.getService(stackId.getStackName(),
         stackId.getStackVersion(), sch.getServiceName());
-    ComponentInfo componentInfo = getComponentInfo(serviceInfo,sch.getServiceComponentName());
+    ComponentInfo componentInfo = serviceInfo.getComponentByName(sch.getServiceComponentName());
     // Configs are considered stale when:
     // - desired type DOES NOT exist in actual
     // --- desired type DOES NOT exist in stack: not_stale
@@ -593,15 +648,6 @@ public class ConfigHelper {
       }
     }
     return stale;
-  }
-
-  private ComponentInfo getComponentInfo(ServiceInfo serviceInfo, String componentName) {
-    for(ComponentInfo componentInfo : serviceInfo.getComponents()) {
-      if(componentInfo.getName().equals(componentName)){
-        return componentInfo;
-      }
-    }
-    return null;
   }
 
   /**

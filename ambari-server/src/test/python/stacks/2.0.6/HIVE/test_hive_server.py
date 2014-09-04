@@ -46,9 +46,10 @@ class TestHiveServer(RMFTestCase):
                               content='log4jproperties\nline2'
     )
     self.assertNoMoreResources()
-  
+
+  @patch("hive_service.check_fs_root")
   @patch("socket.socket")
-  def test_start_default(self, socket_mock):
+  def test_start_default(self, socket_mock, check_fs_root_mock):
     s = socket_mock.return_value
     
     self.executeScript("2.0.6/services/HIVE/package/scripts/hive_server.py",
@@ -124,11 +125,12 @@ class TestHiveServer(RMFTestCase):
                               user = 'hive'
     )
 
-    self.assertResourceCalled('Execute', '/usr/jdk64/jdk1.7.0_45/bin/java -cp /usr/lib/ambari-agent/DBConnectionVerification.jar:/usr/share/java/mysql-connector-java.jar org.apache.ambari.server.DBConnectionVerification jdbc:mysql://c6402.ambari.apache.org/hive?createDatabaseIfNotExist=true hive \'!`"\'"\'"\' 1\' com.mysql.jdbc.Driver',
+    self.assertResourceCalled('Execute', '/usr/jdk64/jdk1.7.0_45/bin/java -cp /usr/lib/ambari-agent/DBConnectionVerification.jar:/usr/share/java/mysql-connector-java.jar org.apache.ambari.server.DBConnectionVerification \'jdbc:mysql://c6402.ambari.apache.org/hive?createDatabaseIfNotExist=true\' hive \'!`"\'"\'"\' 1\' com.mysql.jdbc.Driver',
                               path=['/usr/sbin:/sbin:/usr/local/bin:/bin:/usr/bin'], tries=5, try_sleep=10
     )
 
     self.assertNoMoreResources()
+    self.assertTrue(check_fs_root_mock.called)
     self.assertTrue(socket_mock.called)
     self.assertTrue(s.close.called)
 
@@ -171,10 +173,11 @@ class TestHiveServer(RMFTestCase):
     )
     self.assertNoMoreResources()
 
+  @patch("hive_service.check_fs_root")
   @patch("socket.socket")
-  def test_start_secured(self, socket_mock):
+  def test_start_secured(self, socket_mock, check_fs_root_mock):
     s = socket_mock.return_value
-    
+
     self.executeScript("2.0.6/services/HIVE/package/scripts/hive_server.py",
                        classname = "HiveServer",
                        command = "start",
@@ -201,11 +204,12 @@ class TestHiveServer(RMFTestCase):
                               user = 'hive'
     )
 
-    self.assertResourceCalled('Execute', '/usr/jdk64/jdk1.7.0_45/bin/java -cp /usr/lib/ambari-agent/DBConnectionVerification.jar:/usr/share/java/mysql-connector-java.jar org.apache.ambari.server.DBConnectionVerification jdbc:mysql://c6402.ambari.apache.org/hive?createDatabaseIfNotExist=true hive \'!`"\'"\'"\' 1\' com.mysql.jdbc.Driver',
+    self.assertResourceCalled('Execute', '/usr/jdk64/jdk1.7.0_45/bin/java -cp /usr/lib/ambari-agent/DBConnectionVerification.jar:/usr/share/java/mysql-connector-java.jar org.apache.ambari.server.DBConnectionVerification \'jdbc:mysql://c6402.ambari.apache.org/hive?createDatabaseIfNotExist=true\' hive \'!`"\'"\'"\' 1\' com.mysql.jdbc.Driver',
                               path=['/usr/sbin:/sbin:/usr/local/bin:/bin:/usr/bin'], tries=5, try_sleep=10
     )
 
     self.assertNoMoreResources()
+    self.assertTrue(check_fs_root_mock.called)
     self.assertTrue(socket_mock.called)
     self.assertTrue(s.close.called)
 
@@ -253,7 +257,7 @@ class TestHiveServer(RMFTestCase):
                               kinit_path_local = "/usr/bin/kinit",
                               action = ['create'],
                               )
-    self.assertResourceCalled('Execute', 'hive mkdir -p /tmp/HDP-artifacts/ ; cp /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib//mysql-connector-java.jar',
+    self.assertResourceCalled('Execute', 'hive mkdir -p /tmp/AMBARI-artifacts/ ; cp /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib//mysql-connector-java.jar',
       creates = '/usr/lib/hive/lib//mysql-connector-java.jar',
       path = ['/bin', '/usr/bin/'],
       not_if = 'test -f /usr/lib/hive/lib//mysql-connector-java.jar',
@@ -284,7 +288,7 @@ class TestHiveServer(RMFTestCase):
       environment = {'no_proxy': 'c6401.ambari.apache.org'}
     )
     self.assertResourceCalled('File', '/etc/hive/conf.server/hive-env.sh',
-      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content'], conf_dir="/etc/hive/conf.server"),
+      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content']),
       owner = 'hive',
       group = 'hadoop',
     )
@@ -349,7 +353,7 @@ class TestHiveServer(RMFTestCase):
                               action = ['create'],
                               )
 
-    self.assertResourceCalled('Execute', 'hive mkdir -p /tmp/HDP-artifacts/ ; cp /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib//mysql-connector-java.jar',
+    self.assertResourceCalled('Execute', 'hive mkdir -p /tmp/AMBARI-artifacts/ ; cp /usr/share/java/mysql-connector-java.jar /usr/lib/hive/lib//mysql-connector-java.jar',
       creates = '/usr/lib/hive/lib//mysql-connector-java.jar',
       path = ['/bin', '/usr/bin/'],
       not_if = 'test -f /usr/lib/hive/lib//mysql-connector-java.jar',
@@ -380,7 +384,7 @@ class TestHiveServer(RMFTestCase):
       environment = {'no_proxy': 'c6401.ambari.apache.org'}
     )
     self.assertResourceCalled('File', '/etc/hive/conf.server/hive-env.sh',
-      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content'], conf_dir="/etc/hive/conf.server"),
+      content = InlineTemplate(self.getConfig()['configurations']['hive-env']['content']),
       owner = 'hive',
       group = 'hadoop',
     )
@@ -414,10 +418,11 @@ class TestHiveServer(RMFTestCase):
       owner = 'hive',
       group = 'hadoop',
     )
-    
+
+  @patch("hive_service.check_fs_root")
   @patch("time.time")
   @patch("socket.socket")
-  def test_socket_timeout(self, socket_mock, time_mock):        
+  def test_socket_timeout(self, socket_mock, time_mock, check_fs_root_mock):
     s = socket_mock.return_value
     s.connect = MagicMock()    
     s.connect.side_effect = socket.error("")

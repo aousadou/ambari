@@ -321,7 +321,7 @@ App.format = {
     'API': 'API',
     'DECOMMISSION_DATANODE': 'Update Exclude File',
     'DRPC': 'DRPC',
-    'FLUME_HANDLER': 'Flume Agent',
+    'FLUME_HANDLER': 'Flume',
     'GLUSTERFS': 'GLUSTERFS',
     'HBASE': 'HBase',
     'HBASE_REGIONSERVER': 'RegionServer',
@@ -373,7 +373,18 @@ App.format = {
    * return {string}
    */
   role:function (role) {
-    return this.normalizeName(role);
+    var result;
+    var models = [App.StackService, App.StackServiceComponent];
+    models.forEach(function(model){
+      var instance =  model.find().findProperty('id',role);
+      if (instance) {
+        result = instance.get('displayName');
+      }
+    },this);
+    if (!result)  {
+      result =  this.normalizeName(role);
+    }
+    return result;
   },
 
   /**
@@ -397,7 +408,7 @@ App.format = {
       suffixRegExp.lastIndex = 0;
       var matches = suffixRegExp.exec(name);
       name = matches[1].capitalize() + matches[2].capitalize();
-    };
+    }
     return name.capitalize();
   },
 
@@ -431,8 +442,16 @@ App.format = {
         result = result + ' ' + self.role(item);
       }
     });
+
+    if (result.indexOf('Decommission:') > -1 || result.indexOf('Recommission:') > -1) {
+      // for Decommission command, make sure the hostname is in lower case
+       result = result.split(':')[0] + ': ' + result.split(':')[1].toLowerCase();
+    }
     if (result === ' Nagios Update Ignore Actionexecute') {
        result = Em.I18n.t('common.maintenance.task');
+    }
+    if (result === ' Rebalancehdfs NameNode') {
+       result = Em.I18n.t('services.service.actions.run.rebalanceHdfsNodes.title');
     }
     return result;
   },

@@ -125,7 +125,7 @@ public class AmbariMetaInfo {
   // all the supported OS'es
   private static final List<String> ALL_SUPPORTED_OS = Arrays.asList(
       "centos5", "redhat5", "centos6", "redhat6", "oraclelinux5",
-      "oraclelinux6", "suse11", "sles11", "ubuntu12", "debian12");
+      "oraclelinux6", "suse11", "sles11", "ubuntu12");
 
   private final ActionDefinitionManager adManager = new ActionDefinitionManager();
   private String serverVersion = "undefined";
@@ -402,15 +402,7 @@ public class AmbariMetaInfo {
   public boolean isValidServiceComponent(String stackName, String version,
                                          String serviceName, String componentName) throws AmbariException {
     ServiceInfo service = getServiceInfo(stackName, version, serviceName);
-    if (service == null) {
-      return false;
-    }
-    for (ComponentInfo compInfo : service.getComponents()) {
-      if (compInfo.getName().equals(componentName)) {
-        return true;
-      }
-    }
-    return false;
+    return service != null && service.getComponentByName(componentName) != null;
   }
 
   /**
@@ -436,17 +428,12 @@ public class AmbariMetaInfo {
         || services.isEmpty()) {
       return retService;
     }
-    boolean found = false;
     for (Map.Entry<String, ServiceInfo> entry : services.entrySet()) {
-      for (ComponentInfo compInfo : entry.getValue().getComponents()) {
-        if (compInfo.getName().equals(componentName)) {
-          retService = entry.getKey();
-          found = true;
-          break;
-        }
-      }
-      if (found)
+      ComponentInfo vu = entry.getValue().getComponentByName(componentName);
+      if(vu != null){
+        retService = entry.getKey();
         break;
+      }
     }
     return retService;
   }
@@ -658,11 +645,37 @@ public class AmbariMetaInfo {
     return stackInfoResult;
   }
 
+  public List<String> getStackParentVersions(String stackName, String version) {
+    List<String> parents = new ArrayList<String>();
+    try {
+      StackInfo stackInfo = getStackInfo(stackName, version);
+      if (stackInfo != null) {
+        String parentVersion = stackInfo.getParentStackVersion();
+        if (parentVersion != null) {
+          parents.add(parentVersion);
+          parents.addAll(getStackParentVersions(stackName, parentVersion));
+        }
+      }
+    } catch (AmbariException e) {
+      // parent was not found. just returning empty list
+    } finally {
+      return parents;
+    }
+  }
+
   public Set<PropertyInfo> getProperties(String stackName, String version, String serviceName)
       throws AmbariException {
-
     ServiceInfo serviceInfo = getServiceInfo(stackName, version, serviceName);
     List<PropertyInfo> properties = serviceInfo.getProperties();
+    Set<PropertyInfo> propertiesResult = new HashSet<PropertyInfo>(properties);
+
+    return propertiesResult;
+  }
+  
+  public Set<PropertyInfo> getStackProperties(String stackName, String version)
+      throws AmbariException {
+    StackInfo stackInfo = getStackInfo(stackName, version);
+    List<PropertyInfo> properties = stackInfo.getProperties();
     Set<PropertyInfo> propertiesResult = new HashSet<PropertyInfo>(properties);
 
     return propertiesResult;
@@ -689,6 +702,30 @@ public class AmbariMetaInfo {
       throw new StackAccessException("stackName=" + stackName
           + ", stackVersion=" + version
           + ", serviceName=" + serviceName
+          + ", propertyName=" + propertyName);
+
+    return propertyResult;
+  }
+  
+  public Set<PropertyInfo> getStackPropertiesByName(String stackName, String version, String propertyName)
+      throws AmbariException {
+    Set<PropertyInfo> properties = getStackProperties(stackName, version);
+
+    if (properties.size() == 0)
+      throw new StackAccessException("stackName=" + stackName
+          + ", stackVersion=" + version
+          + ", propertyName=" + propertyName);
+
+    Set<PropertyInfo> propertyResult = new HashSet<PropertyInfo>();
+
+    for (PropertyInfo property : properties) {
+      if (property.getName().equals(propertyName))
+        propertyResult.add(property);
+    }
+
+    if (propertyResult.isEmpty())
+      throw new StackAccessException("stackName=" + stackName
+          + ", stackVersion=" + version
           + ", propertyName=" + propertyName);
 
     return propertyResult;

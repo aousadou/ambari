@@ -833,7 +833,6 @@ App.WizardStep3Controller = Em.Controller.extend({
       "parameters": {
         "check_execute_list": "host_resolution_check",
         "jdk_location" : jdk_location,
-        "hosts": hosts,
         "threshold": "20"
       }
     };
@@ -1139,6 +1138,7 @@ App.WizardStep3Controller = Em.Controller.extend({
    * @method repoToAgentOsType
    */
   repoToAgentOsType : function (repoType) {
+    /* istanbul ignore next */
     switch (repoType) {
       case "redhat6":
         return ["redhat6", "centos6", "oraclelinux6", "rhel6"];
@@ -1146,7 +1146,7 @@ App.WizardStep3Controller = Em.Controller.extend({
         return ["redhat5", "centos5", "oraclelinux5", "rhel5"];
       case "suse11":
         return ["suse11", "sles11", "opensuse11"];
-      case "debian12":
+      case "ubuntu12":
         return ["debian12", "ubuntu12"];
       default:
         return [];

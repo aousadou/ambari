@@ -19,7 +19,6 @@
 package org.apache.ambari.server.controller;
 
 
-import org.apache.ambari.server.state.Config;
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.codehaus.jackson.map.annotate.JsonSerialize;
 
@@ -30,9 +29,13 @@ public class ServiceConfigVersionResponse {
   private String serviceName;
   private Long version;
   private Long createTime;
-  private Long applyTime;
+  private Long groupId;
+  private String groupName;
   private String userName;
+  private String note;
+  private Boolean isCurrent = false;
   private List<ConfigurationResponse> configurations;
+  private List<String> hosts;
 
   @JsonProperty("service_name")
   public String getServiceName() {
@@ -43,7 +46,7 @@ public class ServiceConfigVersionResponse {
     this.serviceName = serviceName;
   }
 
-  @JsonProperty("serviceconfigversion")
+  @JsonProperty("service_config_version")
   public Long getVersion() {
     return version;
   }
@@ -60,16 +63,6 @@ public class ServiceConfigVersionResponse {
 
   public void setCreateTime(Long createTime) {
     this.createTime = createTime;
-  }
-
-  @JsonProperty("appliedtime")
-  @JsonSerialize(include = JsonSerialize.Inclusion.NON_NULL)
-  public Long getApplyTime() {
-    return applyTime;
-  }
-
-  public void setApplyTime(Long applyTime) {
-    this.applyTime = applyTime;
   }
 
   @JsonProperty("user")
@@ -99,6 +92,52 @@ public class ServiceConfigVersionResponse {
 
   public void setConfigurations(List<ConfigurationResponse> configurations) {
     this.configurations = configurations;
+  }
+
+  @JsonProperty("service_config_version_note")
+  @JsonSerialize(include = JsonSerialize.Inclusion.NON_NULL)
+  public String getNote() {
+    return note;
+  }
+
+  public void setNote(String note) {
+    this.note = note;
+  }
+
+  public List<String> getHosts() {
+    return hosts;
+  }
+
+  @JsonProperty("hosts")
+  public void setHosts(List<String> hosts) {
+    this.hosts = hosts;
+  }
+
+  @JsonProperty("group_name")
+  public String getGroupName() {
+    return groupName;
+  }
+
+  public void setGroupName(String groupName) {
+    this.groupName = groupName;
+  }
+
+  @JsonProperty("group_id")
+  public Long getGroupId() {
+    return groupId;
+  }
+
+  public void setGroupId(Long groupId) {
+    this.groupId = groupId;
+  }
+
+  @JsonProperty("is_current")
+  public Boolean getIsCurrent() {
+    return isCurrent;
+  }
+
+  public void setIsCurrent(Boolean isCurrent) {
+    this.isCurrent = isCurrent;
   }
 }
 
