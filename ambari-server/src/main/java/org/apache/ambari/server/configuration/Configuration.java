@@ -118,6 +118,7 @@ public class Configuration {
   public static final String OJDBC_JAR_NAME_DEFAULT = "ojdbc6.jar";
   public static final String MYSQL_JAR_NAME_KEY = "db.mysql.jdbc.name";
   public static final String MYSQL_JAR_NAME_DEFAULT = "mysql-connector-java.jar";
+  public static final String IS_LDAP_CONFIGURED = "ambari.ldap.isConfigured";
   public static final String LDAP_USE_SSL_KEY = "authentication.ldap.useSSL";
   public static final String LDAP_PRIMARY_URL_KEY =
       "authentication.ldap.primaryUrl";
@@ -280,6 +281,7 @@ public class Configuration {
   private static final String LDAP_ADMIN_GROUP_MAPPING_RULES_DEFAULT =
       "Ambari Administrators";
   private static final String LDAP_GROUP_SEARCH_FILTER_DEFAULT = "";
+  private static final String IS_LDAP_CONFIGURED_DEFAULT = "false";
   //TODO for development purposes only, should be changed to 'false'
   private static final String SERVER_PERSISTENCE_TYPE_DEFAULT = "local";
   private static final String SERVER_CONNECTION_MAX_IDLE_TIME =
@@ -300,6 +302,12 @@ public class Configuration {
   private static final String AGENT_THREADPOOL_SIZE_KEY = "agent.threadpool.size.max";
   private static final int AGENT_THREADPOOL_SIZE_DEFAULT = 25;
 
+  private static final String VIEW_EXTRACTION_THREADPOOL_MAX_SIZE_KEY = "view.extraction.threadpool.size.max";
+  private static final int VIEW_EXTRACTION_THREADPOOL_MAX_SIZE_DEFAULT = 20;
+  private static final String VIEW_EXTRACTION_THREADPOOL_CORE_SIZE_KEY = "view.extraction.threadpool.size.core";
+  private static final int VIEW_EXTRACTION_THREADPOOL_CORE_SIZE_DEFAULT = 10;
+  private static final String VIEW_EXTRACTION_THREADPOOL_TIMEOUT_KEY = "view.extraction.threadpool.timeout";
+  private static final long VIEW_EXTRACTION_THREADPOOL_TIMEOUT_DEFAULT = 100000L;
 
   private static final Logger LOG = LoggerFactory.getLogger(
       Configuration.class);
@@ -804,6 +812,10 @@ public class Configuration {
     return ldapServerProperties;
   }
 
+  public boolean isLdapConfigured() {
+    return Boolean.parseBoolean(properties.getProperty(IS_LDAP_CONFIGURED, IS_LDAP_CONFIGURED_DEFAULT));
+  }
+
   public String getServerOsType() {
     return properties.getProperty(OS_VERSION_KEY, "");
   }
@@ -1024,5 +1036,35 @@ public class Configuration {
   public int getAgentThreadPoolSize() {
     return Integer.parseInt(properties.getProperty(
         AGENT_THREADPOOL_SIZE_KEY, String.valueOf(AGENT_THREADPOOL_SIZE_DEFAULT)));
+  }
+
+  /**
+   * Get the view extraction thread pool max size.
+   *
+   * @return the view extraction thread pool max size
+   */
+  public int getViewExtractionThreadPoolMaxSize() {
+    return Integer.parseInt(properties.getProperty(
+        VIEW_EXTRACTION_THREADPOOL_MAX_SIZE_KEY, String.valueOf(VIEW_EXTRACTION_THREADPOOL_MAX_SIZE_DEFAULT)));
+  }
+
+  /**
+   * Get the view extraction thread pool core size.
+   *
+   * @return the view extraction thread pool core size
+   */
+  public int getViewExtractionThreadPoolCoreSize() {
+    return Integer.parseInt(properties.getProperty(
+        VIEW_EXTRACTION_THREADPOOL_CORE_SIZE_KEY, String.valueOf(VIEW_EXTRACTION_THREADPOOL_CORE_SIZE_DEFAULT)));
+  }
+
+  /**
+   * Get the view extraction thread pool timeout.
+   *
+   * @return the view extraction thread pool timeout
+   */
+  public long getViewExtractionThreadPoolTimeout() {
+    return Long.parseLong(properties.getProperty(
+        VIEW_EXTRACTION_THREADPOOL_TIMEOUT_KEY, String.valueOf(VIEW_EXTRACTION_THREADPOOL_TIMEOUT_DEFAULT)));
   }
 }

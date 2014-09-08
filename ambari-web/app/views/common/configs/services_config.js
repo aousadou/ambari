@@ -397,7 +397,7 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
     var categoryBlock = $('.' + this.get('category.name').split(' ').join('.') + '>.accordion-body');
     filteredResult.length && !this.get('category.isCollapsed') ? categoryBlock.show() : categoryBlock.hide();
     return filteredResult;
-  }.property('categoryConfigs', 'parentView.filter', 'parentView.columns.@each.selected', 'categoryConfigs.@each.isValid').cacheable(),
+  }.property('categoryConfigs', 'parentView.filter', 'parentView.columns.@each.selected').cacheable(),
 
   /**
    * sort configs in current category by index
@@ -448,7 +448,7 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
     } else {
       this.$('.accordion-body').show();
     }
-    $('body').tooltip({
+    $('#serviceConfig').tooltip({
       selector: '[data-toggle=tooltip]',
       placement: 'top'
     });
@@ -733,6 +733,7 @@ App.ServiceConfigsByCategoryView = Ember.View.extend(App.UserPref, {
       serviceConfigProperty.set('isFinal', defaultIsFinal);
     }
     this.miscConfigChange(serviceConfigProperty);
+    Em.$('body>.tooltip').remove(); //some tooltips get frozen when their owner's DOM element is removed
   },
 
   createOverrideProperty: function (event) {

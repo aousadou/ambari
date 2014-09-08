@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0"?>
 <!--
    Licensed to the Apache Software Foundation (ASF) under one or more
    contributor license agreements.  See the NOTICE file distributed with
@@ -15,14 +15,9 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 -->
-<metadata>
-  <groupId>org.apache.slider</groupId>
-  <artifactId>slider</artifactId>
-  <versioning>
-    <release>0.30.0</release>
+<metainfo>
     <versions>
-      <version>0.30.0</version>
+	  <active>true</active>
     </versions>
-    <lastUpdated>20140820192533</lastUpdated>
-  </versioning>
-</metadata>
+    <extends>2.1</extends>
+</metainfo>

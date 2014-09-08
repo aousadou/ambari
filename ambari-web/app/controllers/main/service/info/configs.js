@@ -171,7 +171,7 @@ App.MainServiceInfoConfigsController = Em.Controller.extend(App.ServerValidatorM
           attributeName: filter.attributeName,
           attributeValue: filter.attributeValue,
           name: this.t(filter.caption),
-          selected: false
+          selected: filter.dependentOn ? this.get(filter.dependentOn) : false
         }));
       }
     }, this);
@@ -568,29 +568,44 @@ App.MainServiceInfoConfigsController = Em.Controller.extend(App.ServerValidatorM
     });
 
     json.items[0].configurations.forEach(function (configuration) {
-      for (var prop in configuration.properties) {
-        serviceVersionMap[prop] = {
-          name: prop,
-          value: configuration.properties[prop],
+      if (serviceName == 'YARN' && configuration.type == 'capacity-scheduler') {
+        // put all properties in a single textarea for capacity-scheduler
+        var value = '';
+        for (var prop in configuration.properties) {
+          value += prop + '=' + configuration.properties[prop] + '\n';
+        }
+        serviceVersionMap[configuration.type + '-' + configuration.type] = {
+          name: configuration.type,
+          value: value,
           type: configuration.type,
           tag: configuration.tag,
           version: configuration.version
         };
-        if (Em.isNone(configNamesMap[prop])) {
-          allConfigs.push(this.getMockConfig(prop, serviceName, App.config.getOriginalFileName(configuration.type)));
+      } else {
+        for (var prop in configuration.properties) {
+          serviceVersionMap[prop + '-' + configuration.type] = {
+            name: prop,
+            value: configuration.properties[prop],
+            type: configuration.type,
+            tag: configuration.tag,
+            version: configuration.version
+          };
+          if (Em.isNone(configNamesMap[prop])) {
+            allConfigs.push(this.getMockConfig(prop, serviceName, App.config.getOriginalFileName(configuration.type)));
+          }
         }
       }
       if (configuration.properties_attributes && configuration.properties_attributes.final) {
         for (var final in configuration.properties_attributes.final) {
-          serviceVersionMap[final].isFinal = (configuration.properties_attributes.final[final] === 'true');
+          serviceVersionMap[final + '-' + configuration.type].isFinal = (configuration.properties_attributes.final[final] === 'true');
         }
       }
     }, this);
 
     allConfigs.forEach(function (serviceConfig) {
-      var compareConfig = serviceVersionMap[serviceConfig.name];
+      // map the property in the compare version to compare with current serviceConfig
+      var compareConfig = serviceVersionMap[serviceConfig.name + '-' + App.config.getConfigTagFromFileName(serviceConfig.filename)];
       var compareObject = $.extend(true, {isComparison: true}, serviceConfig);
-
       compareObject.serviceVersion = compareServiceVersion;
       compareObject.isEditable = false;
 
@@ -604,7 +619,8 @@ App.MainServiceInfoConfigsController = Em.Controller.extend(App.ServerValidatorM
         serviceConfig.compareConfig.set('isFinal', compareConfig.isFinal);
         serviceConfig.compareConfig.set('value', App.config.formatOverrideValue(serviceConfig, compareConfig.value));
         serviceConfig.isComparison = true;
-        serviceConfig.hasCompareDiffs = (serviceConfig.value !== serviceConfig.compareConfig.get('value'));
+        serviceConfig.hasCompareDiffs = (serviceConfig.value !== serviceConfig.compareConfig.get('value'))||
+          (serviceConfig.isFinal !== (serviceConfig.compareConfig.get('isFinal') == true));
       } else if (serviceConfig.isUserProperty) {
         compareObject.isMock = true;
         compareObject.displayType = 'label';
