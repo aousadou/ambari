@@ -16,19 +16,12 @@
  * limitations under the License.
  */
 
-var App = require('app');
+package org.apache.ambari.server.api.services.stackadvisor;
 
-App.MainViewsDetailsView = Em.View.extend({
+@SuppressWarnings("serial")
+public class StackAdvisorRequestException extends StackAdvisorException {
 
-  name: "mainViewsDetailsView",
-
-  tagName: "iframe",
-  classNames: ["views_sizes"],
-  attributeBindings: ['src','seamless'],
-  seamless: "seamless",
-
-  src: function() {
-    return window.location.origin + this.get('controller.content.href');
-  }.property('controller.content')
-
-});
+  public StackAdvisorRequestException(String message) {
+    super(message);
+  }
+}
